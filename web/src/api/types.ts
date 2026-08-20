@@ -38,11 +38,9 @@ export interface StoreResponse {
 
 export type DraftStatus =
   | "DRAFT"
-  | "APPROVED"
   | "SCHEDULED"
   | "PUBLISHED"
   | "FAILED"
-  | "REJECTED"
   | "BLOCKED"
   | "ALREADY_REPLIED";
 
@@ -150,6 +148,7 @@ export interface StyleSampleResponse {
 export interface StyleSampleListResponse {
   items: StyleSampleResponse[];
   hasMore: boolean;
+  manualCount: number;
 }
 
 // ── 대시보드(docs/13 §8, AnalyticsDtos) ─────────────────────────────────
@@ -221,7 +220,7 @@ export interface AnalyticsResponsePerformance {
   totalReviews: number;
   completedCount: number;
   completionRate: number;
-  autoApprovalRate: number;
+  autoPublishRate: number;
   avgResponseMinutes: number | null;
   retriedCount: number;
 }

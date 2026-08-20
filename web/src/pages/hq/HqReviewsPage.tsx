@@ -37,11 +37,9 @@ const CATEGORIES = [
 
 const DRAFT_STATUSES = [
   ["DRAFT", "검토 대기"],
-  ["APPROVED", "승인됨"],
   ["SCHEDULED", "게시 예정"],
   ["PUBLISHED", "게시 완료"],
   ["FAILED", "실패"],
-  ["REJECTED", "거절됨"],
   ["BLOCKED", "사람 확인 필요"],
   ["ALREADY_REPLIED", "이미 답글 있음"],
 ] as const;

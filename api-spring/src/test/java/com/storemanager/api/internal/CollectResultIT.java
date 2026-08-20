@@ -9,6 +9,8 @@ import com.storemanager.api.crypto.CredentialService;
 import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.draft.ReviewAnalysis;
+import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.review.ReplyStyleSample;
 import com.storemanager.api.review.ReplyStyleSampleRepository;
 import com.storemanager.api.review.StorePlatformLink;
@@ -88,6 +90,9 @@ class CollectResultIT {
     ReplyDraftRepository replyDraftRepository;
 
     @Autowired
+    ReviewAnalysisRepository reviewAnalysisRepository;
+
+    @Autowired
     org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     private Long 계약완료_매장을_만든다(Long ownerId, String name) {
@@ -110,6 +115,8 @@ class CollectResultIT {
 
     private String 수집결과_요청바디(String jobId, String platform, String platformStoreId, String reviewId,
             String authorRaw, boolean withExistingReply) {
+        Long accountId = storePlatformLinkRepository.findByPlatformAndPlatformStoreId(platform, platformStoreId)
+                .orElseThrow().getAccountId();
         String existingReplyField = withExistingReply
                 ? (",\n                      \"existingReply\": {\"id\": \"rc-1\", \"contents\": \""
                         + authorRaw + "님, 감사합니다\"}")
@@ -117,7 +124,7 @@ class CollectResultIT {
         return """
                 {
                   "jobId": "%s",
-                  "accountId": "acc-1",
+                  "accountId": "%d",
                   "platform": "%s",
                   "status": "SUCCESS",
                   "stores": [{
@@ -138,7 +145,7 @@ class CollectResultIT {
                   }],
                   "stats": { "found": 1, "new": 1, "latencyMs": 100 }
                 }
-                """.formatted(jobId, platform, platformStoreId, reviewId, authorRaw, existingReplyField);
+                """.formatted(jobId, accountId, platform, platformStoreId, reviewId, authorRaw, existingReplyField);
     }
 
     @Test
@@ -227,7 +234,7 @@ class CollectResultIT {
         String body = """
                 {
                   "jobId": "104",
-                  "accountId": "acc-1",
+                  "accountId": "%d",
                   "platform": "BAEMIN",
                   "status": "SUCCESS",
                   "stores": [
@@ -242,7 +249,7 @@ class CollectResultIT {
                   ],
                   "stats": { "found": 2, "new": 2, "latencyMs": 200 }
                 }
-                """;
+                """.formatted(account.getId());
 
         mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
@@ -260,11 +267,29 @@ class CollectResultIT {
 
     @Test
     void X_Internal_Token이_불일치하면_401을_반환한다() throws Exception {
-        String body = 수집결과_요청바디("105", "BAEMIN", "store-none", "review-none", "eee", false);
+        String body = """
+                {"jobId":"105","accountId":"1","platform":"BAEMIN","status":"SUCCESS","stores":[]}
+                """;
 
         mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", "wrong-token")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 다른_계정의_수집결과는_매장에_적재하지_않는다() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("cross-account@example.com")
+                .passwordHash("dummy").name("사장").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "cross-account", "pw");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "교차계정매장");
+        매장을_연동한다(storeId, account.getId(), "BAEMIN", "cross-store");
+        String body = 수집결과_요청바디("cross-job", "BAEMIN", "cross-store", "cross-review", "손님", false)
+                .replace("\"accountId\": \"" + account.getId() + "\"", "\"accountId\": \"999999\"");
+
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "cross-review")).isEmpty();
     }
 
     // ── 게시 결과 수신 (Sprint 4 S10) ───────────────────────────────────────
@@ -272,7 +297,7 @@ class CollectResultIT {
     // 올바른 전이를 호출하는가"는 여기서만 검증된다. 워커가 보내는 형태를 실제로 실행해
     // 확인한 값 그대로 사용한다.
 
-    private record 게시픽스처(Long draftId, Long reviewId) {
+    private record 게시픽스처(Long draftId, Long reviewId, Long accountId, String dispatchToken) {
     }
 
     private 게시픽스처 게시대기_초안을_만든다(String email, String platformReviewId) throws Exception {
@@ -289,14 +314,17 @@ class CollectResultIT {
                 .andExpect(status().isOk());
         UnifiedReview review = unifiedReviewRepository
                 .findByPlatformAndPlatformReviewId("BAEMIN", platformReviewId).orElseThrow();
+        reviewAnalysisRepository.save(ReviewAnalysis.builder().reviewId(review.getId()).category("PRAISE")
+                .sentiment(0.8f).riskLevel((short) 0).model("test").promptVersion("v1").build());
 
         ReplyDraft draft = replyDraftRepository.save(ReplyDraft.builder()
                 .reviewId(review.getId()).storeId(storeId).content("고객님 감사합니다").generatedBy("AI")
                 .build());
-        draft.approve(owner.getId(), Instant.now());
+        draft.scheduleAutomatically(Instant.now());
         replyDraftRepository.save(draft);
-        stringRedisTemplate.opsForValue().set("dispatch:draft:" + draft.getId(), "1");
-        return new 게시픽스처(draft.getId(), review.getId());
+        String dispatchToken = "dispatch-token-" + draft.getId();
+        stringRedisTemplate.opsForValue().set("dispatch:draft:" + draft.getId(), dispatchToken);
+        return new 게시픽스처(draft.getId(), review.getId(), account.getId(), dispatchToken);
     }
 
     private void 게시결과를_보낸다(String json) throws Exception {
@@ -305,21 +333,23 @@ class CollectResultIT {
                 .andExpect(status().isOk());
     }
 
-    private String 게시결과_바디(Long draftId, String status, String action, String ecode,
+    private String 게시결과_바디(게시픽스처 fixture, String status, String action, String ecode,
             String platformCommentId, String failReason) {
         return """
-                {"jobId":"pub-%d","accountId":"1","platform":"BAEMIN","status":"%s","ecode":%s,
-                 "action":"%s","publish":{"draftId":%d,"platformCommentId":%s,"failReason":%s}}
-                """.formatted(draftId, status, ecode == null ? "null" : "\"" + ecode + "\"", action, draftId,
+                {"jobId":"pub-%d","accountId":"%d","platform":"BAEMIN","status":"%s","ecode":%s,
+                 "action":"%s","publish":{"draftId":%d,"platformCommentId":%s,"failReason":%s,
+                 "dispatchToken":"%s"}}
+                """.formatted(fixture.draftId(), fixture.accountId(), status,
+                ecode == null ? "null" : "\"" + ecode + "\"", action, fixture.draftId(),
                 platformCommentId == null ? "null" : "\"" + platformCommentId + "\"",
-                failReason == null ? "null" : "\"" + failReason + "\"");
+                failReason == null ? "null" : "\"" + failReason + "\"", fixture.dispatchToken());
     }
 
     @Test
     void 게시성공이면_PUBLISHED_로_전이하고_dispatch키가_지워진다() throws Exception {
         게시픽스처 f = 게시대기_초안을_만든다("pub1@example.com", "rv-pub-1");
 
-        게시결과를_보낸다(게시결과_바디(f.draftId(), "SUCCESS", "PUBLISHED", null, "2024033103186049", null));
+        게시결과를_보낸다(게시결과_바디(f, "SUCCESS", "PUBLISHED", null, "2024033103186049", null));
 
         ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
         assertThat(after.getStatus()).isEqualTo("PUBLISHED");
@@ -329,11 +359,25 @@ class CollectResultIT {
     }
 
     @Test
+    void 발행작업과_다른_디스패치토큰은_상태를_변경하지_않는다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-token@example.com", "rv-pub-token");
+        String body = 게시결과_바디(f, "SUCCESS", "PUBLISHED", null, "forged-comment", null)
+                .replace(f.dispatchToken(), "wrong-dispatch-token");
+
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(replyDraftRepository.findById(f.draftId()).orElseThrow().getStatus()).isEqualTo("SCHEDULED");
+        assertThat(stringRedisTemplate.hasKey("dispatch:draft:" + f.draftId())).isTrue();
+    }
+
+    @Test
     void 댓글중복은_실패가_아니라_ALREADY_REPLIED_로_정상종료된다() throws Exception {
         게시픽스처 f = 게시대기_초안을_만든다("pub2@example.com", "rv-pub-2");
 
         // 워커는 ERR_MDCOM_MSG00009 를 status=SUCCESS 로 보낸다(직접 실행해 확인한 형태).
-        게시결과를_보낸다(게시결과_바디(f.draftId(), "SUCCESS", "ALREADY_REPLIED", "ERR_MDCOM_MSG00009", null, null));
+        게시결과를_보낸다(게시결과_바디(f, "SUCCESS", "ALREADY_REPLIED", "ERR_MDCOM_MSG00009", null, null));
 
         ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
         assertThat(after.getStatus()).isEqualTo("ALREADY_REPLIED");
@@ -345,7 +389,7 @@ class CollectResultIT {
     void 일반실패는_재시도를_위해_SCHEDULED_로_되돌아가고_retry_count가_증가한다() throws Exception {
         게시픽스처 f = 게시대기_초안을_만든다("pub3@example.com", "rv-pub-3");
 
-        게시결과를_보낸다(게시결과_바디(f.draftId(), "FAILED", "FAIL", "ERR_UNKNOWN_9999", null, "일시 오류"));
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", "ERR_UNKNOWN_9999", null, "일시 오류"));
 
         ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
         assertThat(after.getStatus()).isEqualTo("SCHEDULED");
@@ -359,7 +403,7 @@ class CollectResultIT {
 
         // ★ 절대규칙 3: 워커가 riskLevel>=3 이중검증으로 거절한 경우다.
         // action 은 FAIL 이지만 재시도 대상이 아니라 사람 검수 대상이다.
-        게시결과를_보낸다(게시결과_바디(f.draftId(), "FAILED", "FAIL", null, null, "RISK_LEVEL_TOO_HIGH"));
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", null, null, "RISK_LEVEL_TOO_HIGH"));
 
         ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
         assertThat(after.getStatus()).isEqualTo("BLOCKED");

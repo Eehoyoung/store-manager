@@ -127,7 +127,7 @@ class ReviewServiceTest {
         when(reviewQueryRepository.findAnalysesByReviewIds(List.of(20L))).thenReturn(List.of());
         ReplyDraft d1 = ReplyDraft.builder().id(2L).reviewId(20L).storeId(100L).content("두번째").status("DRAFT")
                 .generatedBy("AI").build();
-        ReplyDraft d2 = ReplyDraft.builder().id(1L).reviewId(20L).storeId(100L).content("첫번째").status("REJECTED")
+        ReplyDraft d2 = ReplyDraft.builder().id(1L).reviewId(20L).storeId(100L).content("첫번째").status("BLOCKED")
                 .generatedBy("AI").build();
         when(reviewQueryRepository.findDraftsByReviewId(20L)).thenReturn(List.of(d1, d2));
 

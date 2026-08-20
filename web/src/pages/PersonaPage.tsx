@@ -460,6 +460,7 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
   const [page, setPage] = useState(0);
   const [items, setItems] = useState<StyleSampleResponse[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [manualCount, setManualCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StyleSampleResponse | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -474,6 +475,7 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
       .then((res) => {
         setItems(res.items);
         setHasMore(res.hasMore);
+        setManualCount(res.manualCount);
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "말투 학습 샘플을 불러오지 못했습니다."));
   };
@@ -516,11 +518,16 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
     <Card className="persona-page__section">
       <h2>답글 형식</h2>
       <p className="field__hint">원하는 답글 예시를 최대 3건 등록하세요. 미입력 시 통합 기본 형식을 적용합니다.</p>
+      <div className={`persona-page__format-status ${manualCount === 0 ? "persona-page__format-status--default" : ""}`}
+        role="status" aria-live="polite">
+        <strong>{manualCount === 0 ? "통합 기본 형식 적용 중" : `직접 등록 형식 ${manualCount}/3건 적용 중`}</strong>
+        <span>{manualCount === 0 ? "등록하지 않아도 업종 공통 안전 형식으로 자동 운영됩니다." : "등록한 문장은 말투 참고용이며 그대로 복사되지 않습니다."}</span>
+      </div>
       <div className="persona-page__tag-input">
         <Field label="답글 예시 (최대 3건)" value={newStyle} maxLength={280}
-          onChange={(e) => setNewStyle(e.target.value)} />
+          onChange={(e) => setNewStyle(e.target.value)} hint={`${newStyle.length}/280자`} />
         <Button type="button" variant="secondary" onClick={handleAdd} loading={adding}
-          disabled={!newStyle.trim()}>등록</Button>
+          disabled={!newStyle.trim() || manualCount >= 3}>등록</Button>
       </div>
 
       {items === null && !error ? <Skeleton height={120} /> : null}
@@ -536,6 +543,9 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
                 {s.reviewText}
               </p>
               <p className="persona-page__sample-reply">{s.replyText}</p>
+              <Badge tone={s.source === "MANUAL" ? "info" : "neutral"}>
+                {s.source === "MANUAL" ? "직접 등록" : "기존 답글 학습"}
+              </Badge>
               <Button type="button" variant="danger" small onClick={() => setDeleteTarget(s)}>
                 삭제
               </Button>

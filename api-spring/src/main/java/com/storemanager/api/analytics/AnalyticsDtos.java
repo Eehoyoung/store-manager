@@ -56,6 +56,6 @@ final class AnalyticsDtos {
      * (written_at 은 시각정보가 없어 사용 불가, CLAUDE.md 데이터처리 1번).
      */
     record ResponsePerformanceResponse(String from, String to, long totalReviews, long completedCount,
-            double completionRate, double autoApprovalRate, Double avgResponseMinutes, long retriedCount) {
+            double completionRate, double autoPublishRate, Double avgResponseMinutes, long retriedCount) {
     }
 }

@@ -118,11 +118,10 @@ class AnalyticsServiceIT {
                 .status(status).generatedBy("AI").publishedAt(publishedAt).build());
     }
 
-    /** B3 용 — 승인자(approvedBy, null=자동승인)와 재시도 횟수를 지정해 초안을 만든다. */
-    private void 초안을_만든다(Long storeId, Long reviewId, String status, Instant publishedAt, Long approvedBy,
-            int retryCount) {
+    /** B3 용 — 재시도 횟수를 지정해 초안을 만든다. */
+    private void 초안을_만든다(Long storeId, Long reviewId, String status, Instant publishedAt, int retryCount) {
         replyDraftRepository.save(ReplyDraft.builder().storeId(storeId).reviewId(reviewId).content("답글")
-                .status(status).generatedBy("AI").publishedAt(publishedAt).approvedBy(approvedBy)
+                .status(status).generatedBy("AI").publishedAt(publishedAt)
                 .retryCount((short) retryCount).build());
     }
 
@@ -253,18 +252,18 @@ class AnalyticsServiceIT {
         // r1: 수동승인, 수집 10:00 → 게시 10:30 (30분)
         Instant collected1 = day.atTime(10, 0).atZone(KST).toInstant();
         Long r1 = 리뷰를_만든다_수집시각(f, "p-1", day, collected1);
-        초안을_만든다(f.storeId(), r1, "PUBLISHED", day.atTime(10, 30).atZone(KST).toInstant(), 1L, 0);
+        초안을_만든다(f.storeId(), r1, "PUBLISHED", day.atTime(10, 30).atZone(KST).toInstant(), 0);
 
-        // r2: 자동승인(approvedBy=null), 수집 09:00 → 게시 09:10 (10분), 재시도 1회
+        // r2: 자동게시, 수집 09:00 → 게시 09:10 (10분), 재시도 1회
         Instant collected2 = day.atTime(9, 0).atZone(KST).toInstant();
         Long r2 = 리뷰를_만든다_수집시각(f, "p-2", day, collected2);
-        초안을_만든다(f.storeId(), r2, "PUBLISHED", day.atTime(9, 10).atZone(KST).toInstant(), null, 1);
+        초안을_만든다(f.storeId(), r2, "PUBLISHED", day.atTime(9, 10).atZone(KST).toInstant(), 1);
 
         // r3: 아직 미완료(DRAFT, published_at 없음) — ★ 모집단이 collected_at 기준이므로 이 건도 분모에 들어간다.
         // 모집단을 published_at 으로 잡으면 분모가 '이미 게시된 것' 이 되어 완료율이 항상 100% 가 된다.
         Instant collected3 = day.atTime(11, 0).atZone(KST).toInstant();
         Long r3 = 리뷰를_만든다_수집시각(f, "p-3", day, collected3);
-        초안을_만든다(f.storeId(), r3, "DRAFT", null, null, 0);
+        초안을_만든다(f.storeId(), r3, "DRAFT", null, 0);
 
         AnalyticsDtos.ResponsePerformanceResponse res = analyticsService.response(f.ownerPublicId(),
                 f.storePublicId(), "2026-08-01", "2026-08-20");
@@ -273,7 +272,7 @@ class AnalyticsServiceIT {
         assertThat(res.completedCount()).isEqualTo(2); // r1, r2 만 PUBLISHED
         // ★ 완료율이 100% 가 아니라 2/3 로 나와야 한다. 미처리 1건이 지표에 드러나는 것이 이 지표의 존재 이유다.
         assertThat(res.completionRate()).isCloseTo(2.0 / 3.0, within(0.001));
-        assertThat(res.autoApprovalRate()).isCloseTo(0.5, within(0.001)); // 완료 2건 중 자동승인 1건(r2)
+        assertThat(res.autoPublishRate()).isCloseTo(2.0 / 3.0, within(0.001));
         assertThat(res.avgResponseMinutes()).isCloseTo(20.0, within(0.01)); // (30+10)/2, written_at 이 아니라 collected_at 기준
         assertThat(res.retriedCount()).isEqualTo(1); // r2 만 retry_count>0
 

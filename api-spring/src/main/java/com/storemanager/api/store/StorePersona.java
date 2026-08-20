@@ -64,18 +64,6 @@ public class StorePersona {
     private short lengthMax = 150;
 
     @Builder.Default
-    @Column(name = "auto_publish", nullable = false)
-    private boolean autoPublish = true;
-
-    @Builder.Default
-    @Column(name = "auto_min_rating", nullable = false)
-    private short autoMinRating = 4;
-
-    @Builder.Default
-    @Column(name = "auto_max_risk", nullable = false)
-    private short autoMaxRisk = 1;
-
-    @Builder.Default
     @Column(name = "delay_hours", nullable = false)
     private short delayHours = 6;
 

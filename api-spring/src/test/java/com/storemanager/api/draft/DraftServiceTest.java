@@ -73,8 +73,8 @@ class DraftServiceTest {
         UnifiedReview review = UnifiedReview.builder().id(20L).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-20").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
-        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY").autoPublish(true)
-                .autoMinRating((short) 4).autoMaxRisk((short) 1).delayHours((short) 0).publishWindows("[]")
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
+                .delayHours((short) 0).publishWindows("[]")
                 .personaSeed(1).build();
         when(unifiedReviewRepository.findById(20L)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
@@ -92,7 +92,7 @@ class DraftServiceTest {
         assertThat(result.drafts()).hasSize(1);
         assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
         org.mockito.Mockito.verify(auditLogRepository).save(
-                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_APPROVED".equals(a.getAction())));
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
     }
 
     @Test
@@ -100,8 +100,8 @@ class DraftServiceTest {
         UnifiedReview review = UnifiedReview.builder().id(21L).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-21").rating((short) 3).body("그저 그래요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
-        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY").autoPublish(true)
-                .autoMinRating((short) 4).autoMaxRisk((short) 1).delayHours((short) 0).publishWindows("[]")
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
+                .delayHours((short) 0).publishWindows("[]")
                 .personaSeed(1).build();
         when(unifiedReviewRepository.findById(21L)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
@@ -118,7 +118,7 @@ class DraftServiceTest {
 
         assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
         org.mockito.Mockito.verify(auditLogRepository).save(
-                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_APPROVED".equals(a.getAction())));
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
     }
 
     @Test

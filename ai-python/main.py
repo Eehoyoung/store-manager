@@ -13,7 +13,10 @@ docs/13_내부API명세.md §11.1 의 JSON 예시와 정확히 일치한다(came
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+import os
+import secrets
+
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 import guardrails
@@ -23,14 +26,20 @@ import rag
 import router
 
 app = FastAPI(title="ai-python")
+INTERNAL_TOKEN = os.environ.get("INTERNAL_TOKEN", "")
+
+
+def require_internal_token(x_internal_token: str | None) -> None:
+    if not INTERNAL_TOKEN or x_internal_token is None or not secrets.compare_digest(x_internal_token, INTERNAL_TOKEN):
+        raise HTTPException(status_code=401, detail="unauthorized")
 
 
 # ── 요청 스키마 (docs/13 §11.1) ──────────────────────────────────────────
 class ReviewIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    rating: int
-    body: str = ""
+    rating: int = Field(ge=0, le=5)
+    body: str = Field(default="", max_length=10_000)
     menus: list[str] = Field(default_factory=list)
     platform: str
 
@@ -52,8 +61,8 @@ class PersonaIn(BaseModel):
 class OptionsIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    variants: int = 1
-    instruction: str | None = None
+    variants: int = Field(default=1, ge=1, le=1)
+    instruction: str | None = Field(default=None, max_length=200)
     force_tier: str | None = Field(default=None, alias="forceTier")
 
 
@@ -230,7 +239,11 @@ def health() -> dict:
 
 
 @app.post("/internal/ai/analyze-and-draft", response_model=AnalyzeAndDraftResponse)
-def analyze_and_draft(req: AnalyzeAndDraftRequest) -> AnalyzeAndDraftResponse:
+def analyze_and_draft(
+    req: AnalyzeAndDraftRequest,
+    x_internal_token: str | None = Header(default=None, alias="X-Internal-Token", include_in_schema=False),
+) -> AnalyzeAndDraftResponse:
+    require_internal_token(x_internal_token)
     provider = llm.get_provider()
 
     classified, classify_model, c_tok_in, c_tok_out, c_cost = _classify(provider, req.review)

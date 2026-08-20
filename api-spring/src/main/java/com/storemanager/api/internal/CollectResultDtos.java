@@ -56,7 +56,7 @@ record CollectResultRequest(
      * 거절한 경우다 — 재시도 대상이 아니라 사람 검수 대상이다(오케스트레이터 계약 보완).
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Publish(Long draftId, String platformCommentId, String failReason) {
+    record Publish(Long draftId, String platformCommentId, String failReason, @NotBlank String dispatchToken) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

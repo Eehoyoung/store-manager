@@ -18,29 +18,20 @@ class ReplyDraftTest {
     }
 
     @Test
-    void DRAFT는_승인하면_SCHEDULED가_되고_승인자와_예약시각이_남는다() {
+    void DRAFT는_자동예약하면_SCHEDULED가_되고_예약시각이_남는다() {
         ReplyDraft d = draft("DRAFT");
         Instant scheduledAt = Instant.parse("2026-08-19T02:00:00Z");
 
-        d.approve(9L, scheduledAt);
+        d.scheduleAutomatically(scheduledAt);
 
         assertThat(d.getStatus()).isEqualTo("SCHEDULED");
-        assertThat(d.getApprovedBy()).isEqualTo(9L);
         assertThat(d.getScheduledAt()).isEqualTo(scheduledAt);
     }
 
     @Test
-    void 자동승인은_approvedBy가_null이다() {
-        ReplyDraft d = draft("DRAFT");
-        d.approve(null, Instant.now());
-        assertThat(d.getApprovedBy()).isNull();
-        assertThat(d.getStatus()).isEqualTo("SCHEDULED");
-    }
-
-    @Test
-    void DRAFT가_아니면_승인할_수_없다() {
-        ReplyDraft d = draft("REJECTED");
-        ApiException ex = assertThrows(ApiException.class, () -> d.approve(9L, Instant.now()));
+    void DRAFT가_아니면_자동예약할_수_없다() {
+        ReplyDraft d = draft("BLOCKED");
+        ApiException ex = assertThrows(ApiException.class, () -> d.scheduleAutomatically(Instant.now()));
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_DRAFT_STATE);
     }
 
@@ -91,7 +82,7 @@ class ReplyDraftTest {
     void 게시직전_위험도재검증_거절은_재시도하지_않고_BLOCKED로_종결한다_retryCount는_그대로다() {
         // 오케스트레이터 계약 보완: 워커가 action=FAIL, failReason=RISK_LEVEL_TOO_HIGH 로 보고하는 경우
         ReplyDraft d = draft("SCHEDULED");
-        d.blockAtPublishRisk("RISK_LEVEL_TOO_HIGH");
+        d.blockAtPublishGuard("RISK_LEVEL_TOO_HIGH", "RISK_LEVEL_TOO_HIGH");
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
         assertThat(d.getRetryCount()).isEqualTo((short) 0);
         assertThat(d.getFailReason()).isEqualTo("RISK_LEVEL_TOO_HIGH");

@@ -17,7 +17,7 @@ final class DraftDtos {
     private DraftDtos() {
     }
 
-    record GenerateDraftsRequest(@Min(1) @Max(5) Integer variants, @Size(max = 200) String instruction) {
+    record GenerateDraftsRequest(@Min(1) @Max(1) Integer variants, @Size(max = 200) String instruction) {
     }
 
     record DraftResponse(String id, String reviewId, String content, String status, String tier,

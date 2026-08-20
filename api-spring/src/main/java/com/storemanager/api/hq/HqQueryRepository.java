@@ -62,7 +62,7 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
                 SELECT d FROM ReplyDraft d
                 WHERE d.reviewId = r.id
                   AND d.id = (SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
-                  AND d.status IN ('PUBLISHED', 'ALREADY_REPLIED', 'REJECTED')
+                  AND d.status IN ('PUBLISHED', 'ALREADY_REPLIED')
               )
             GROUP BY r.storeId
             """)

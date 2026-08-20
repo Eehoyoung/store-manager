@@ -169,7 +169,8 @@ public class PersonaService {
                         s.getRating() == null ? null : s.getRating().intValue(), s.getSource(),
                         s.getCreatedAt() == null ? null : s.getCreatedAt().toString()))
                 .toList();
-        return new StyleSampleListResponse(items, result.hasNext());
+        return new StyleSampleListResponse(items, result.hasNext(),
+                styleSampleQueryRepository.countByStoreIdAndSource(store.getId(), "MANUAL"));
     }
 
     /** 가맹점주가 직접 등록하는 답글 형식은 매장당 최대 3건이다. */

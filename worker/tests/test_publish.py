@@ -33,6 +33,8 @@ def _payload(**overrides) -> dict:
         "platformReviewId": "2024033100520097",
         "content": "맛있게 드셔주셔서 감사합니다!",
         "riskLevel": 1,
+        "storeActive": True,
+        "dispatchToken": "test-dispatch-token",
     }
     base.update(overrides)
     return base
@@ -158,6 +160,7 @@ def test_throttle_waits_remaining_interval_plus_jitter_and_stores_now():
 # (f) 큐 처리 중 1건이 예외를 던져도 나머지는 처리된다
 def test_publish_drafts_continues_after_one_item_raises(monkeypatch):
     posted = []
+    monkeypatch.setenv("DATAAPI_WRITE_ENABLED", "true")
     monkeypatch.setattr(tasks, "_post_collect_result", lambda p: posted.append(p))
 
     items = [

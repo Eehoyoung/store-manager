@@ -8,8 +8,12 @@ import com.storemanager.api.collect.DataApiCallLogRepository;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.crypto.PlatformAccountRepository;
+import com.storemanager.api.common.ApiException;
+import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.draft.ReviewAnalysis;
+import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.internal.CollectResultRequest.ExistingReply;
 import com.storemanager.api.internal.CollectResultRequest.Publish;
 import com.storemanager.api.internal.CollectResultRequest.ReviewBlock;
@@ -26,12 +30,15 @@ import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -50,6 +57,8 @@ public class CollectResultService {
     private static final String DISPATCH_KEY_PREFIX = "dispatch:draft:"; // PublishScheduler 와 동일 키(고정계약)
     private static final short MAX_PUBLISH_RETRY = 3;
     private static final String RISK_LEVEL_TOO_HIGH_REASON = "RISK_LEVEL_TOO_HIGH";
+    private static final Set<String> NON_RETRYABLE_PUBLISH_GUARDS = Set.of(
+            RISK_LEVEL_TOO_HIGH_REASON, "STORE_INACTIVE", "DATAAPI_WRITE_DISABLED");
 
     private final StorePlatformLinkRepository storePlatformLinkRepository;
     private final StoreRepository storeRepository;
@@ -62,6 +71,7 @@ public class CollectResultService {
     private final Pseudonymizer pseudonymizer;
     private final ObjectMapper objectMapper;
     private final ReplyDraftRepository replyDraftRepository;
+    private final ReviewAnalysisRepository reviewAnalysisRepository;
     private final Notifier notifier;
     private final StringRedisTemplate stringRedisTemplate;
     private final AuditLogRepository auditLogRepository;
@@ -72,7 +82,8 @@ public class CollectResultService {
             CollectionJobRepository collectionJobRepository, DataApiCallLogRepository dataApiCallLogRepository,
             PlatformAccountRepository platformAccountRepository, Pseudonymizer pseudonymizer,
             ObjectMapper objectMapper, ReplyDraftRepository replyDraftRepository, Notifier notifier,
-            StringRedisTemplate stringRedisTemplate, AuditLogRepository auditLogRepository) {
+            ReviewAnalysisRepository reviewAnalysisRepository, StringRedisTemplate stringRedisTemplate,
+            AuditLogRepository auditLogRepository) {
         this.storePlatformLinkRepository = storePlatformLinkRepository;
         this.storeRepository = storeRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -84,6 +95,7 @@ public class CollectResultService {
         this.pseudonymizer = pseudonymizer;
         this.objectMapper = objectMapper;
         this.replyDraftRepository = replyDraftRepository;
+        this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.notifier = notifier;
         this.stringRedisTemplate = stringRedisTemplate;
         this.auditLogRepository = auditLogRepository;
@@ -115,6 +127,9 @@ public class CollectResultService {
                 // 사용자가 아직 이 매장을 우리 시스템에 매핑하지 않았다 — 실패가 아니라 건너뛴다.
                 skipped++;
                 continue;
+            }
+            if (requestAccountId == null || !requestAccountId.equals(link.getAccountId())) {
+                throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
             }
             if (resolvedAccountId == null) {
                 resolvedAccountId = link.getAccountId();
@@ -149,7 +164,7 @@ public class CollectResultService {
     /**
      * 게시 결과 수신(S10, 오케스트레이터 고정계약). 워커가 실제로 보내는 값 기준(오케스트레이터 계약 보완 메모):
      * action=PUBLISHED|ALREADY_REPLIED|FAIL|LINK_ERROR 를 최상위 action 필드로 구분한다.
-     * 모든 분기에서 dispatch:draft:{id} 키를 삭제한다.
+     * 디스패치 토큰과 계정·플랫폼·현재 상태가 모두 일치한 결과만 반영하고 키를 삭제한다.
      * ★ 요청 본문을 로깅하지 않는다.
      */
     private CollectResultSummary handlePublishResult(CollectResultRequest req) {
@@ -161,9 +176,13 @@ public class CollectResultService {
             return new CollectResultSummary(0, 0, 0);
         }
 
+        String action = req.action();
+        if (!Set.of("PUBLISHED", "ALREADY_REPLIED", "FAIL", "LINK_ERROR").contains(action)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED);
+        }
+        verifyPublishCallback(req, draft);
         stringRedisTemplate.delete(DISPATCH_KEY_PREFIX + draftId);
 
-        String action = req.action();
         if ("PUBLISHED".equals(action)) {
             draft.markPublished(publish.platformCommentId());
         } else if ("ALREADY_REPLIED".equals(action)) {
@@ -175,8 +194,6 @@ public class CollectResultService {
             draft.markFailed(req.ecode(), publish.failReason());
             handleLinkError(parseLongOrNull(req.accountId()), req.ecode());
             notifyLinkError(draft);
-        } else {
-            log.warn("게시 결과 action 값을 처리할 수 없어 무시합니다: {}", action);
         }
 
         return new CollectResultSummary(0, 0, 0);
@@ -188,15 +205,17 @@ public class CollectResultService {
      * 그 외 실패는 retry_count<3 이면 지수 백오프로 재예약, 3회 소진 시 FAILED 로 확정한다.
      */
     private void handlePublishFail(ReplyDraft draft, String ecode, String failReason) {
-        if (RISK_LEVEL_TOO_HIGH_REASON.equals(failReason)) {
-            draft.blockAtPublishRisk(RISK_LEVEL_TOO_HIGH_REASON);
+        if (NON_RETRYABLE_PUBLISH_GUARDS.contains(failReason)) {
+            draft.blockAtPublishGuard(failReason, failReason);
             auditLogRepository.save(AuditLog.builder()
                     .actorType("WORKER")
-                    .action("DRAFT_BLOCKED_RISK_AT_PUBLISH")
+                    .action("DRAFT_BLOCKED_AT_PUBLISH_GUARD")
                     .targetType("REPLY_DRAFT")
                     .targetId(draft.getId())
                     .build());
-            notifyHighRisk(draft);
+            if (RISK_LEVEL_TOO_HIGH_REASON.equals(failReason)) {
+                notifyHighRisk(draft);
+            }
             return;
         }
         if (draft.getRetryCount() < MAX_PUBLISH_RETRY) {
@@ -205,6 +224,40 @@ public class CollectResultService {
             draft.retryLater(nextScheduledAt, failReason);
         } else {
             draft.markFailed(ecode, failReason);
+        }
+    }
+
+    private void verifyPublishCallback(CollectResultRequest req, ReplyDraft draft) {
+        String expectedToken = stringRedisTemplate.opsForValue().get(DISPATCH_KEY_PREFIX + draft.getId());
+        String actualToken = req.publish().dispatchToken();
+        if (expectedToken == null || actualToken == null || !MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8), actualToken.getBytes(StandardCharsets.UTF_8))) {
+            throw new ApiException(ErrorCode.UNAUTHORIZED);
+        }
+        if (!"SCHEDULED".equals(draft.getStatus())) {
+            throw new ApiException(ErrorCode.INVALID_DRAFT_STATE);
+        }
+
+        UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId())
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        StorePlatformLink link = storePlatformLinkRepository.findById(review.getLinkId())
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        Long accountId = parseLongOrNull(req.accountId());
+        if (accountId == null || !accountId.equals(link.getAccountId())
+                || !req.platform().equals(review.getPlatform()) || !draft.getStoreId().equals(link.getStoreId())) {
+            throw new ApiException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if ("PUBLISHED".equals(req.action())) {
+            ReviewAnalysis analysis = reviewAnalysisRepository.findById(review.getId())
+                    .orElseThrow(() -> new ApiException(ErrorCode.INVALID_DRAFT_STATE));
+            Store store = storeRepository.findById(draft.getStoreId())
+                    .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+            boolean active = store.getActivatedAt() != null && "ACTIVE".equals(store.getStatus())
+                    && store.getDeletedAt() == null;
+            if (!active || analysis.getRiskLevel() >= 3) {
+                throw new ApiException(ErrorCode.INVALID_DRAFT_STATE);
+            }
         }
     }
 

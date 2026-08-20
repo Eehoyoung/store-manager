@@ -223,8 +223,8 @@ export function DashboardPage() {
               <strong>{pct(response.completionRate)}</strong>
             </li>
             <li>
-              <span>자동 승인 비율</span>
-              <strong>{pct(response.autoApprovalRate)}</strong>
+              <span>자동 게시율</span>
+              <strong>{pct(response.autoPublishRate)}</strong>
             </li>
             <li>
               <span>평균 응답 시간</span>

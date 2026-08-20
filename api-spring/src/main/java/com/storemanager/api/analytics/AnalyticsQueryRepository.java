@@ -58,7 +58,7 @@ public interface AnalyticsQueryRepository extends JpaRepository<UnifiedReview, L
      * 고위험(risk_level>=3)이면서 아직 처리되지 않은 리뷰 수 — 기간 필터 없음, 매장 전체(T-26).
      * ★ "초안이 BLOCKED 인 것" 이 아니라 "종결되지 않은 것" 을 센다. 초안이 아예 없는 고위험 리뷰
      * (AI 호출 실패·미생성)가 가장 위험한 미처리 건인데, BLOCKED 존재를 조건으로 걸면 그게 0 으로
-     * 보인다. 종결(PUBLISHED/ALREADY_REPLIED/REJECTED)된 건만 빼고 나머지는 전부 일감으로 센다.
+     * 보인다. 종결(PUBLISHED/ALREADY_REPLIED)된 건만 빼고 나머지는 전부 일감으로 센다.
      */
     @Query("""
             SELECT COUNT(a) FROM ReviewAnalysis a JOIN UnifiedReview r ON r.id = a.reviewId
@@ -67,7 +67,7 @@ public interface AnalyticsQueryRepository extends JpaRepository<UnifiedReview, L
                 SELECT d FROM ReplyDraft d
                 WHERE d.reviewId = r.id
                   AND d.id = (SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
-                  AND d.status IN ('PUBLISHED', 'ALREADY_REPLIED', 'REJECTED')
+                  AND d.status IN ('PUBLISHED', 'ALREADY_REPLIED')
               )
             """)
     long highRiskPendingCount(@Param("storeId") Long storeId);
@@ -133,7 +133,7 @@ public interface AnalyticsQueryRepository extends JpaRepository<UnifiedReview, L
             SELECT
               COUNT(*) AS total_reviews,
               COUNT(*) FILTER (WHERE d.status IN ('PUBLISHED','ALREADY_REPLIED')) AS completed,
-              COUNT(*) FILTER (WHERE d.status IN ('PUBLISHED','ALREADY_REPLIED') AND d.approved_by IS NULL) AS auto_approved,
+              COUNT(*) FILTER (WHERE d.status = 'PUBLISHED') AS auto_published,
               AVG(EXTRACT(EPOCH FROM (d.published_at - r.collected_at)) / 60.0)
                   FILTER (WHERE d.status = 'PUBLISHED' AND d.published_at IS NOT NULL) AS avg_response_minutes,
               COUNT(*) FILTER (WHERE d.retry_count > 0) AS retried

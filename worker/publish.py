@@ -26,6 +26,11 @@ def is_risk_blocked(payload: dict[str, Any]) -> bool:
     return payload.get("riskLevel", RISK_BLOCK_THRESHOLD) >= RISK_BLOCK_THRESHOLD
 
 
+def is_store_inactive(payload: dict[str, Any]) -> bool:
+    # 필드 누락도 비활성으로 본다. 구버전·위조 payload가 게시를 열어서는 안 된다.
+    return payload.get("storeActive") is not True
+
+
 def _envelope(
     payload: dict[str, Any],
     status: str,
@@ -46,12 +51,13 @@ def _envelope(
             "draftId": payload["draftId"],
             "platformCommentId": platform_comment_id,
             "failReason": fail_reason,
+            "dispatchToken": payload.get("dispatchToken"),
         },
     }
 
 
-def blocked_result(payload: dict[str, Any]) -> dict[str, Any]:
-    return _envelope(payload, "FAILED", "FAIL", fail_reason="RISK_LEVEL_TOO_HIGH")
+def blocked_result(payload: dict[str, Any], reason: str = "RISK_LEVEL_TOO_HIGH") -> dict[str, Any]:
+    return _envelope(payload, "FAILED", "FAIL", fail_reason=reason)
 
 
 def process_publish_job(
@@ -65,6 +71,8 @@ def process_publish_job(
     riskLevel 이 차단선 이상이면 create_comment 를 호출조차 하지 않는다."""
     if is_risk_blocked(payload):
         return blocked_result(payload)
+    if is_store_inactive(payload):
+        return blocked_result(payload, "STORE_INACTIVE")
 
     try:
         data = create_comment(

@@ -45,6 +45,7 @@ public class DraftService {
 
     private static final Logger log = LoggerFactory.getLogger(DraftService.class);
     private static final short RISK_AUTO_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3
+    private static final List<String> ACTIVE_REPLY_STATUSES = List.of("DRAFT", "SCHEDULED", "PUBLISHED", "ALREADY_REPLIED");
 
     private final ReplyDraftRepository replyDraftRepository;
     private final ReviewAnalysisRepository reviewAnalysisRepository;
@@ -94,6 +95,10 @@ public class DraftService {
         Store store = loadOwnedStore(owner, review.getStoreId());
         StorePersona persona = storePersonaRepository.findById(store.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        if (replyDraftRepository.existsByReviewIdAndStatusIn(reviewId, ACTIVE_REPLY_STATUSES)) {
+            throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
+                    Map.of("reviewId", reviewId, "reason", "ACTIVE_OR_COMPLETED_REPLY_EXISTS"));
+        }
 
         AiClientDtos.AnalyzeAndDraftRequest aiReq = buildAiRequest(review, persona, req);
         AnalyzeAndDraftResponse aiRes = aiClient.analyzeAndDraft(aiReq);
@@ -177,14 +182,22 @@ public class DraftService {
         boolean riskOk = analysis.riskLevel() < RISK_AUTO_BLOCK_LEVEL;
         boolean flagsOk = draft.getGuardrailFlags() == null || draft.getGuardrailFlags().length == 0;
         if (!riskOk || !flagsOk) {
+            List<String> flags = new ArrayList<>();
+            if (!riskOk) {
+                flags.add("RISK_LEVEL_TOO_HIGH");
+            }
+            if (!flagsOk) {
+                flags.addAll(List.of(draft.getGuardrailFlags()));
+            }
+            draft.blockForGeneration(flags);
             return;
         }
         Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
                 parseWindows(persona.getPublishWindows()));
-        draft.approve(null, scheduledAt);
+        draft.scheduleAutomatically(scheduledAt);
         auditLogRepository.save(AuditLog.builder()
                 .actorType("SYSTEM")
-                .action("DRAFT_AUTO_APPROVED")
+                .action("DRAFT_AUTO_SCHEDULED")
                 .targetType("REPLY_DRAFT")
                 .targetId(draft.getId())
                 .build());

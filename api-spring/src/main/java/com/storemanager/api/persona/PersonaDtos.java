@@ -60,6 +60,6 @@ final class PersonaDtos {
     record StyleSampleRequest(@NotBlank @Size(max = 280) String replyText) {
     }
 
-    record StyleSampleListResponse(List<StyleSampleResponse> items, boolean hasMore) {
+    record StyleSampleListResponse(List<StyleSampleResponse> items, boolean hasMore, long manualCount) {
     }
 }

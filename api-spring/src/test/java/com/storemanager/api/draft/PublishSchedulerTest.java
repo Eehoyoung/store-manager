@@ -15,6 +15,8 @@ import com.storemanager.api.review.StorePlatformLink;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
+import com.storemanager.api.store.Store;
+import com.storemanager.api.store.StoreRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -40,6 +42,7 @@ class PublishSchedulerTest {
     @Mock private ReviewAnalysisRepository reviewAnalysisRepository;
     @Mock private UnifiedReviewRepository unifiedReviewRepository;
     @Mock private StorePlatformLinkRepository storePlatformLinkRepository;
+    @Mock private StoreRepository storeRepository;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private StringRedisTemplate stringRedisTemplate;
     @Mock private ValueOperations<String, String> valueOperations;
@@ -50,12 +53,23 @@ class PublishSchedulerTest {
     @BeforeEach
     void setUp() {
         scheduler = new PublishScheduler(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
-                storePlatformLinkRepository, auditLogRepository, stringRedisTemplate, new ObjectMapper());
+                storePlatformLinkRepository, storeRepository, auditLogRepository, stringRedisTemplate,
+                new ObjectMapper());
     }
 
     private ReplyDraft dueDraft(long id, long reviewId) {
         return ReplyDraft.builder().id(id).reviewId(reviewId).storeId(100L).content("답글 내용")
                 .status("SCHEDULED").generatedBy("AI").scheduledAt(Instant.now().minusSeconds(60)).build();
+    }
+
+    private void safeContext(long reviewId) {
+        when(unifiedReviewRepository.findById(reviewId)).thenReturn(Optional.of(UnifiedReview.builder()
+                .id(reviewId).storeId(100L).linkId(5L).platform("BAEMIN")
+                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build()));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(Store.builder().id(100L).ownerId(1L)
+                .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
+        when(storePlatformLinkRepository.findById(5L)).thenReturn(Optional.of(StorePlatformLink.builder()
+                .id(5L).storeId(100L).accountId(77L).platform("BAEMIN").platformStoreId("store-77").build()));
     }
 
     @Test
@@ -81,14 +95,9 @@ class PublishSchedulerTest {
         when(reviewAnalysisRepository.findById(11L)).thenReturn(Optional.of(
                 ReviewAnalysis.builder().reviewId(11L).category("PRAISE").sentiment(0.9f)
                         .riskLevel((short) 0).model("m").promptVersion("v1").build()));
-        UnifiedReview review = UnifiedReview.builder().id(11L).storeId(100L).linkId(5L).platform("BAEMIN")
-                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build();
-        when(unifiedReviewRepository.findById(11L)).thenReturn(Optional.of(review));
-        StorePlatformLink link = StorePlatformLink.builder().id(5L).storeId(100L).accountId(77L).platform("BAEMIN")
-                .platformStoreId("store-77").build();
-        when(storePlatformLinkRepository.findById(5L)).thenReturn(Optional.of(link));
+        safeContext(11L);
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(eq("dispatch:draft:2"), eq("1"), any(Duration.class))).thenReturn(true);
+        when(valueOperations.setIfAbsent(eq("dispatch:draft:2"), anyString(), any(Duration.class))).thenReturn(true);
         when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
 
         scheduler.dispatchDuePublishJobs();
@@ -103,8 +112,9 @@ class PublishSchedulerTest {
         when(reviewAnalysisRepository.findById(12L)).thenReturn(Optional.of(
                 ReviewAnalysis.builder().reviewId(12L).category("PRAISE").sentiment(0.9f)
                         .riskLevel((short) 0).model("m").promptVersion("v1").build()));
+        safeContext(12L);
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(eq("dispatch:draft:3"), eq("1"), any(Duration.class))).thenReturn(false);
+        when(valueOperations.setIfAbsent(eq("dispatch:draft:3"), anyString(), any(Duration.class))).thenReturn(false);
 
         scheduler.dispatchDuePublishJobs();
 

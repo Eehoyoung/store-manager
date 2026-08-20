@@ -22,7 +22,7 @@ import httpx
 
 import publish
 from celery_app import app
-from dataapi import Credentials, DataApiClient, DataApiError, Platform, call_with_retry, ecode_action
+from dataapi import Credentials, DataApiClient, DataApiError, Platform, WRITE_ENABLED_ENV, call_with_retry, ecode_action
 from normalize import normalize_stores
 
 log = logging.getLogger("worker.tasks")
@@ -217,6 +217,7 @@ def _publish_error_result(payload: dict, reason: str) -> dict:
             "draftId": payload.get("draftId") if isinstance(payload, dict) else None,
             "platformCommentId": None,
             "failReason": reason,
+            "dispatchToken": payload.get("dispatchToken") if isinstance(payload, dict) else None,
         },
     }
 
@@ -256,6 +257,10 @@ def publish_drafts(
             if publish.is_risk_blocked(payload):
                 # ★ 절대규칙 3 이중 검증 — DataAPI 호출·계정 조회·스로틀 전부 생략한다.
                 result = publish.blocked_result(payload)
+            elif publish.is_store_inactive(payload):
+                result = publish.blocked_result(payload, "STORE_INACTIVE")
+            elif os.environ.get(WRITE_ENABLED_ENV, "false").lower() != "true":
+                result = publish.blocked_result(payload, "DATAAPI_WRITE_DISABLED")
             else:
                 account = account_loader(str(payload["accountId"]))
                 publish.throttle(

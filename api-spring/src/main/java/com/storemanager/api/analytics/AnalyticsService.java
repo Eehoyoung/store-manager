@@ -172,15 +172,15 @@ public class AnalyticsService {
         Object[] row = rows.isEmpty() ? new Object[] {0L, 0L, 0L, null, 0L} : rows.get(0);
         long total = row[0] == null ? 0L : ((Number) row[0]).longValue();
         long completed = row[1] == null ? 0L : ((Number) row[1]).longValue();
-        long autoApproved = row[2] == null ? 0L : ((Number) row[2]).longValue();
+        long autoPublished = row[2] == null ? 0L : ((Number) row[2]).longValue();
         Double avgResponseMinutes = row[3] == null ? null : round1(((Number) row[3]).doubleValue());
         long retried = row[4] == null ? 0L : ((Number) row[4]).longValue();
 
         double completionRate = total == 0 ? 0.0 : round4((double) completed / total);
-        double autoApprovalRate = completed == 0 ? 0.0 : round4((double) autoApproved / completed);
+        double autoPublishRate = total == 0 ? 0.0 : round4((double) autoPublished / total);
 
         return new ResponsePerformanceResponse(fromDate.toString(), toDate.toString(), total, completed,
-                completionRate, autoApprovalRate, avgResponseMinutes, retried);
+                completionRate, autoPublishRate, avgResponseMinutes, retried);
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────

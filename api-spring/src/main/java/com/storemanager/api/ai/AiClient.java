@@ -19,18 +19,22 @@ import org.springframework.web.client.RestClientException;
 public class AiClient {
 
     private final RestClient restClient;
+    private final String internalToken;
 
-    public AiClient(@Value("${ai.base-url}") String baseUrl) {
+    public AiClient(@Value("${ai.base-url}") String baseUrl,
+            @Value("${app.internal.token}") String internalToken) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3_000);
         factory.setReadTimeout(30_000);
         this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        this.internalToken = internalToken;
     }
 
     public AnalyzeAndDraftResponse analyzeAndDraft(AnalyzeAndDraftRequest req) {
         try {
             return restClient.post()
                     .uri("/internal/ai/analyze-and-draft")
+                    .header("X-Internal-Token", internalToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(req)
                     .retrieve()
