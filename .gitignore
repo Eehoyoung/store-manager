@@ -1,0 +1,35 @@
+# --- 비밀값 / 자격증명 ---
+# 주의: CredentialService.java 같은 소스 파일명까지 지워버리지 않도록
+# 클래스명이 아닌 실제 자격증명 파일 패턴만 지정한다.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.yml
+secrets.yaml
+
+# --- Java / Gradle ---
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# --- Node ---
+node_modules/
+dist/
+
+# --- IDE ---
+.idea/
+.vscode/
+
+# --- OS ---
+Thumbs.db
+.DS_Store

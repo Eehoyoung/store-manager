@@ -1,0 +1,12 @@
+{
+  "errCode": "0000",
+  "errMsg": "success",
+  "result": "SUCCESS",
+  "data": {
+    "RESULT": "FAIL",
+    "ECODE": "ERR_MLCOM_MSG50059",
+    "ERRMSG": "아이디 또는 비밀번호가 일치하지 않습니다.",
+    "ETRACK": "00050",
+    "ERRDOC": "null"
+  }
+}

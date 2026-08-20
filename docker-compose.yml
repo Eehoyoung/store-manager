@@ -1,0 +1,44 @@
+# 로컬 개발용 인프라 전용 compose 파일.
+# 애플리케이션(Spring/FastAPI/Celery/Web)은 컨테이너로 띄우지 않는다.
+# 로컬에서는 각각 gradlew bootRun / uvicorn / celery / npm run dev 로 직접 실행한다.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: storemanager-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-storemanager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-storemanager}
+      POSTGRES_DB: ${POSTGRES_DB:-storemanager}
+    # 호스트 5432 는 다른 프로젝트(stockmate-ai)가 이미 점유 중이라 5433 을 사용한다.
+    # 컨테이너 내부 포트는 그대로 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - storemanager-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-storemanager} -d ${POSTGRES_DB:-storemanager}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: storemanager-redis
+    # appendonly: 큐·분산락 데이터 유실 방지를 위해 AOF 영속화 사용
+    command: redis-server --appendonly yes
+    # 호스트 6379 는 다른 프로젝트(stockmate-ai)가 이미 점유 중이라 6380 을 사용한다.
+    # 컨테이너 내부 포트는 그대로 6379.
+    ports:
+      - "6380:6379"
+    volumes:
+      - storemanager-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  storemanager-pgdata:
+  storemanager-redisdata:

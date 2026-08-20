@@ -1,0 +1,12 @@
+{
+  "errCode": "0000",
+  "errMsg": "success",
+  "result": "SUCCESS",
+  "data": {
+    "RESULT": "FAIL",
+    "ECODE": "ERR_MDCOM_MSG00009",
+    "ERRMSG": "이미 등록된 댓글이 존재합니다.",
+    "ETRACK": "null",
+    "REVIEWCOMMENTID": "null"
+  }
+}

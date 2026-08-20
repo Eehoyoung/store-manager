@@ -1,0 +1,14 @@
+/* 40~60대 사용자 대상: 기본 폰트를 크게, 색 대비를 높게 유지한다. */
+body {
+  margin: 0;
+  font-family: system-ui, "Malgun Gothic", sans-serif;
+  font-size: 18px;
+  background-color: #ffffff;
+  color: #111111;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}

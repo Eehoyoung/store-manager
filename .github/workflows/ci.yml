@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# CLAUDE.md 규칙: DataAPI 를 실제 호출하는 테스트는 CI 에서 금지.
+# 호출당 과금되며 실매장 데이터가 걸리므로, 쓰기 기능은 CI 전역에서 항상 꺼둔다.
+env:
+  DATAAPI_WRITE_ENABLED: "false"
+
+jobs:
+  spring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: build
+        working-directory: api-spring
+        run: ./gradlew build
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ai-python 의존성 설치
+        working-directory: ai-python
+        run: pip install -r requirements.txt
+      - name: ai-python 테스트
+        working-directory: ai-python
+        run: pytest
+      - name: worker 의존성 설치
+        working-directory: worker
+        run: pip install -r requirements.txt
+      - name: worker 테스트
+        working-directory: worker
+        run: pytest
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: 의존성 설치
+        working-directory: web
+        run: npm ci
+      - name: 빌드
+        working-directory: web
+        run: npm run build

@@ -1,0 +1,21 @@
+# Testcontainers 통합 테스트용 최소 설정
+# 실제 DB/Redis 연결 정보는 Testcontainers가 동적으로 주입하므로 datasource는 지정하지 않는다.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+
+app:
+  jwt:
+    # 테스트 전용 더미 시크릿(base64, 32바이트) - 운영 값 아님
+    secret: /HbJWF+hl5rgq8axtp6NmSqJlE3UL7WDQmT2PswcCNg=
+    access-ttl-seconds: 1800
+    refresh-ttl-seconds: 1209600
+  crypto:
+    # 테스트 전용 더미 마스터키(base64, 32바이트) - 운영 값 아님
+    master-key: K/tAaCqZxldEye4SHcdQWB1so2ySJybU3mJfvDDpZ0g=
+    key-id: test-key

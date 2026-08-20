@@ -1,0 +1,46 @@
+# 배달앱 리뷰 답글 자동화 SaaS - Spring Boot 운영 설정
+# 로컬 기본 포트: Postgres 5433 / Redis 6380 (호스트의 5432·6379는 타 프로젝트 점유)
+# 모든 민감값은 환경변수로 주입한다. 자격증명은 절대 평문으로 커밋하지 않는다.
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/storemanager}
+    username: ${DB_USERNAME:storemanager}
+    password: ${DB_PASSWORD:storemanager}
+  jpa:
+    hibernate:
+      ddl-auto: validate   # 스키마는 Flyway가 관리. Hibernate는 검증만 수행
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-ttl-seconds: 1800
+    refresh-ttl-seconds: 1209600
+  crypto:
+    # KMS 봉투암호화용 마스터키. LOGINPWD 등 자격증명은 이 키로 감싼 DEK로만 암호화한다.
+    master-key: ${CREDENTIAL_MASTER_KEY}
+    key-id: ${CREDENTIAL_KEY_ID:local-dev}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    org.hibernate.SQL: info   # 파라미터 바인딩 로그(DEBUG)는 자격증명 노출 위험이 있어 올리지 않는다
