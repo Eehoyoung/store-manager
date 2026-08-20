@@ -13,15 +13,9 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.DraftDtos.ApproveRequest;
-import com.storemanager.api.draft.DraftDtos.BulkApproveRequest;
-import com.storemanager.api.draft.DraftDtos.BulkApproveResponse;
-import com.storemanager.api.draft.DraftDtos.BulkFilter;
-import com.storemanager.api.draft.DraftDtos.DraftListResponse;
 import com.storemanager.api.draft.DraftDtos.DraftResponse;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsRequest;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsResponse;
-import com.storemanager.api.draft.DraftDtos.PatchDraftRequest;
 import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
@@ -33,19 +27,16 @@ import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 답글 초안 생성·승인 큐(S3, S5, S6, S8). docs/13 §6.
+ * 답글 생성·자동예약(S3, S8). docs/13 §6.
  * ★ 리뷰 본문은 AiClient 를 통해 있는 그대로 전달만 하고 여기서 생성·가공하지 않는다(절대규칙 1).
  * ★ risk_level >= 3 인 초안은 승인할 수 없다(절대규칙 3) — 여기와 PublishScheduler 양쪽에서 검증한다.
  */
@@ -172,148 +163,20 @@ public class DraftService {
         return new GenerateDraftsResponse(saved.stream().map(DraftResponse::from).toList());
     }
 
-    /** PATCH /drafts/{draftId} — 사장님이 직접 수정. generated_by=AI_EDITED (절대규칙 4: 직접 입력은 허용). */
-    @Transactional
-    public DraftResponse patch(UUID ownerPublicId, Long draftId, PatchDraftRequest req) {
-        AppUser owner = resolveUser(ownerPublicId);
-        ReplyDraft draft = loadOwnedDraft(owner, draftId);
-        draft.editContent(req.content());
-        return DraftResponse.from(draft);
-    }
-
-    /** POST /drafts/{draftId}/approve (S5, S6, S7). */
-    @Transactional
-    public DraftResponse approve(UUID ownerPublicId, Long draftId, ApproveRequest req) {
-        AppUser owner = resolveUser(ownerPublicId);
-        ReplyDraft draft = loadOwnedDraft(owner, draftId);
-
-        if ("BLOCKED".equals(draft.getStatus())) {
-            throw new ApiException(ErrorCode.GUARDRAIL_BLOCKED,
-                    Map.of("flags", List.of(draft.getGuardrailFlags())));
-        }
-        ReviewAnalysis analysis = reviewAnalysisRepository.findById(draft.getReviewId())
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        rejectIfTooRisky(analysis);
-
-        UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId())
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        StorePersona persona = storePersonaRepository.findById(draft.getStoreId())
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-
-        String publishMode = req == null || req.publishMode() == null ? "SCHEDULED" : req.publishMode();
-        Instant scheduledAt = "IMMEDIATE".equals(publishMode)
-                ? Instant.now()
-                : PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
-                        parseWindows(persona.getPublishWindows()));
-
-        draft.approve(owner.getId(), scheduledAt);
-        return DraftResponse.from(draft);
-    }
-
-    /** POST /drafts/{draftId}/reject. */
-    @Transactional
-    public DraftResponse reject(UUID ownerPublicId, Long draftId) {
-        AppUser owner = resolveUser(ownerPublicId);
-        ReplyDraft draft = loadOwnedDraft(owner, draftId);
-        draft.reject();
-        return DraftResponse.from(draft);
-    }
-
-    /**
-     * POST /drafts/bulk-approve (S5, S6). risk_level>=3 이거나 필터 불일치면 던지지 않고 skippedReasons 에 집계한다.
-     * ponytail: N+1 로 분석/리뷰를 개별 조회한다 — 승인 큐 규모(스토어당 최대 수십 건)에서는 충분하다.
-     * 배치가 수백 건 이상으로 커지면 조인 쿼리로 교체.
-     */
-    @Transactional
-    public BulkApproveResponse bulkApprove(UUID ownerPublicId, BulkApproveRequest req) {
-        AppUser owner = resolveUser(ownerPublicId);
-        Store store = storeRepository.findByPublicIdAndDeletedAtIsNull(UUID.fromString(req.storeId()))
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        if (!store.getOwnerId().equals(owner.getId())) {
-            // ★ X1: 403 이 아니라 404(Sprint 5 B5).
-            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        StorePersona persona = storePersonaRepository.findById(store.getId())
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        BulkFilter filter = req.filter() == null ? new BulkFilter(null, null, null) : req.filter();
-
-        List<ReplyDraft> candidates = replyDraftRepository.findByStoreIdAndStatus(store.getId(), "DRAFT");
-        int approved = 0;
-        Map<String, Integer> skippedReasons = new LinkedHashMap<>();
-
-        for (ReplyDraft draft : candidates) {
-            ReviewAnalysis analysis = reviewAnalysisRepository.findById(draft.getReviewId()).orElse(null);
-            UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId()).orElse(null);
-            if (analysis == null || review == null) {
-                skippedReasons.merge("RESOURCE_NOT_FOUND", 1, Integer::sum);
-                continue;
-            }
-            if (analysis.getRiskLevel() >= RISK_AUTO_BLOCK_LEVEL
-                    || (filter.maxRiskLevel() != null && analysis.getRiskLevel() > filter.maxRiskLevel())) {
-                skippedReasons.merge("RISK_LEVEL_TOO_HIGH", 1, Integer::sum);
-                continue;
-            }
-            if (filter.minRating() != null && (review.getRating() == null || review.getRating() < filter.minRating())) {
-                skippedReasons.merge("FILTER_MISMATCH", 1, Integer::sum);
-                continue;
-            }
-            if (filter.category() != null && !filter.category().isEmpty()
-                    && !filter.category().contains(analysis.getCategory())) {
-                skippedReasons.merge("FILTER_MISMATCH", 1, Integer::sum);
-                continue;
-            }
-
-            Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
-                    parseWindows(persona.getPublishWindows()));
-            draft.approve(owner.getId(), scheduledAt);
-            approved++;
-        }
-
-        return new BulkApproveResponse(approved, candidates.size() - approved, skippedReasons);
-    }
-
-    /** GET /stores/{storeId}/drafts (승인 큐). */
-    @Transactional(readOnly = true)
-    public DraftListResponse listQueue(UUID ownerPublicId, UUID storePublicId, String status, int page, int size) {
-        AppUser owner = resolveUser(ownerPublicId);
-        Store store = storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        if (!store.getOwnerId().equals(owner.getId())) {
-            // ★ X1: 403 이 아니라 404(Sprint 5 B5).
-            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        Page<ReplyDraft> result = status == null || status.isBlank()
-                ? replyDraftRepository.findByStoreId(store.getId(), PageRequest.of(page, size))
-                : replyDraftRepository.findByStoreIdAndStatus(store.getId(), status, PageRequest.of(page, size));
-        return new DraftListResponse(result.getContent().stream().map(DraftResponse::from).toList(), result.hasNext());
-    }
-
-    /** GET /drafts/{draftId}. */
-    @Transactional(readOnly = true)
-    public DraftResponse getOne(UUID ownerPublicId, Long draftId) {
-        AppUser owner = resolveUser(ownerPublicId);
-        return DraftResponse.from(loadOwnedDraft(owner, draftId));
-    }
-
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
 
-    private void rejectIfTooRisky(ReviewAnalysis analysis) {
-        if (analysis.getRiskLevel() >= RISK_AUTO_BLOCK_LEVEL) {
-            throw new ApiException(ErrorCode.RISK_LEVEL_TOO_HIGH,
-                    Map.of("riskLevel", analysis.getRiskLevel(), "riskReasons", List.of(analysis.getRiskReasons())));
-        }
-    }
-
-    /** 자동승인 규칙 엔진(S8). 조건을 하나라도 어기면 DRAFT 로 남겨 사람 검수 큐에 둔다. */
+    /** 풀자동 게시. 분석·가드레일을 통과한 risk 0~1 답글은 사람 승인 없이 예약한다. */
     private void tryAutoApprove(Store store, StorePersona persona, UnifiedReview review, ReplyDraft draft,
             AiClientDtos.AnalysisOut analysis) {
-        if (analysis == null || !persona.isAutoPublish()) {
+        if (analysis == null || analysis.model() == null || "stub".equalsIgnoreCase(analysis.model())) {
+            draft.blockForAutomationUnavailable();
             return;
         }
-        boolean ratingOk = review.getRating() != null && review.getRating() >= persona.getAutoMinRating();
-        boolean riskOk = analysis.riskLevel() <= persona.getAutoMaxRisk() && analysis.riskLevel() < RISK_AUTO_BLOCK_LEVEL;
+        // AI 가 risk>=2 를 G8_RISK 로 차단하므로 여기까지 오는 초안은 보통 0~1이다.
+        // 임계값이 바뀌어도 절대규칙 risk>=3 차단은 유지한다.
+        boolean riskOk = analysis.riskLevel() < RISK_AUTO_BLOCK_LEVEL;
         boolean flagsOk = draft.getGuardrailFlags() == null || draft.getGuardrailFlags().length == 0;
-        if (!ratingOk || !riskOk || !flagsOk) {
+        if (!riskOk || !flagsOk) {
             return;
         }
         Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
@@ -406,13 +269,6 @@ public class DraftService {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return store;
-    }
-
-    private ReplyDraft loadOwnedDraft(AppUser owner, Long draftId) {
-        ReplyDraft draft = replyDraftRepository.findById(draftId)
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        loadOwnedStore(owner, draft.getStoreId());
-        return draft;
     }
 
     private AppUser resolveUser(UUID publicId) {

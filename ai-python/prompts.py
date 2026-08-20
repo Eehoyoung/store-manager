@@ -178,7 +178,10 @@ def format_few_shot(examples: list[tuple[str, str]]) -> str:
     """rag.fetch_examples 결과를 (review_text, reply_text) 튜플 목록으로 받아 프롬프트 블록으로 조립한다."""
     if not examples:
         return "(참고할 이전 답글 예시 없음 — 업종 표준 톤으로 작성하라)"
-    lines = [f"{i}. 리뷰: {rt}\n   답글: {pt}" for i, (rt, pt) in enumerate(examples, start=1)]
+    lines = [
+        f"{i}. 답글 형식: {pt}" if not rt else f"{i}. 리뷰: {rt}\n   답글: {pt}"
+        for i, (rt, pt) in enumerate(examples, start=1)
+    ]
     return "\n".join(lines)
 
 
@@ -240,6 +243,7 @@ def demo() -> None:
 
     gsys, guser = build_generate_messages("PRAISE", _Review(), _Persona(), format_few_shot([]))
     assert "<review" in guser and "환불" in gsys and "김치찌개" in guser
+    assert format_few_shot([("", "감사 인사로 시작")]) == "1. 답글 형식: 감사 인사로 시작"
 
     print("prompts demo OK")
 

@@ -89,8 +89,8 @@ export function StoresPage() {
                     </Badge>
                   )}
                 </div>
-                <Link to={`/stores/${s.id}/queue`} className="btn btn--secondary" onClick={() => setStoreId(s.id)}>
-                  승인 큐 보기
+                <Link to={`/stores/${s.id}/reviews`} className="btn btn--secondary" onClick={() => setStoreId(s.id)}>
+                  리뷰 보기
                 </Link>
               </Card>
             </li>

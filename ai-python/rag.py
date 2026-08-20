@@ -50,8 +50,18 @@ def fetch_examples(store_id: str, review_text: str, k: int = 4) -> list[StyleExa
         with psycopg.connect(DATABASE_URL, connect_timeout=3) as conn:
             with conn.cursor() as cur:
                 cur.execute(
+                    "SELECT review_text, reply_text, rating FROM reply_style_sample "
+                    "WHERE store_id = %s::bigint AND source = 'MANUAL' ORDER BY created_at DESC LIMIT 3",
+                    (store_id,),
+                )
+                manual = [StyleExample(r[0], r[1], r[2], fallback=True) for r in cur.fetchall()]
+                remaining = max(0, k - len(manual))
+                if remaining == 0:
+                    return manual
+
+                cur.execute(
                     "SELECT COUNT(*) FROM reply_style_sample "
-                    "WHERE store_id = %s::bigint AND embedding IS NOT NULL",
+                    "WHERE store_id = %s::bigint AND source <> 'MANUAL' AND embedding IS NOT NULL",
                     (store_id,),
                 )
                 (embedded_count,) = cur.fetchone()
@@ -62,28 +72,28 @@ def fetch_examples(store_id: str, review_text: str, k: int = 4) -> list[StyleExa
                         """
                         SELECT review_text, reply_text, rating
                           FROM reply_style_sample
-                         WHERE store_id = %s::bigint AND embedding IS NOT NULL
+                         WHERE store_id = %s::bigint AND source <> 'MANUAL' AND embedding IS NOT NULL
                          ORDER BY embedding <=> %s::vector
                          LIMIT %s
                         """,
-                        (store_id, q, k),
+                        (store_id, q, remaining),
                     )
                     rows = cur.fetchall()
-                    return [StyleExample(r[0], r[1], r[2], fallback=False) for r in rows]
+                    return manual + [StyleExample(r[0], r[1], r[2], fallback=False) for r in rows]
 
                 # 임베딩 2건 미만 → 최신순 fallback(다른 매장 샘플을 섞지 않는다)
                 cur.execute(
                     """
                     SELECT review_text, reply_text, rating
                       FROM reply_style_sample
-                     WHERE store_id = %s::bigint
+                     WHERE store_id = %s::bigint AND source <> 'MANUAL'
                      ORDER BY created_at DESC
                      LIMIT %s
                     """,
-                    (store_id, k),
+                    (store_id, remaining),
                 )
                 rows = cur.fetchall()
-                return [StyleExample(r[0], r[1], r[2], fallback=True) for r in rows]
+                return manual + [StyleExample(r[0], r[1], r[2], fallback=True) for r in rows]
     except Exception:
         # DB 접속 실패·캐스트 실패 등 — few-shot 은 필수 의존이 아니므로 파이프라인을 막지 않는다
         return []

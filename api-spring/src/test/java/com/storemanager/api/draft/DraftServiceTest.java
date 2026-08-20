@@ -15,8 +15,6 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.DraftDtos.ApproveRequest;
-import com.storemanager.api.draft.DraftDtos.BulkApproveRequest;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsRequest;
 import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.review.UnifiedReview;
@@ -71,37 +69,6 @@ class DraftServiceTest {
     }
 
     @Test
-    void risk_level_3인_초안은_승인이_거부된다() {
-        ReplyDraft draft = ReplyDraft.builder().id(5L).reviewId(10L).storeId(100L).content("답글")
-                .status("DRAFT").generatedBy("AI").build();
-        when(replyDraftRepository.findById(5L)).thenReturn(Optional.of(draft));
-        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
-        ReviewAnalysis analysis = ReviewAnalysis.builder().reviewId(10L).category("COMPLAINT").sentiment(-0.9f)
-                .riskLevel((short) 3).riskReasons(new String[] {"FOREIGN_OBJECT"}).model("m").promptVersion("v1")
-                .build();
-        when(reviewAnalysisRepository.findById(10L)).thenReturn(Optional.of(analysis));
-
-        ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.approve(ownerPublicId, 5L, new ApproveRequest("SCHEDULED")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RISK_LEVEL_TOO_HIGH);
-        assertThat(ex.getDetails().get("riskLevel")).isEqualTo((short) 3);
-    }
-
-    @Test
-    void BLOCKED_초안은_승인이_거부된다() {
-        ReplyDraft draft = ReplyDraft.builder().id(6L).reviewId(11L).storeId(100L).content("")
-                .status("BLOCKED").generatedBy("AI").guardrailFlags(new String[] {"G3_COMPENSATION"}).build();
-        when(replyDraftRepository.findById(6L)).thenReturn(Optional.of(draft));
-        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
-
-        ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.approve(ownerPublicId, 6L, new ApproveRequest("SCHEDULED")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
-    }
-
-    @Test
     void 자동승인_조건을_모두_만족하면_초안_생성직후_SCHEDULED로_전이한다() {
         UnifiedReview review = UnifiedReview.builder().id(20L).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-20").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
@@ -129,7 +96,7 @@ class DraftServiceTest {
     }
 
     @Test
-    void 자동승인_조건_별점미달이면_DRAFT로_남아_사람검수_큐에_들어간다() {
+    void 풀자동화는_별점과_무관하게_안전한_초안을_SCHEDULED로_전이한다() {
         UnifiedReview review = UnifiedReview.builder().id(21L).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-21").rating((short) 3).body("그저 그래요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
@@ -149,8 +116,32 @@ class DraftServiceTest {
 
         var result = draftService.generateDrafts(ownerPublicId, 21L, new GenerateDraftsRequest(1, null));
 
-        assertThat(result.drafts().get(0).status()).isEqualTo("DRAFT");
-        org.mockito.Mockito.verify(auditLogRepository, org.mockito.Mockito.never()).save(any());
+        assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
+        org.mockito.Mockito.verify(auditLogRepository).save(
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_APPROVED".equals(a.getAction())));
+    }
+
+    @Test
+    void 스텁_분류결과는_풀자동_게시하지_않는다() {
+        UnifiedReview review = UnifiedReview.builder().id(24L).storeId(100L).linkId(1L).platform("BAEMIN")
+                .platformReviewId("r-24").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
+                .collectedAt(Instant.now()).build();
+        StorePersona persona = StorePersona.builder().storeId(100L).delayHours((short) 0).publishWindows("[]")
+                .personaSeed(1).build();
+        when(unifiedReviewRepository.findById(24L)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+        AnalysisOut analysis = new AnalysisOut("POSITIVE", 1f, List.of(), 0, List.of(), "stub", "v1");
+        when(aiClient.analyzeAndDraft(any())).thenReturn(new AnalyzeAndDraftResponse(analysis,
+                List.of(new DraftOut("고객님, 감사합니다", "T1", "stub", "v1", List.of(), 0.1f, 0, 0, 0)),
+                false, List.of()));
+        when(reviewAnalysisRepository.findById(24L)).thenReturn(Optional.empty());
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = draftService.generateDrafts(ownerPublicId, 24L, new GenerateDraftsRequest(1, null));
+
+        assertThat(result.drafts().get(0).status()).isEqualTo("BLOCKED");
+        assertThat(result.drafts().get(0).guardrailFlags()).containsExactly("AUTOMATION_MODEL_UNAVAILABLE");
     }
 
     @Test
@@ -179,43 +170,4 @@ class DraftServiceTest {
                 org.mockito.ArgumentMatchers.argThat((ReplyDraft d) -> "BLOCKED".equals(d.getStatus())));
     }
 
-    // ── B5: 남의 매장 접근은 403 이 아니라 404 ────────────────────────────
-
-    @Test
-    void 남의_매장_초안_승인은_404다() {
-        Store othersStore = Store.builder().id(200L).ownerId(2L).name("남의가게").build();
-        ReplyDraft draft = ReplyDraft.builder().id(7L).reviewId(12L).storeId(200L).content("답글")
-                .status("DRAFT").generatedBy("AI").build();
-        when(replyDraftRepository.findById(7L)).thenReturn(Optional.of(draft));
-        when(storeRepository.findById(200L)).thenReturn(Optional.of(othersStore));
-
-        ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.approve(ownerPublicId, 7L, new ApproveRequest("SCHEDULED")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
-    }
-
-    @Test
-    void 남의_매장_일괄승인은_404다() {
-        UUID othersStorePublicId = UUID.randomUUID();
-        Store othersStore = Store.builder().id(201L).publicId(othersStorePublicId).ownerId(2L).name("남의가게").build();
-        when(storeRepository.findByPublicIdAndDeletedAtIsNull(othersStorePublicId)).thenReturn(Optional.of(othersStore));
-
-        ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.bulkApprove(ownerPublicId, new BulkApproveRequest(othersStorePublicId.toString(), null)));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
-    }
-
-    @Test
-    void 남의_매장_승인큐_조회는_404다() {
-        UUID othersStorePublicId = UUID.randomUUID();
-        Store othersStore = Store.builder().id(202L).publicId(othersStorePublicId).ownerId(2L).name("남의가게").build();
-        when(storeRepository.findByPublicIdAndDeletedAtIsNull(othersStorePublicId)).thenReturn(Optional.of(othersStore));
-
-        ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.listQueue(ownerPublicId, othersStorePublicId, null, 0, 20));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
-    }
 }

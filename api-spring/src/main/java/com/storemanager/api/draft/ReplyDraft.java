@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
  * 상태값을 직접 대입하지 않고 반드시 이 메서드들을 통해서만 바꾼다(S4).
  *
  * 허용 전이: DRAFT→APPROVED→SCHEDULED→PUBLISHED / FAILED(재시도큐) / ALREADY_REPLIED
- *            DRAFT→REJECTED, DRAFT→BLOCKED(가드레일), BLOCKED→DRAFT(사람이 직접 수정)
+ *            DRAFT→BLOCKED(가드레일·자동화 불가)
  * SCHEDULED→BLOCKED 는 게시 스케줄러의 방어적 이중검증(S9)에서만 발생한다.
  */
 @Entity
@@ -120,27 +120,6 @@ public class ReplyDraft {
         this.scheduledAt = scheduledAt;
     }
 
-    /** DRAFT → REJECTED. */
-    public void reject() {
-        requireStatus("DRAFT");
-        this.status = "REJECTED";
-    }
-
-    /**
-     * 사장님이 초안 내용을 직접 수정한다(docs/13 §6 PATCH). DRAFT 또는 BLOCKED 상태에서만 허용한다.
-     * BLOCKED 였다면 사람이 직접 다시 쓴 것이므로 DRAFT 로 되돌리고 가드레일 플래그를 비운다(절대규칙 4 — 사장님 직접 입력은 허용).
-     */
-    public void editContent(String newContent) {
-        requireStatus("DRAFT", "BLOCKED");
-        boolean wasBlocked = "BLOCKED".equals(this.status);
-        this.content = newContent;
-        this.generatedBy = "AI_EDITED";
-        if (wasBlocked) {
-            this.guardrailFlags = new String[0];
-            this.status = "DRAFT";
-        }
-    }
-
     /** 게시 스케줄러의 방어적 이중검증(절대규칙 3, S9)에서 risk_level>=3 이 재확인되면 발행 직전 되돌린다. */
     public void blockForRisk(List<String> riskReasons) {
         requireStatus("SCHEDULED");
@@ -148,6 +127,13 @@ public class ReplyDraft {
         if (riskReasons != null && !riskReasons.isEmpty()) {
             this.guardrailFlags = riskReasons.toArray(new String[0]);
         }
+    }
+
+    /** 실 모델이 아닌 결과는 무인 게시할 수 없으므로 운영 화면에서 식별 가능한 BLOCKED로 남긴다. */
+    public void blockForAutomationUnavailable() {
+        requireStatus("DRAFT");
+        this.status = "BLOCKED";
+        this.guardrailFlags = new String[] {"AUTOMATION_MODEL_UNAVAILABLE"};
     }
 
     /**

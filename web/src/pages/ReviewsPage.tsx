@@ -263,7 +263,7 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
   );
 }
 
-// ★ 절대규칙 1·3: 여기서는 읽기 전용으로만 보여준다. 승인 경로는 만들지 않는다(승인은 승인 큐에서만).
+// ★ 절대규칙 1·3: 읽기 전용이다. 승인·거절·답글 수정 경로를 만들지 않는다.
 function ReviewDetailModal({ reviewId, onClose }: { reviewId: string | null; onClose: () => void }) {
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
   const [error, setError] = useState<string | null>(null);

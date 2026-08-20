@@ -2,11 +2,9 @@ package com.storemanager.api.draft;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  * /reviews/{id}/drafts, /drafts/** 요청·응답 DTO (docs/13 §6).
@@ -20,21 +18,6 @@ final class DraftDtos {
     }
 
     record GenerateDraftsRequest(@Min(1) @Max(5) Integer variants, @Size(max = 200) String instruction) {
-    }
-
-    record ApproveRequest(String publishMode) { // SCHEDULED(기본) | IMMEDIATE
-    }
-
-    record PatchDraftRequest(@NotBlank @Size(max = 280) String content) {
-    }
-
-    record BulkFilter(Integer minRating, Integer maxRiskLevel, List<String> category) {
-    }
-
-    record BulkApproveRequest(@NotBlank String storeId, BulkFilter filter) {
-    }
-
-    record BulkApproveResponse(int approved, int skipped, Map<String, Integer> skippedReasons) {
     }
 
     record DraftResponse(String id, String reviewId, String content, String status, String tier,
@@ -66,6 +49,4 @@ final class DraftDtos {
     record GenerateDraftsResponse(List<DraftResponse> drafts) {
     }
 
-    record DraftListResponse(List<DraftResponse> items, boolean hasMore) {
-    }
 }

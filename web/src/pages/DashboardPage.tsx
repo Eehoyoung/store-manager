@@ -116,14 +116,14 @@ export function DashboardPage() {
           <p className="dashboard-stat__value">{pct(summary.replyCompletionRate)}</p>
           <p className="dashboard-stat__label">답글 완료율</p>
         </Card>
-        <Link to={`/stores/${storeId}/queue?status=DRAFT`} className="card dashboard-stat dashboard-stat--clickable">
+        <Card className="dashboard-stat">
           <p className="dashboard-stat__value">{summary.pendingCount}</p>
-          <p className="dashboard-stat__label">검수 대기 → 승인 큐로 이동</p>
-        </Link>
-        <Link to={`/stores/${storeId}/queue?status=BLOCKED`} className="card dashboard-stat dashboard-stat--clickable">
+          <p className="dashboard-stat__label">자동 처리 대기</p>
+        </Card>
+        <Card className="dashboard-stat">
           <p className="dashboard-stat__value">{summary.blockedCount}</p>
-          <p className="dashboard-stat__label">차단 → 승인 큐로 이동</p>
-        </Link>
+          <p className="dashboard-stat__label">안전 규칙 차단</p>
+        </Card>
         <Link
           to={`/stores/${storeId}/reviews?riskLevel=3`}
           className="card dashboard-stat dashboard-stat--clickable dashboard-stat--danger"

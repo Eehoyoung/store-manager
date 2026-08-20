@@ -5,6 +5,8 @@ import com.storemanager.api.persona.PersonaDtos.PersonaResponse;
 import com.storemanager.api.persona.PersonaDtos.PreviewRequest;
 import com.storemanager.api.persona.PersonaDtos.PreviewResponse;
 import com.storemanager.api.persona.PersonaDtos.StyleSampleListResponse;
+import com.storemanager.api.persona.PersonaDtos.StyleSampleRequest;
+import com.storemanager.api.persona.PersonaDtos.StyleSampleResponse;
 import com.storemanager.api.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -48,6 +50,13 @@ public class PersonaController {
     public StyleSampleListResponse styleSamples(@PathVariable UUID storeId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return personaService.listStyleSamples(CurrentUser.publicId(), storeId, page, size);
+    }
+
+    @PostMapping("/api/v1/stores/{storeId}/persona/style-samples")
+    @ResponseStatus(HttpStatus.CREATED)
+    public StyleSampleResponse addStyleSample(@PathVariable UUID storeId,
+            @Valid @RequestBody StyleSampleRequest req) {
+        return personaService.addStyleSample(CurrentUser.publicId(), storeId, req);
     }
 
     @DeleteMapping("/api/v1/stores/{storeId}/persona/style-samples/{sampleId}")

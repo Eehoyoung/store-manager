@@ -824,3 +824,17 @@
     grid-template-columns: 100px 1fr 60px;
   }
 }
+
+.billing-page__card {
+  max-width: 560px;
+}
+
+.billing-page__price {
+  font-size: var(--font-size-h1);
+  font-weight: 700;
+}
+
+.billing-page__price small {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}

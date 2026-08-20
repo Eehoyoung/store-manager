@@ -64,7 +64,6 @@ export function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
 
-  const queuePath = storeId ? `/stores/${storeId}/queue` : "/stores";
   const reviewsPath = storeId ? `/stores/${storeId}/reviews` : "/stores";
   const dashboardPath = storeId ? `/stores/${storeId}/dashboard` : "/stores";
   const personaPath = storeId ? `/stores/${storeId}/persona` : "/stores";
@@ -91,9 +90,6 @@ export function AppShell() {
         <nav className="shell__nav" aria-label="주 메뉴">
           <NavLink to="/stores" className={navLinkClass}>
             매장
-          </NavLink>
-          <NavLink to={queuePath} className={navLinkClass}>
-            승인 큐
           </NavLink>
           <NavLink to={reviewsPath} className={navLinkClass}>
             리뷰

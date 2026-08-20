@@ -65,7 +65,7 @@ public class StorePersona {
 
     @Builder.Default
     @Column(name = "auto_publish", nullable = false)
-    private boolean autoPublish = false;
+    private boolean autoPublish = true;
 
     @Builder.Default
     @Column(name = "auto_min_rating", nullable = false)
@@ -94,13 +94,11 @@ public class StorePersona {
 
     /**
      * PUT /stores/{storeId}/persona (Sprint 5 P1). 전체 필드 교체.
-     * ★ autoMaxRisk 는 호출부(PersonaService)에서 0~2 로 이미 검증된 값만 들어온다(절대규칙 3 —
-     * autoMaxRisk 로 자동게시 위험도 하한을 3 이상으로 설정할 수 없어야 한다). 이 메서드는 재검증하지 않는다.
      * store_persona 에는 unified_review/reply_draft 와 달리 updated_at 트리거가 없어(docs/11 §2.6) 여기서 직접 갱신한다.
      */
     public void applyUpdate(String tone, boolean useEmoji, short emojiLevel, String customerTitle, String signature,
-            String openingStyle, String[] bannedWords, short lengthMin, short lengthMax, boolean autoPublish,
-            short autoMinRating, short autoMaxRisk, short delayHours, String publishWindowsJson) {
+            String openingStyle, String[] bannedWords, short lengthMin, short lengthMax, short delayHours,
+            String publishWindowsJson) {
         this.tone = tone;
         this.useEmoji = useEmoji;
         this.emojiLevel = emojiLevel;
@@ -110,9 +108,6 @@ public class StorePersona {
         this.bannedWords = bannedWords == null ? new String[0] : bannedWords;
         this.lengthMin = lengthMin;
         this.lengthMax = lengthMax;
-        this.autoPublish = autoPublish;
-        this.autoMinRating = autoMinRating;
-        this.autoMaxRisk = autoMaxRisk;
         this.delayHours = delayHours;
         this.publishWindows = publishWindowsJson == null ? "[]" : publishWindowsJson;
         this.updatedAt = Instant.now();

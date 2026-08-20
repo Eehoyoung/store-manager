@@ -45,39 +45,6 @@ class ReplyDraftTest {
     }
 
     @Test
-    void DRAFT는_거절하면_REJECTED가_된다() {
-        ReplyDraft d = draft("DRAFT");
-        d.reject();
-        assertThat(d.getStatus()).isEqualTo("REJECTED");
-    }
-
-    @Test
-    void SCHEDULED는_거절할_수_없다() {
-        ReplyDraft d = draft("SCHEDULED");
-        assertThrows(ApiException.class, d::reject);
-    }
-
-    @Test
-    void BLOCKED_초안을_직접_수정하면_DRAFT로_돌아가고_가드레일_플래그가_비워진다() {
-        ReplyDraft d = draft("BLOCKED");
-        d = ReplyDraft.builder().id(1L).reviewId(10L).storeId(100L).content("")
-                .status("BLOCKED").generatedBy("AI").guardrailFlags(new String[] {"G3_COMPENSATION"}).build();
-
-        d.editContent("사장님이 직접 쓴 답글입니다");
-
-        assertThat(d.getStatus()).isEqualTo("DRAFT");
-        assertThat(d.getContent()).isEqualTo("사장님이 직접 쓴 답글입니다");
-        assertThat(d.getGeneratedBy()).isEqualTo("AI_EDITED");
-        assertThat(d.getGuardrailFlags()).isEmpty();
-    }
-
-    @Test
-    void PUBLISHED_초안은_내용을_수정할_수_없다() {
-        ReplyDraft d = draft("PUBLISHED");
-        assertThrows(ApiException.class, () -> d.editContent("수정시도"));
-    }
-
-    @Test
     void 게시스케줄러_방어검증에서_위험도가_재확인되면_SCHEDULED에서_BLOCKED로_되돌린다() {
         ReplyDraft d = draft("SCHEDULED");
         d.blockForRisk(List.of("FOOD_POISONING"));

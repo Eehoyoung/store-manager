@@ -11,8 +11,6 @@ import java.util.List;
 
 /**
  * /stores/{storeId}/persona, /persona/preview, /persona/style-samples DTO (docs/13 §7, Sprint 5 P1~P4).
- * ★ autoMaxRisk 는 0~2 만 허용한다(절대규칙 3) — 3 이상을 저장할 수 있으면 자동게시 위험도 상한을
- * 설정으로 무력화할 수 있게 되므로 반드시 이 범위로 막는다.
  * ★ lengthMax 는 280 초과 불가(CLAUDE.md 데이터처리 8번 — 플랫폼 300자, 이모지 여유).
  */
 final class PersonaDtos {
@@ -37,16 +35,13 @@ final class PersonaDtos {
             List<@Size(max = 50) String> bannedWords,
             @NotNull @Min(1) Short lengthMin,
             @NotNull @Min(1) @Max(280) Short lengthMax,
-            boolean autoPublish,
-            @NotNull @Min(1) @Max(5) Short autoMinRating,
-            @NotNull @Min(0) @Max(2) Short autoMaxRisk,
             @NotNull @Min(0) Short delayHours,
             @Valid List<WindowDto> publishWindows) {
     }
 
     record PersonaResponse(String storeId, String tone, boolean useEmoji, short emojiLevel, String customerTitle,
             String signature, String openingStyle, List<String> bannedWords, short lengthMin, short lengthMax,
-            boolean autoPublish, short autoMinRating, short autoMaxRisk, short delayHours,
+            short delayHours,
             List<WindowDto> publishWindows, int personaSeed, String updatedAt) {
     }
 
@@ -60,6 +55,9 @@ final class PersonaDtos {
 
     record StyleSampleResponse(String id, String reviewText, String replyText, Integer rating, String source,
             String createdAt) {
+    }
+
+    record StyleSampleRequest(@NotBlank @Size(max = 280) String replyText) {
     }
 
     record StyleSampleListResponse(List<StyleSampleResponse> items, boolean hasMore) {

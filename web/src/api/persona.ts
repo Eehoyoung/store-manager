@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { PersonaRequest, PersonaResponse, PreviewResponse, StyleSampleListResponse } from "./types";
+import type { PersonaRequest, PersonaResponse, PreviewResponse, StyleSampleListResponse, StyleSampleResponse } from "./types";
 
 // docs/13 §7, 실제 PersonaController(api-spring) 기준.
 export const personaApi = {
@@ -15,4 +15,6 @@ export const personaApi = {
     apiRequest<StyleSampleListResponse>(`/stores/${storeId}/persona/style-samples?page=${page}&size=${size}`),
   deleteStyleSample: (storeId: string, sampleId: string) =>
     apiRequest<void>(`/stores/${storeId}/persona/style-samples/${sampleId}`, { method: "DELETE" }),
+  addStyleSample: (storeId: string, replyText: string) =>
+    apiRequest<StyleSampleResponse>(`/stores/${storeId}/persona/style-samples`, { method: "POST", body: { replyText } }),
 };

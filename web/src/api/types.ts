@@ -46,33 +46,6 @@ export type DraftStatus =
   | "BLOCKED"
   | "ALREADY_REPLIED";
 
-export interface DraftResponse {
-  id: string;
-  reviewId: string;
-  content: string;
-  status: DraftStatus;
-  tier: string | null;
-  guardrailFlags: string[];
-  scheduledAt: string | null;
-  publishedAt: string | null;
-  generatedBy: string;
-  model: string | null;
-  promptVersion: string | null;
-  similarityMax: number | null;
-  createdAt: string;
-}
-
-export interface DraftListResponse {
-  items: DraftResponse[];
-  hasMore: boolean;
-}
-
-export interface BulkApproveResponse {
-  approved: number;
-  skipped: number;
-  skippedReasons: Record<string, number>;
-}
-
 /**
  * docs/13 §5, 실제 ReviewController/ReviewDtos.ReviewDetailResponse(api-spring, 다른 에이전트가 작업)
  * 기준. rating 은 nullable(무텍스트·사진만 리뷰 등)이라 number | null 로 둔다.
@@ -142,9 +115,6 @@ export interface PersonaRequest {
   bannedWords: string[];
   lengthMin: number;
   lengthMax: number; // <=280
-  autoPublish: boolean;
-  autoMinRating: number; // 1~5
-  autoMaxRisk: number; // 0~2 만 허용(절대규칙 3)
   delayHours: number;
   publishWindows: PublishWindow[];
 }

@@ -16,6 +16,7 @@ import com.storemanager.api.persona.PersonaDtos.PersonaResponse;
 import com.storemanager.api.persona.PersonaDtos.PreviewRequest;
 import com.storemanager.api.persona.PersonaDtos.PreviewResponse;
 import com.storemanager.api.persona.PersonaDtos.StyleSampleListResponse;
+import com.storemanager.api.persona.PersonaDtos.StyleSampleRequest;
 import com.storemanager.api.persona.PersonaDtos.StyleSampleResponse;
 import com.storemanager.api.persona.PersonaDtos.WindowDto;
 import com.storemanager.api.review.ReplyStyleSample;
@@ -43,8 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 페르소나 조회/수정/미리보기, 말투 학습 샘플 목록 (docs/13 §7, Sprint 5 P1~P4).
- * ★ 절대규칙 3: autoMaxRisk 는 0~2 만 저장 가능(PersonaDtos 의 @Max(2) 로 1차 방어), 미리보기는
- * AI 가 돌려준 riskLevel>=3 이면 내용을 만들지 않고 422 를 던진다.
+ * ★ 절대규칙 3: 미리보기는 AI 가 돌려준 riskLevel>=3 이면 내용을 만들지 않고 422 를 던진다.
  * ★ 절대규칙 1: 미리보기는 reply_draft/review_analysis 어디에도 쓰지 않는다 — 순수 조회다.
  */
 @Service
@@ -95,8 +95,8 @@ public class PersonaService {
 
         validateCrossFields(req);
         persona.applyUpdate(req.tone(), req.useEmoji(), req.emojiLevel(), req.customerTitle(), req.signature(),
-                req.openingStyle(), toArray(req.bannedWords()), req.lengthMin(), req.lengthMax(), req.autoPublish(),
-                req.autoMinRating(), req.autoMaxRisk(), req.delayHours(), writeWindowsJson(req.publishWindows()));
+                req.openingStyle(), toArray(req.bannedWords()), req.lengthMin(), req.lengthMax(), req.delayHours(),
+                writeWindowsJson(req.publishWindows()));
         return toResponse(persona);
     }
 
@@ -172,6 +172,21 @@ public class PersonaService {
         return new StyleSampleListResponse(items, result.hasNext());
     }
 
+    /** 가맹점주가 직접 등록하는 답글 형식은 매장당 최대 3건이다. */
+    @Transactional
+    public StyleSampleResponse addStyleSample(UUID ownerPublicId, UUID storePublicId, StyleSampleRequest req) {
+        AppUser owner = resolveUser(ownerPublicId);
+        Store store = loadOwnedStore(owner, storePublicId);
+        styleSampleQueryRepository.lockStore(store.getId());
+        if (styleSampleQueryRepository.countByStoreIdAndSource(store.getId(), "MANUAL") >= 3) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("styleSamples", "답글 형식은 최대 3건까지 등록할 수 있습니다."));
+        }
+        ReplyStyleSample sample = styleSampleQueryRepository.save(ReplyStyleSample.builder()
+                .storeId(store.getId()).reviewText("").replyText(req.replyText()).source("MANUAL").build());
+        return new StyleSampleResponse(String.valueOf(sample.getId()), sample.getReviewText(), sample.getReplyText(),
+                null, sample.getSource(), sample.getCreatedAt().toString());
+    }
+
     /**
      * DELETE /stores/{storeId}/persona/style-samples/{sampleId} (B4, docs/13 §7).
      * ★ reply_style_sample 은 말투 학습 RAG 코퍼스이자 핵심 자산이다(CLAUDE.md 데이터처리 6번) — 삭제는 감사로그를 남긴다.
@@ -243,7 +258,7 @@ public class PersonaService {
         return new PersonaResponse(String.valueOf(p.getStoreId()), p.getTone(), p.isUseEmoji(), p.getEmojiLevel(),
                 p.getCustomerTitle(), p.getSignature(), p.getOpeningStyle(),
                 p.getBannedWords() == null ? List.of() : List.of(p.getBannedWords()), p.getLengthMin(),
-                p.getLengthMax(), p.isAutoPublish(), p.getAutoMinRating(), p.getAutoMaxRisk(), p.getDelayHours(),
+                p.getLengthMax(), p.getDelayHours(),
                 readWindows(p.getPublishWindows()), p.getPersonaSeed(),
                 p.getUpdatedAt() == null ? null : p.getUpdatedAt().toString());
     }

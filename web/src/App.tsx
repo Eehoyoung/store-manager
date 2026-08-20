@@ -9,10 +9,10 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { StoresPage } from "./pages/StoresPage";
-import { QueuePage } from "./pages/QueuePage";
 import { ReviewsPage } from "./pages/ReviewsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PersonaPage } from "./pages/PersonaPage";
+import { BillingPage } from "./pages/BillingPage";
 import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
 import { HqStoresPage } from "./pages/hq/HqStoresPage";
 import { HqReviewsPage } from "./pages/hq/HqReviewsPage";
@@ -34,10 +34,10 @@ function App() {
               <Route element={<AppShell />}>
                 <Route path="/onboarding" element={<OnboardingPage />} />
                 <Route path="/stores" element={<StoresPage />} />
-                <Route path="/stores/:storeId/queue" element={<QueuePage />} />
                 <Route path="/stores/:storeId/reviews" element={<ReviewsPage />} />
                 <Route path="/stores/:storeId/dashboard" element={<DashboardPage />} />
                 <Route path="/stores/:storeId/persona" element={<PersonaPage />} />
+                <Route path="/stores/:storeId/billing" element={<BillingPage />} />
                 <Route path="/settings" element={<ComingSoon title="설정" />} />
 
                 {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}

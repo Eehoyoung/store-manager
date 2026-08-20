@@ -23,6 +23,7 @@ import com.storemanager.api.persona.PersonaDtos.PersonaRequest;
 import com.storemanager.api.persona.PersonaDtos.PersonaResponse;
 import com.storemanager.api.persona.PersonaDtos.PreviewRequest;
 import com.storemanager.api.persona.PersonaDtos.PreviewResponse;
+import com.storemanager.api.persona.PersonaDtos.StyleSampleRequest;
 import com.storemanager.api.persona.PersonaDtos.WindowDto;
 import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
@@ -83,35 +84,36 @@ class PersonaServiceTest {
         org.mockito.Mockito.lenient().when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 
-    private PersonaRequest personaRequest(short lengthMin, short lengthMax, short autoMaxRisk,
-            List<WindowDto> windows) {
+    private PersonaRequest personaRequest(short lengthMin, short lengthMax, List<WindowDto> windows) {
         return new PersonaRequest("POLITE", true, (short) 1, "고객님", "감사합니다", null, List.of(), lengthMin,
-                lengthMax, false, (short) 4, autoMaxRisk, (short) 6, windows);
+                lengthMax, (short) 6, windows);
+    }
+
+    @Test
+    void 직접_입력한_답글_형식은_최대_3건이다() {
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
+        when(styleSampleQueryRepository.countByStoreIdAndSource(100L, "MANUAL")).thenReturn(3L);
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> personaService.addStyleSample(ownerPublicId, storePublicId, new StyleSampleRequest("감사합니다.")));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        verify(styleSampleQueryRepository, never()).save(any(ReplyStyleSample.class));
     }
 
     // ── X2-a: bean validation ────────────────────────────────────────────
 
     @Test
-    void autoMaxRisk_3과_lengthMax_281은_bean_validation에서_거부된다() {
+    void lengthMax_281은_bean_validation에서_거부된다() {
         try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
             Validator validator = factory.getValidator();
-            PersonaRequest req = personaRequest((short) 60, (short) 281, (short) 3, List.of());
+            PersonaRequest req = personaRequest((short) 60, (short) 281, List.of());
 
             Set<ConstraintViolation<PersonaRequest>> violations = validator.validate(req);
 
             Set<String> invalidFields = violations.stream().map(v -> v.getPropertyPath().toString())
                     .collect(Collectors.toSet());
-            assertThat(invalidFields).contains("autoMaxRisk", "lengthMax");
-        }
-    }
-
-    @Test
-    void autoMaxRisk_2는_bean_validation을_통과한다() {
-        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
-            Validator validator = factory.getValidator();
-            PersonaRequest req = personaRequest((short) 60, (short) 150, (short) 2, List.of());
-
-            assertThat(validator.validate(req)).isEmpty();
+            assertThat(invalidFields).contains("lengthMax");
         }
     }
 
@@ -122,7 +124,7 @@ class PersonaServiceTest {
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L))
                 .thenReturn(Optional.of(StorePersona.builder().storeId(100L).personaSeed(1).build()));
-        PersonaRequest req = personaRequest((short) 200, (short) 150, (short) 1, List.of());
+        PersonaRequest req = personaRequest((short) 200, (short) 150, List.of());
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> personaService.updatePersona(ownerPublicId, storePublicId, req));
@@ -137,7 +139,7 @@ class PersonaServiceTest {
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L))
                 .thenReturn(Optional.of(StorePersona.builder().storeId(100L).personaSeed(1).build()));
-        PersonaRequest req = personaRequest((short) 60, (short) 150, (short) 1,
+        PersonaRequest req = personaRequest((short) 60, (short) 150,
                 List.of(new WindowDto("11:00", "10:00")));
 
         ApiException ex = assertThrows(ApiException.class,
@@ -151,7 +153,7 @@ class PersonaServiceTest {
         StorePersona persona = StorePersona.builder().storeId(100L).personaSeed(1).build();
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
-        PersonaRequest req = personaRequest((short) 60, (short) 150, (short) 1,
+        PersonaRequest req = personaRequest((short) 60, (short) 150,
                 List.of(new WindowDto("10:00", "11:30"), new WindowDto("15:00", "16:00")));
 
         PersonaResponse res = personaService.updatePersona(ownerPublicId, storePublicId, req);

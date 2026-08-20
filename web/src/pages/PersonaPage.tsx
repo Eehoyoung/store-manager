@@ -25,8 +25,6 @@ const TONE_OPTIONS: { value: PersonaRequest["tone"]; label: string }[] = [
 ];
 
 // ★ 절대규칙 3: 3 이상은 선택지 자체를 만들지 않는다.
-const AUTO_MAX_RISK_OPTIONS = [0, 1, 2];
-
 function toRequest(p: PersonaResponse): PersonaRequest {
   return {
     tone: p.tone,
@@ -38,9 +36,6 @@ function toRequest(p: PersonaResponse): PersonaRequest {
     bannedWords: p.bannedWords,
     lengthMin: p.lengthMin,
     lengthMax: p.lengthMax,
-    autoPublish: p.autoPublish,
-    autoMinRating: p.autoMinRating,
-    autoMaxRisk: p.autoMaxRisk,
     delayHours: p.delayHours,
     publishWindows: p.publishWindows,
   };
@@ -67,8 +62,6 @@ const KNOWN_FIELD_KEYS = new Set([
   "openingStyle",
   "lengthMin",
   "lengthMax",
-  "autoMinRating",
-  "autoMaxRisk",
   "delayHours",
 ]);
 
@@ -85,7 +78,6 @@ export function PersonaPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [autoPublishConfirmOpen, setAutoPublishConfirmOpen] = useState(false);
   const [newBannedWord, setNewBannedWord] = useState("");
 
   useEffect(() => {
@@ -304,49 +296,10 @@ export function PersonaPage() {
       </Card>
 
       <Card className="persona-page__section">
-        <h2>자동 게시 설정</h2>
-        <label className="persona-page__checkbox">
-          <input
-            type="checkbox"
-            checked={persona.autoPublish}
-            onChange={(e) => {
-              if (e.target.checked) setAutoPublishConfirmOpen(true);
-              else update({ autoPublish: false });
-            }}
-          />
-          자동 게시 사용
-        </label>
-        {persona.autoPublish ? (
-          <p className="persona-page__auto-publish-notice" role="alert">
-            ⚠ 사람 검수 없이 자동으로 게시됩니다. 게시 후에는 되돌릴 수 없습니다.
-          </p>
-        ) : null}
-
-        <Select
-          label="자동 게시 최소 별점"
-          value={String(persona.autoMinRating)}
-          onChange={(e) => update({ autoMinRating: Number(e.target.value) })}
-          error={fieldErrors.autoMinRating}
-        >
-          {[1, 2, 3, 4, 5].map((n) => (
-            <option key={n} value={n}>
-              {n}점 이상
-            </option>
-          ))}
-        </Select>
-        <Select
-          label="자동 게시 최대 위험도"
-          value={String(persona.autoMaxRisk)}
-          onChange={(e) => update({ autoMaxRisk: Number(e.target.value) })}
-          error={fieldErrors.autoMaxRisk}
-        >
-          {AUTO_MAX_RISK_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </Select>
-        <p className="field__hint">위험도 3 이상(위생·이물질·법적분쟁 소지)은 항상 사람 검수 대상이라 선택할 수 없습니다.</p>
+        <h2>자동 게시</h2>
+        <p className="persona-page__auto-publish-notice" role="alert">
+          안전 검사를 통과한 답글은 승인 없이 자동 게시됩니다. 위험·가드레일 차단 건은 게시하지 않습니다.
+        </p>
         <Field
           label="게시 지연 시간(시간)"
           type="number"
@@ -354,7 +307,7 @@ export function PersonaPage() {
           value={persona.delayHours}
           onChange={(e) => update({ delayHours: Number(e.target.value) })}
           error={fieldErrors.delayHours}
-          hint="승인 후 실제 게시까지 기다리는 시간입니다."
+          hint="답글 생성 후 실제 게시까지 기다리는 시간입니다."
         />
 
         <h2>게시 가능 시간대</h2>
@@ -398,33 +351,6 @@ export function PersonaPage() {
       <Button type="button" onClick={handleSave} loading={saving}>
         저장
       </Button>
-
-      <Modal
-        open={autoPublishConfirmOpen}
-        title="자동 게시를 사용하시겠습니까?"
-        onClose={() => setAutoPublishConfirmOpen(false)}
-        footer={
-          <>
-            <Button type="button" variant="secondary" onClick={() => setAutoPublishConfirmOpen(false)}>
-              취소
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                update({ autoPublish: true });
-                setAutoPublishConfirmOpen(false);
-              }}
-            >
-              사용합니다
-            </Button>
-          </>
-        }
-      >
-        <p>
-          <strong>사람 검수 없이 자동으로 게시됩니다. 게시 후에는 되돌릴 수 없습니다.</strong>
-        </p>
-        <p>설정한 별점·위험도·시간대 조건을 만족하는 답글만 자동 게시되며, 조건에 벗어나는 답글은 계속 승인 큐로 모입니다.</p>
-      </Modal>
 
       <PersonaPreview storeId={storeId} persona={persona} />
       <StyleSamples storeId={storeId} toast={toast} />
@@ -537,6 +463,8 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StyleSampleResponse | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [newStyle, setNewStyle] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const load = () => {
     setItems(null);
@@ -551,6 +479,23 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
   };
 
   useEffect(load, [storeId, page]);
+
+  const handleAdd = async () => {
+    const replyText = newStyle.trim();
+    if (!replyText) return;
+    setAdding(true);
+    try {
+      await personaApi.addStyleSample(storeId, replyText);
+      setNewStyle("");
+      toast.show("답글 형식을 등록했습니다.", "success");
+      setPage(0);
+      load();
+    } catch (e) {
+      toast.show(e instanceof ApiError ? e.message : "등록에 실패했습니다.", "danger");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -569,8 +514,14 @@ function StyleSamples({ storeId, toast }: { storeId: string; toast: ToastApi }) 
 
   return (
     <Card className="persona-page__section">
-      <h2>말투 학습 샘플</h2>
-      <p className="field__hint">기존에 등록된 답글에서 자동으로 수집된, 답글 생성에 참고하는 말투 자료입니다.</p>
+      <h2>답글 형식</h2>
+      <p className="field__hint">원하는 답글 예시를 최대 3건 등록하세요. 미입력 시 통합 기본 형식을 적용합니다.</p>
+      <div className="persona-page__tag-input">
+        <Field label="답글 예시 (최대 3건)" value={newStyle} maxLength={280}
+          onChange={(e) => setNewStyle(e.target.value)} />
+        <Button type="button" variant="secondary" onClick={handleAdd} loading={adding}
+          disabled={!newStyle.trim()}>등록</Button>
+      </div>
 
       {items === null && !error ? <Skeleton height={120} /> : null}
       {error ? <EmptyState title="불러오지 못했습니다" description={error} /> : null}

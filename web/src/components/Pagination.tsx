@@ -5,7 +5,7 @@ interface PaginationProps {
   disabled?: boolean;
 }
 
-// 실제 백엔드(DraftService.listQueue)는 page/size + hasMore 를 쓴다(docs 의 cursor 방식이 아니다).
+// 목록 API는 page/size + hasMore 규약을 공통 사용한다.
 export function Pagination({ page, hasMore, onPageChange, disabled }: PaginationProps) {
   return (
     <nav className="pagination" aria-label="페이지 이동">
