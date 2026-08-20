@@ -57,6 +57,6 @@ public class StoreController {
 
     private static StoreResponse toResponse(Store s) {
         return new StoreResponse(s.getPublicId().toString(), s.getName(), s.getBrandName(),
-                s.getCategory(), s.getAddress(), s.getStatus());
+                s.getCategory(), s.getAddress(), s.getStatus(), s.getActivatedAt());
     }
 }

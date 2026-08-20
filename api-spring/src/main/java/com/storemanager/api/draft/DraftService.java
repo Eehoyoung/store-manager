@@ -230,7 +230,8 @@ public class DraftService {
         Store store = storeRepository.findByPublicIdAndDeletedAtIsNull(UUID.fromString(req.storeId()))
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!store.getOwnerId().equals(owner.getId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN);
+            // ★ X1: 403 이 아니라 404(Sprint 5 B5).
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         StorePersona persona = storePersonaRepository.findById(store.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -278,7 +279,8 @@ public class DraftService {
         Store store = storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!store.getOwnerId().equals(owner.getId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN);
+            // ★ X1: 403 이 아니라 404(Sprint 5 B5).
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         Page<ReplyDraft> result = status == null || status.isBlank()
                 ? replyDraftRepository.findByStoreId(store.getId(), PageRequest.of(page, size))
@@ -400,7 +402,8 @@ public class DraftService {
     private Store loadOwnedStore(AppUser owner, Long storeId) {
         Store store = storeRepository.findById(storeId).orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!store.getOwnerId().equals(owner.getId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN);
+            // ★ X1: 403 이 아니라 404(Sprint 5 B5) — 남의 매장 storeId 존재 여부를 흘리지 않는다.
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return store;
     }

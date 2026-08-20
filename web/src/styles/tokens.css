@@ -1,0 +1,44 @@
+/*
+ * 디자인 토큰 — 40~60대 프랜차이즈 사장님 대상 (F1).
+ * 색상 대비는 WCAG AA(4.5:1) 기준을 실제로 계산해 넉넉히 상회하도록 골랐다(대비비는 각 줄에 기록).
+ * 흰 배경(#ffffff) 대비 기준.
+ */
+:root {
+  /* 색상 */
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-border: #d5d9e0;
+  --color-text: #141414; /* 본문 — 대비 약 19:1 */
+  --color-text-muted: #4b5563; /* 보조 텍스트 — 대비 약 7.5:1 */
+  --color-primary: #1e4ed8; /* 대비(흰 배경 위 텍스트, 또는 흰 글자용 배경) 약 6.7:1 */
+  --color-primary-dark: #16399f;
+  --color-success: #15803d; /* 대비 약 5.0:1 */
+  --color-success-bg: #e7f6ec;
+  --color-danger: #b91c1c; /* 대비 약 6.5:1 */
+  --color-danger-bg: #fdecec;
+  --color-warning: #b45309; /* 대비 약 5.0:1 */
+  --color-warning-bg: #fdf0e2;
+  --color-info-bg: #e7edfb;
+  --color-neutral-bg: #eceef1;
+
+  /* 타이포 — 본문 최소 18px, 어떤 텍스트도 16px 미만 금지, 행간 1.6 이상 */
+  --font-family: system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --font-size-body: 18px;
+  --font-size-small: 16px;
+  --font-size-h1: 28px;
+  --font-size-h2: 22px;
+  --line-height-body: 1.6;
+
+  /* 간격 · 반경 · 그림자 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius: 10px;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  /* 터치 타깃 최소 44x44px */
+  --touch-target: 44px;
+}

@@ -1,0 +1,257 @@
+// docs/13_내부API명세.md 와 실제 컨트롤러(api-spring/.../DraftDtos.java, StoreDtos.java, AuthDtos.java)를
+// 기준으로 맞춘 타입. 문서와 실제 코드가 다르면 코드가 정답이다(오케스트레이터 지시).
+
+export interface ApiErrorEnvelope {
+  code: string;
+  message: string;
+  traceId?: string;
+  details?: Record<string, unknown> | null;
+}
+
+export interface UserSummary {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  expiresIn: number;
+  user: UserSummary;
+}
+
+export interface StoreResponse {
+  id: string;
+  name: string;
+  brandName: string | null;
+  category: string | null;
+  address: string | null;
+  status: string;
+  /**
+   * ★ 2026-08-20 기준 실제 StoreController.toResponse() 는 activatedAt 을 응답에 포함하지 않는다
+   * (Store 엔티티에는 컬럼이 있지만 DTO 매핑에서 빠졌다 — api-spring/src/main/java/.../StoreController.java 확인).
+   * 백엔드가 필드를 추가하면 그대로 동작하도록 optional 로 선언해둔다. 필드가 없을 때는 "미서명"으로
+   * 안전하게(보수적으로) 취급한다 — CLAUDE.md 의 "activated_at IS NULL → 전량 스킵" 철학과 같은 방향이다.
+   */
+  activatedAt?: string | null;
+}
+
+export type DraftStatus =
+  | "DRAFT"
+  | "APPROVED"
+  | "SCHEDULED"
+  | "PUBLISHED"
+  | "FAILED"
+  | "REJECTED"
+  | "BLOCKED"
+  | "ALREADY_REPLIED";
+
+export interface DraftResponse {
+  id: string;
+  reviewId: string;
+  content: string;
+  status: DraftStatus;
+  tier: string | null;
+  guardrailFlags: string[];
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  generatedBy: string;
+  model: string | null;
+  promptVersion: string | null;
+  similarityMax: number | null;
+  createdAt: string;
+}
+
+export interface DraftListResponse {
+  items: DraftResponse[];
+  hasMore: boolean;
+}
+
+export interface BulkApproveResponse {
+  approved: number;
+  skipped: number;
+  skippedReasons: Record<string, number>;
+}
+
+/**
+ * docs/13 §5, 실제 ReviewController/ReviewDtos.ReviewDetailResponse(api-spring, 다른 에이전트가 작업)
+ * 기준. rating 은 nullable(무텍스트·사진만 리뷰 등)이라 number | null 로 둔다.
+ * ★ author_hash(원본 닉네임 가명처리 값)는 여기 없다 — authorMasked 만 노출한다(절대규칙 6).
+ */
+export interface ReviewAnalysisResponse {
+  category: string | null;
+  sentiment: number | null;
+  issueTags: string[];
+  riskLevel: number | null;
+  riskReasons: string[];
+}
+
+export interface ReviewResponse {
+  id: string;
+  platform: string;
+  rating: number | null;
+  body: string | null;
+  authorMasked: string;
+  orderedMenus: string[];
+  imageUrls: string[];
+  writtenAt: string | null;
+  writtenDateOnly: boolean;
+  collectedAt: string | null;
+  hasOwnerReply: boolean;
+  analysis: ReviewAnalysisResponse | null;
+}
+
+/** 리뷰 목록/상세용 초안 요약(ReviewDtos.DraftSummaryResponse) — DraftResponse 보다 필드가 적다. */
+export interface DraftSummary {
+  id: string;
+  status: DraftStatus;
+  content: string;
+}
+
+/** GET /stores/{storeId}/reviews 항목(ReviewDtos.ReviewSummaryResponse). */
+export interface ReviewSummary extends ReviewResponse {
+  draft: DraftSummary | null;
+}
+
+export interface ReviewListResponse {
+  items: ReviewSummary[];
+  hasMore: boolean;
+}
+
+/** GET /reviews/{reviewId}(ReviewDtos.ReviewDetailResponse) — draft 대신 drafts 배열(재생성 이력, 최신순). */
+export interface ReviewDetail extends ReviewResponse {
+  drafts: DraftSummary[];
+}
+
+// ── 페르소나(docs/13 §7, PersonaDtos) ───────────────────────────────────
+
+export type PersonaTone = "POLITE" | "FRIENDLY" | "CHEERFUL" | "CONCISE";
+
+export interface PublishWindow {
+  start: string; // HH:mm
+  end: string; // HH:mm
+}
+
+export interface PersonaRequest {
+  tone: PersonaTone;
+  useEmoji: boolean;
+  emojiLevel: number; // 0~3
+  customerTitle: string;
+  signature: string;
+  openingStyle: string;
+  bannedWords: string[];
+  lengthMin: number;
+  lengthMax: number; // <=280
+  autoPublish: boolean;
+  autoMinRating: number; // 1~5
+  autoMaxRisk: number; // 0~2 만 허용(절대규칙 3)
+  delayHours: number;
+  publishWindows: PublishWindow[];
+}
+
+export interface PersonaResponse extends PersonaRequest {
+  storeId: string;
+  personaSeed: number;
+  updatedAt: string;
+}
+
+export interface PreviewRequest {
+  reviewId: string;
+  persona: PersonaRequest | null;
+}
+
+export interface PreviewResponse {
+  content: string;
+  tier: string | null;
+  model: string | null;
+  promptVersion: string | null;
+  guardrailFlags: string[];
+}
+
+export interface StyleSampleResponse {
+  id: string;
+  reviewText: string;
+  replyText: string;
+  rating: number | null;
+  source: string;
+  createdAt: string | null;
+}
+
+export interface StyleSampleListResponse {
+  items: StyleSampleResponse[];
+  hasMore: boolean;
+}
+
+// ── 대시보드(docs/13 §8, AnalyticsDtos) ─────────────────────────────────
+
+export interface RatingBucket {
+  rating: number;
+  count: number;
+}
+
+export interface CategoryBucket {
+  category: string;
+  count: number;
+}
+
+export interface AnalyticsSummaryResponse {
+  from: string;
+  to: string;
+  totalReviews: number;
+  avgRating: number | null;
+  ratingDistribution: RatingBucket[];
+  categoryDistribution: CategoryBucket[];
+  replyCompletionRate: number;
+  pendingCount: number;
+  blockedCount: number;
+  highRiskCount: number;
+}
+
+export interface TrendPoint {
+  date: string;
+  reviewCount: number;
+  avgRating: number | null;
+  publishedCount: number;
+}
+
+export interface AnalyticsTrendResponse {
+  from: string;
+  to: string;
+  items: TrendPoint[];
+}
+
+export interface IssueTagItem {
+  tag: string;
+  count: number;
+  avgRating: number | null;
+  lastOccurredAt: string | null;
+}
+
+export interface AnalyticsIssuesResponse {
+  from: string;
+  to: string;
+  items: IssueTagItem[];
+}
+
+export interface MenuItem {
+  menu: string;
+  count: number;
+  avgRating: number | null;
+}
+
+export interface AnalyticsMenusResponse {
+  from: string;
+  to: string;
+  items: MenuItem[];
+}
+
+export interface AnalyticsResponsePerformance {
+  from: string;
+  to: string;
+  totalReviews: number;
+  completedCount: number;
+  completionRate: number;
+  autoApprovalRate: number;
+  avgResponseMinutes: number | null;
+  retriedCount: number;
+}

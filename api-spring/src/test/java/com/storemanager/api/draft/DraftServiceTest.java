@@ -16,6 +16,7 @@ import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.draft.DraftDtos.ApproveRequest;
+import com.storemanager.api.draft.DraftDtos.BulkApproveRequest;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsRequest;
 import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.review.UnifiedReview;
@@ -176,5 +177,45 @@ class DraftServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
         org.mockito.Mockito.verify(replyDraftRepository).save(
                 org.mockito.ArgumentMatchers.argThat((ReplyDraft d) -> "BLOCKED".equals(d.getStatus())));
+    }
+
+    // ── B5: 남의 매장 접근은 403 이 아니라 404 ────────────────────────────
+
+    @Test
+    void 남의_매장_초안_승인은_404다() {
+        Store othersStore = Store.builder().id(200L).ownerId(2L).name("남의가게").build();
+        ReplyDraft draft = ReplyDraft.builder().id(7L).reviewId(12L).storeId(200L).content("답글")
+                .status("DRAFT").generatedBy("AI").build();
+        when(replyDraftRepository.findById(7L)).thenReturn(Optional.of(draft));
+        when(storeRepository.findById(200L)).thenReturn(Optional.of(othersStore));
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> draftService.approve(ownerPublicId, 7L, new ApproveRequest("SCHEDULED")));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+    }
+
+    @Test
+    void 남의_매장_일괄승인은_404다() {
+        UUID othersStorePublicId = UUID.randomUUID();
+        Store othersStore = Store.builder().id(201L).publicId(othersStorePublicId).ownerId(2L).name("남의가게").build();
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(othersStorePublicId)).thenReturn(Optional.of(othersStore));
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> draftService.bulkApprove(ownerPublicId, new BulkApproveRequest(othersStorePublicId.toString(), null)));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+    }
+
+    @Test
+    void 남의_매장_승인큐_조회는_404다() {
+        UUID othersStorePublicId = UUID.randomUUID();
+        Store othersStore = Store.builder().id(202L).publicId(othersStorePublicId).ownerId(2L).name("남의가게").build();
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(othersStorePublicId)).thenReturn(Optional.of(othersStore));
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> draftService.listQueue(ownerPublicId, othersStorePublicId, null, 0, 20));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
     }
 }

@@ -76,7 +76,8 @@ public class StoreService {
         Store store = storeRepository.findByPublicIdAndDeletedAtIsNull(storeId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!store.getOwnerId().equals(owner.getId())) {
-            throw new ApiException(ErrorCode.FORBIDDEN);
+            // ★ X1: 403 이 아니라 404 — 존재 여부를 흘리지 않는다(Sprint 5 B5, review/analytics/persona 와 일관).
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
         return store;
     }
