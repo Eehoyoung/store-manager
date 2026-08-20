@@ -25,7 +25,15 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+ai:
+  # Spring → Python 내부 API base URL (CLAUDE.md 서비스 경계: /internal/ai/analyze-and-draft 하나만 호출)
+  base-url: ${AI_SERVICE_BASE_URL:http://localhost:8001}
+
 app:
+  scheduler:
+    publish:
+      # 게시 스케줄러(S9) 활성화 여부. 테스트 프로파일은 이 값을 설정하지 않아 기본적으로 꺼진다.
+      enabled: ${PUBLISH_SCHEDULER_ENABLED:true}
   jwt:
     secret: ${JWT_SECRET}
     access-ttl-seconds: 1800

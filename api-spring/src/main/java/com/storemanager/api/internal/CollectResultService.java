@@ -5,10 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.collect.CollectionJobRepository;
 import com.storemanager.api.collect.DataApiCallLog;
 import com.storemanager.api.collect.DataApiCallLogRepository;
+import com.storemanager.api.audit.AuditLog;
+import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.crypto.PlatformAccountRepository;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.internal.CollectResultRequest.ExistingReply;
+import com.storemanager.api.internal.CollectResultRequest.Publish;
 import com.storemanager.api.internal.CollectResultRequest.ReviewBlock;
 import com.storemanager.api.internal.CollectResultRequest.StoreBlock;
+import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.review.Pseudonymizer;
 import com.storemanager.api.review.ReplyStyleSample;
 import com.storemanager.api.review.ReplyStyleSampleRepository;
@@ -20,6 +26,7 @@ import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -27,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +47,9 @@ public class CollectResultService {
 
     private static final Logger log = LoggerFactory.getLogger(CollectResultService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final String DISPATCH_KEY_PREFIX = "dispatch:draft:"; // PublishScheduler 와 동일 키(고정계약)
+    private static final short MAX_PUBLISH_RETRY = 3;
+    private static final String RISK_LEVEL_TOO_HIGH_REASON = "RISK_LEVEL_TOO_HIGH";
 
     private final StorePlatformLinkRepository storePlatformLinkRepository;
     private final StoreRepository storeRepository;
@@ -50,13 +61,18 @@ public class CollectResultService {
     private final PlatformAccountRepository platformAccountRepository;
     private final Pseudonymizer pseudonymizer;
     private final ObjectMapper objectMapper;
+    private final ReplyDraftRepository replyDraftRepository;
+    private final Notifier notifier;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final AuditLogRepository auditLogRepository;
 
     public CollectResultService(StorePlatformLinkRepository storePlatformLinkRepository,
             StoreRepository storeRepository, UnifiedReviewRepository unifiedReviewRepository,
             ReplyStyleSampleRepository replyStyleSampleRepository, StoreMenuRepository storeMenuRepository,
             CollectionJobRepository collectionJobRepository, DataApiCallLogRepository dataApiCallLogRepository,
             PlatformAccountRepository platformAccountRepository, Pseudonymizer pseudonymizer,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, ReplyDraftRepository replyDraftRepository, Notifier notifier,
+            StringRedisTemplate stringRedisTemplate, AuditLogRepository auditLogRepository) {
         this.storePlatformLinkRepository = storePlatformLinkRepository;
         this.storeRepository = storeRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -67,10 +83,18 @@ public class CollectResultService {
         this.platformAccountRepository = platformAccountRepository;
         this.pseudonymizer = pseudonymizer;
         this.objectMapper = objectMapper;
+        this.replyDraftRepository = replyDraftRepository;
+        this.notifier = notifier;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Transactional
     public CollectResultSummary ingest(CollectResultRequest req) {
+        if (req.publish() != null) {
+            return handlePublishResult(req);
+        }
+
         Long requestAccountId = parseLongOrNull(req.accountId());
 
         if ("LINK_ERROR".equals(req.action())) {
@@ -122,6 +146,88 @@ public class CollectResultService {
         return new CollectResultSummary(processed, skipped, reviewsNew);
     }
 
+    /**
+     * 게시 결과 수신(S10, 오케스트레이터 고정계약). 워커가 실제로 보내는 값 기준(오케스트레이터 계약 보완 메모):
+     * action=PUBLISHED|ALREADY_REPLIED|FAIL|LINK_ERROR 를 최상위 action 필드로 구분한다.
+     * 모든 분기에서 dispatch:draft:{id} 키를 삭제한다.
+     * ★ 요청 본문을 로깅하지 않는다.
+     */
+    private CollectResultSummary handlePublishResult(CollectResultRequest req) {
+        Publish publish = req.publish();
+        Long draftId = publish.draftId();
+        ReplyDraft draft = draftId == null ? null : replyDraftRepository.findById(draftId).orElse(null);
+        if (draft == null) {
+            log.warn("게시 결과 수신: reply_draft 를 찾을 수 없어 무시합니다.");
+            return new CollectResultSummary(0, 0, 0);
+        }
+
+        stringRedisTemplate.delete(DISPATCH_KEY_PREFIX + draftId);
+
+        String action = req.action();
+        if ("PUBLISHED".equals(action)) {
+            draft.markPublished(publish.platformCommentId());
+        } else if ("ALREADY_REPLIED".equals(action)) {
+            draft.markAlreadyReplied();
+            markReviewHasOwnerReply(draft.getReviewId());
+        } else if ("FAIL".equals(action)) {
+            handlePublishFail(draft, req.ecode(), publish.failReason());
+        } else if ("LINK_ERROR".equals(action)) {
+            draft.markFailed(req.ecode(), publish.failReason());
+            handleLinkError(parseLongOrNull(req.accountId()), req.ecode());
+            notifyLinkError(draft);
+        } else {
+            log.warn("게시 결과 action 값을 처리할 수 없어 무시합니다: {}", action);
+        }
+
+        return new CollectResultSummary(0, 0, 0);
+    }
+
+    /**
+     * FAIL 분기(오케스트레이터 계약 보완). failReason=RISK_LEVEL_TOO_HIGH 는 워커가 절대규칙 3 이중검증으로
+     * DataAPI 를 아예 호출하지 않고 거절한 경우다 — 재시도 대상이 아니라 사람 검수(BLOCKED)로 종결한다.
+     * 그 외 실패는 retry_count<3 이면 지수 백오프로 재예약, 3회 소진 시 FAILED 로 확정한다.
+     */
+    private void handlePublishFail(ReplyDraft draft, String ecode, String failReason) {
+        if (RISK_LEVEL_TOO_HIGH_REASON.equals(failReason)) {
+            draft.blockAtPublishRisk(RISK_LEVEL_TOO_HIGH_REASON);
+            auditLogRepository.save(AuditLog.builder()
+                    .actorType("WORKER")
+                    .action("DRAFT_BLOCKED_RISK_AT_PUBLISH")
+                    .targetType("REPLY_DRAFT")
+                    .targetId(draft.getId())
+                    .build());
+            notifyHighRisk(draft);
+            return;
+        }
+        if (draft.getRetryCount() < MAX_PUBLISH_RETRY) {
+            short nextRetryCount = (short) (draft.getRetryCount() + 1);
+            Instant nextScheduledAt = Instant.now().plus(Duration.ofMinutes(1L << nextRetryCount));
+            draft.retryLater(nextScheduledAt, failReason);
+        } else {
+            draft.markFailed(ecode, failReason);
+        }
+    }
+
+    /** ALREADY_REPLIED — unified_review.has_owner_reply 를 true 로 갱신한다(F-9, 사장님이 앱에서 직접 답글). */
+    private void markReviewHasOwnerReply(Long reviewId) {
+        unifiedReviewRepository.findById(reviewId).ifPresent(review -> review.applyIncoming(review.getRating(),
+                review.getBody(), review.getAuthorMasked(), review.getAuthorHash(), review.getOrderedMenus(),
+                review.getImageUrls(), review.getPlatformExtra(), review.getReviewStatus(), review.getWrittenAt(),
+                true, review.getExistingReply(), review.getExistingReplyId()));
+    }
+
+    private static final short LOW_RATING_THRESHOLD = 2; // S11: 별점 2 이하 수신 시 사장님 알림
+
+    private void notifyHighRisk(ReplyDraft draft) {
+        storeRepository.findById(draft.getStoreId()).ifPresent(store -> notifier.send(store.getOwnerId(),
+                store.getId(), "ALIMTALK", "HIGH_RISK_REVIEW", "REPLY_DRAFT", draft.getId()));
+    }
+
+    private void notifyLinkError(ReplyDraft draft) {
+        storeRepository.findById(draft.getStoreId()).ifPresent(store -> notifier.send(store.getOwnerId(),
+                store.getId(), "ALIMTALK", "PLATFORM_LINK_ERROR", "REPLY_DRAFT", draft.getId()));
+    }
+
     /** @return 새로 생성된 리뷰면 true, 기존 리뷰 갱신이면 false */
     private boolean ingestReview(Store store, StorePlatformLink link, String platform, ReviewBlock rb) {
         UnifiedReview review = unifiedReviewRepository
@@ -159,6 +265,14 @@ public class CollectResultService {
         }
 
         upsertMenus(store.getId(), platform, rb.orderedMenus());
+
+        // S11 저별점 알림 — 새로 들어온 리뷰에 대해서만 보낸다.
+        // 수집은 매 폴링마다 최근 2일을 재조회하므로(CLAUDE.md 데이터처리 2번), isNew 로 막지 않으면
+        // 같은 저별점 리뷰로 사장님에게 폴링 주기마다 알림이 반복 발송된다.
+        if (isNew && rating != null && rating <= LOW_RATING_THRESHOLD) {
+            notifier.send(store.getOwnerId(), store.getId(), "ALIMTALK", "LOW_RATING_REVIEW",
+                    "UNIFIED_REVIEW", review.getId());
+        }
         return isNew;
     }
 

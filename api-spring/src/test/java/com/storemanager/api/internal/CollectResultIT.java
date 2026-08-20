@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.crypto.CredentialService;
 import com.storemanager.api.crypto.PlatformAccount;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.review.ReplyStyleSample;
 import com.storemanager.api.review.ReplyStyleSampleRepository;
 import com.storemanager.api.review.StorePlatformLink;
@@ -27,6 +29,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -46,6 +49,14 @@ class CollectResultIT {
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
+
+    // ★ 게시 결과 경로는 dispatch:draft:{id} 키를 지우려고 Redis 에 접속한다.
+    // 컨테이너를 띄우지 않으면 application.yml 기본값(localhost:6380)의 실제 개발용 Redis 에 붙는다 —
+    // 테스트가 개발 데이터를 건드리게 되므로 전용 컨테이너로 격리한다.
+    @Container
+    @ServiceConnection(name = "redis")
+    static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379);
 
     private static final String INTERNAL_TOKEN = "test-internal-token"; // application-test.yml 과 동일
 
@@ -72,6 +83,12 @@ class CollectResultIT {
 
     @Autowired
     ReplyStyleSampleRepository replyStyleSampleRepository;
+
+    @Autowired
+    ReplyDraftRepository replyDraftRepository;
+
+    @Autowired
+    org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     private Long 계약완료_매장을_만든다(Long ownerId, String name) {
         Store store = Store.builder()
@@ -248,5 +265,106 @@ class CollectResultIT {
         mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", "wrong-token")
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ── 게시 결과 수신 (Sprint 4 S10) ───────────────────────────────────────
+    // 상태 전이 자체는 ReplyDraftTest 가 단위로 덮지만, "워커가 실제로 보내는 JSON 이
+    // 올바른 전이를 호출하는가"는 여기서만 검증된다. 워커가 보내는 형태를 실제로 실행해
+    // 확인한 값 그대로 사용한다.
+
+    private record 게시픽스처(Long draftId, Long reviewId) {
+    }
+
+    private 게시픽스처 게시대기_초안을_만든다(String email, String platformReviewId) throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email(email)
+                .passwordHash("dummy").name("사장P").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-" + email, "pw");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "게시매장-" + platformReviewId);
+        매장을_연동한다(storeId, account.getId(), "BAEMIN", "store-" + platformReviewId);
+
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(수집결과_요청바디("job-" + platformReviewId, "BAEMIN", "store-" + platformReviewId,
+                                platformReviewId, "손님", false)))
+                .andExpect(status().isOk());
+        UnifiedReview review = unifiedReviewRepository
+                .findByPlatformAndPlatformReviewId("BAEMIN", platformReviewId).orElseThrow();
+
+        ReplyDraft draft = replyDraftRepository.save(ReplyDraft.builder()
+                .reviewId(review.getId()).storeId(storeId).content("고객님 감사합니다").generatedBy("AI")
+                .build());
+        draft.approve(owner.getId(), Instant.now());
+        replyDraftRepository.save(draft);
+        stringRedisTemplate.opsForValue().set("dispatch:draft:" + draft.getId(), "1");
+        return new 게시픽스처(draft.getId(), review.getId());
+    }
+
+    private void 게시결과를_보낸다(String json) throws Exception {
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isOk());
+    }
+
+    private String 게시결과_바디(Long draftId, String status, String action, String ecode,
+            String platformCommentId, String failReason) {
+        return """
+                {"jobId":"pub-%d","accountId":"1","platform":"BAEMIN","status":"%s","ecode":%s,
+                 "action":"%s","publish":{"draftId":%d,"platformCommentId":%s,"failReason":%s}}
+                """.formatted(draftId, status, ecode == null ? "null" : "\"" + ecode + "\"", action, draftId,
+                platformCommentId == null ? "null" : "\"" + platformCommentId + "\"",
+                failReason == null ? "null" : "\"" + failReason + "\"");
+    }
+
+    @Test
+    void 게시성공이면_PUBLISHED_로_전이하고_dispatch키가_지워진다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub1@example.com", "rv-pub-1");
+
+        게시결과를_보낸다(게시결과_바디(f.draftId(), "SUCCESS", "PUBLISHED", null, "2024033103186049", null));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("PUBLISHED");
+        assertThat(after.getPlatformCommentId()).isEqualTo("2024033103186049");
+        assertThat(after.getPublishedAt()).isNotNull();
+        assertThat(stringRedisTemplate.hasKey("dispatch:draft:" + f.draftId())).isFalse();
+    }
+
+    @Test
+    void 댓글중복은_실패가_아니라_ALREADY_REPLIED_로_정상종료된다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub2@example.com", "rv-pub-2");
+
+        // 워커는 ERR_MDCOM_MSG00009 를 status=SUCCESS 로 보낸다(직접 실행해 확인한 형태).
+        게시결과를_보낸다(게시결과_바디(f.draftId(), "SUCCESS", "ALREADY_REPLIED", "ERR_MDCOM_MSG00009", null, null));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("ALREADY_REPLIED");
+        // 사장님이 앱에서 직접 답글을 단 상태이므로 리뷰에도 반영돼야 한다.
+        assertThat(unifiedReviewRepository.findById(f.reviewId()).orElseThrow().isHasOwnerReply()).isTrue();
+    }
+
+    @Test
+    void 일반실패는_재시도를_위해_SCHEDULED_로_되돌아가고_retry_count가_증가한다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub3@example.com", "rv-pub-3");
+
+        게시결과를_보낸다(게시결과_바디(f.draftId(), "FAILED", "FAIL", "ERR_UNKNOWN_9999", null, "일시 오류"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 1);
+        assertThat(after.getScheduledAt()).isAfter(Instant.now());
+    }
+
+    @Test
+    void 위험도차단은_재시도하지_않고_BLOCKED_로_종결된다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub4@example.com", "rv-pub-4");
+
+        // ★ 절대규칙 3: 워커가 riskLevel>=3 이중검증으로 거절한 경우다.
+        // action 은 FAIL 이지만 재시도 대상이 아니라 사람 검수 대상이다.
+        게시결과를_보낸다(게시결과_바디(f.draftId(), "FAILED", "FAIL", null, null, "RISK_LEVEL_TOO_HIGH"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("BLOCKED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 0);
+        // scheduled_at 은 남아 있어도 무해하다 — 스케줄러 조회가 status=SCHEDULED 만 보므로 재디스패치되지 않는다.
+        assertThat(after.getFailCode()).isEqualTo("RISK_LEVEL_TOO_HIGH");
     }
 }

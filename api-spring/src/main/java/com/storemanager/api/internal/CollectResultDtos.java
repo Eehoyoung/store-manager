@@ -21,7 +21,8 @@ record CollectResultRequest(
         String ecode, // status=FAILED 일 때만 옴 (DataAPI 원본 ECODE)
         String action, // status=FAILED 일 때만 옴: LINK_ERROR | ALREADY_REPLIED | FAIL
         List<StoreBlock> stores, // LINK_ERROR 등 실패 시 비어 있거나 없을 수 있다
-        Stats stats) {
+        Stats stats,
+        Publish publish) { // null 이 아니면 수집 결과가 아니라 게시 결과다(S10, 오케스트레이터 고정계약)
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record StoreBlock(
@@ -47,6 +48,15 @@ record CollectResultRequest(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ExistingReply(String id, String contents) {
+    }
+
+    /**
+     * 게시 결과 블록(S10, 오케스트레이터 고정계약). action 최상위 필드를 재사용해 PUBLISHED|ALREADY_REPLIED|FAIL|LINK_ERROR
+     * 를 구분한다. failReason="RISK_LEVEL_TOO_HIGH" 는 워커가 절대규칙 3 이중검증으로 DataAPI 를 호출하지 않고
+     * 거절한 경우다 — 재시도 대상이 아니라 사람 검수 대상이다(오케스트레이터 계약 보완).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Publish(Long draftId, String platformCommentId, String failReason) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

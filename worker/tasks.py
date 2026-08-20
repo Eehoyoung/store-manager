@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import random
@@ -19,6 +20,7 @@ from typing import Any, Callable
 
 import httpx
 
+import publish
 from celery_app import app
 from dataapi import Credentials, DataApiClient, DataApiError, Platform, call_with_retry, ecode_action
 from normalize import normalize_stores
@@ -31,6 +33,14 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 COLLECT_LOOKBACK_DAYS = int(os.environ.get("COLLECT_LOOKBACK_DAYS", "2"))
 BACKFILL_DAYS = int(os.environ.get("BACKFILL_DAYS", "90"))
 BACKFILL_CHUNK_DAYS = int(os.environ.get("BACKFILL_CHUNK_DAYS", "7"))
+
+# 게시 큐(Sprint 4) — Spring 이 LPUSH, 워커는 BRPOP 으로 소비하는 평범한 Redis LIST 다.
+# ★ Celery 메시지 프로토콜이 아니다(고정계약 참고).
+PUBLISH_QUEUE_KEY = "q:publish"
+PUBLISH_BATCH_SIZE = int(os.environ.get("PUBLISH_BATCH_SIZE", "20"))
+PUBLISH_BRPOP_TIMEOUT_SECONDS = int(os.environ.get("PUBLISH_BRPOP_TIMEOUT_SECONDS", "1"))
+PUBLISH_RATE_LIMIT_SECONDS = float(os.environ.get("PUBLISH_RATE_LIMIT_SECONDS", "5"))
+PUBLISH_JITTER_MAX_SECONDS = float(os.environ.get("PUBLISH_JITTER_MAX_SECONDS", "3"))
 
 # ponytail: 락 TTL은 env 로 빼지 않았다. 필요해지면 COLLECT_LOCK_TTL 추가.
 LOCK_TTL_SECONDS = 600
@@ -190,6 +200,86 @@ def poll_reviews(
         )
     finally:
         _release_lock(rc, account_id, lock_token)
+
+
+def _publish_error_result(payload: dict, reason: str) -> dict:
+    """게시 잡 처리 중 process_publish_job 이전 단계(계정 조회·스로틀 등)에서 예외가 나거나
+    payload 자체가 깨졌을 때의 폴백 보고. LOGINPWD 등 민감정보가 섞일 수 있는 예외 상세는
+    담지 않고 reason 라벨만 남긴다(절대규칙 5)."""
+    return {
+        "jobId": uuid.uuid4().hex,
+        "accountId": str(payload.get("accountId")) if isinstance(payload, dict) else None,
+        "platform": payload.get("platform") if isinstance(payload, dict) else None,
+        "status": "FAILED",
+        "ecode": None,
+        "action": "FAIL",
+        "publish": {
+            "draftId": payload.get("draftId") if isinstance(payload, dict) else None,
+            "platformCommentId": None,
+            "failReason": reason,
+        },
+    }
+
+
+@app.task(name="tasks.publish_drafts")
+def publish_drafts(
+    sleep: Callable[[float], None] = time.sleep,
+    client_factory: Callable[[], DataApiClient] = DataApiClient,
+    redis_client=None,
+    account_loader: Callable[[str], AccountInfo] = _load_account,
+    now: Callable[[], float] = time.time,
+    rand: Callable[[], float] = random.random,
+    batch_size: int = PUBLISH_BATCH_SIZE,
+) -> list[dict]:
+    """Redis 리스트 'q:publish' 에서 최대 batch_size 건을 꺼내 순차 게시하고 건마다
+    /internal/collect-result 로 보고한다(고정계약 - 새 엔드포인트 추가 금지).
+
+    ★ 한 건이 예외로 죽어도 나머지 건은 계속 처리한다(건별 try/except).
+    ★ 한계: BRPOP 으로 큐에서 꺼낸 뒤 처리 중 프로세스가 죽으면 그 잡은 유실된다.
+      Spring 의 'dispatch:draft:{draftId}' 키가 TTL(900초) 만료되면 재디스패치로 복구된다 —
+      워커는 이 키를 지우지 않는다(Spring 이 결과 수신 시 삭제).
+    """
+    rc = redis_client if redis_client is not None else _redis_client()
+    client = client_factory()
+    results = []
+    for _ in range(batch_size):
+        popped = rc.brpop(PUBLISH_QUEUE_KEY, PUBLISH_BRPOP_TIMEOUT_SECONDS)
+        if not popped:
+            break
+        _, raw = popped
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+
+        payload = None
+        try:
+            payload = json.loads(raw)
+            if publish.is_risk_blocked(payload):
+                # ★ 절대규칙 3 이중 검증 — DataAPI 호출·계정 조회·스로틀 전부 생략한다.
+                result = publish.blocked_result(payload)
+            else:
+                account = account_loader(str(payload["accountId"]))
+                publish.throttle(
+                    rc,
+                    str(payload["accountId"]),
+                    PUBLISH_RATE_LIMIT_SECONDS,
+                    PUBLISH_JITTER_MAX_SECONDS,
+                    sleep,
+                    now,
+                    rand,
+                )
+                result = publish.process_publish_job(
+                    payload, account.platform, account.credentials, client.create_comment
+                )
+        except Exception as exc:
+            log.warning("publish job 처리 실패 error=%s", type(exc).__name__)
+            result = _publish_error_result(payload if isinstance(payload, dict) else {}, "INTERNAL_ERROR")
+
+        try:
+            _post_collect_result(result)
+        except Exception:
+            log.warning("collect-result 보고 실패 draftId=%s", result.get("publish", {}).get("draftId"))
+        results.append(result)
+    return results
 
 
 @app.task(name="tasks.backfill")

@@ -17,6 +17,7 @@ public enum ErrorCode {
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "이미 존재하는 리소스입니다."),
     DRAFT_ALREADY_PUBLISHED(HttpStatus.CONFLICT, "이미 게시된 답글입니다."),
     REVIEW_ALREADY_REPLIED(HttpStatus.CONFLICT, "플랫폼에 이미 답글이 존재합니다."),
+    INVALID_DRAFT_STATE(HttpStatus.CONFLICT, "현재 상태에서는 이 작업을 할 수 없습니다."),
     GUARDRAIL_BLOCKED(HttpStatus.UNPROCESSABLE_ENTITY, "생성된 답글이 안전 규칙에 걸렸습니다."),
     RISK_LEVEL_TOO_HIGH(HttpStatus.UNPROCESSABLE_ENTITY, "위험도가 높아 자동 게시할 수 없습니다."),
     PLATFORM_LINK_ERROR(HttpStatus.UNPROCESSABLE_ENTITY, "플랫폼 계정 연동에 실패했습니다."),

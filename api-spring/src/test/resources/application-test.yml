@@ -10,6 +10,12 @@ spring:
     baseline-on-migrate: false
 
 app:
+  scheduler:
+    publish:
+      # ★ S9: 테스트 프로파일에서는 게시 스케줄러를 끈다. application.yml 이 기본값을 true 로 주므로
+      # (프로파일 병합 시 여기서 재정의하지 않으면 상속됨) 여기서 명시적으로 false 를 지정해야 한다.
+      # 끄지 않으면 @Scheduled 가 IT 컨텍스트 기동 직후 실행되며 테스트와 무관한 Redis/DB 접근이 섞인다.
+      enabled: false
   jwt:
     # 테스트 전용 더미 시크릿(base64, 32바이트) - 운영 값 아님
     secret: /HbJWF+hl5rgq8axtp6NmSqJlE3UL7WDQmT2PswcCNg=
