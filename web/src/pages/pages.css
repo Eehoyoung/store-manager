@@ -516,3 +516,311 @@
   margin: 0 0 var(--space-2);
   white-space: pre-wrap;
 }
+
+/* ── 가맹본부(HQ) 화면 (문서 14 §11) ───────────────────────────────────── */
+/* 토큰만 쓴다. 새 색·폰트 크기를 만들지 않는다 — 40~60대 대비·타이포 기준을 깨지 않기 위함. */
+
+.hq-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.hq-page__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.hq-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 브랜드 하위 탭 */
+.hq-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.hq-tabs__brand {
+  font-weight: 700;
+  margin-right: var(--space-2);
+}
+
+.hq-tabs__link,
+.hq-tabs__switch {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.hq-tabs__link--active {
+  background: var(--color-info-bg);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.hq-tabs__switch {
+  margin-left: auto;
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* 브랜드 카드 */
+.hq-brand-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* 표 — 좁은 화면에서 가로 스크롤. 본문이 잘리지 않게 한다. */
+.hq-table-wrap {
+  overflow-x: auto;
+}
+
+.hq-store-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-small);
+}
+
+.hq-store-table th,
+.hq-store-table td {
+  padding: var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.hq-store-table th {
+  background: var(--color-surface);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 조치가 필요한 매장 — 색만으로 구분하지 않고 좌측 굵은 테두리를 함께 준다. */
+.hq-store-row--problem {
+  background: var(--color-warning-bg);
+  box-shadow: inset 4px 0 0 var(--color-warning);
+}
+
+.hq-store-row__name {
+  font-weight: 700;
+  margin: 0;
+}
+
+.hq-store-row__address,
+.hq-store-row__muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  margin: 0;
+}
+
+.hq-store-row__risk {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.hq-platform-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 필터 */
+.hq-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+/* 리뷰 목록 (읽기 전용) */
+.hq-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hq-review {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-card);
+}
+
+.hq-review--risk {
+  border-color: var(--color-danger);
+  box-shadow: inset 4px 0 0 var(--color-danger), var(--shadow-card);
+}
+
+.hq-review__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.hq-review__store {
+  font-weight: 700;
+}
+
+.hq-review__platform,
+.hq-review__menus {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.hq-review__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  margin-bottom: var(--space-2);
+}
+
+.hq-review__body {
+  margin: 0 0 var(--space-2);
+  white-space: pre-wrap;
+}
+
+.hq-review__analysis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* 답글은 '보기' 전용 — 입력창처럼 보이지 않게 배경만 구분한다. */
+.hq-review__reply {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius);
+}
+
+.hq-review__reply-label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.hq-review__reply-body {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* 집계 */
+.hq-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4);
+}
+
+.hq-kpi__value {
+  font-size: var(--font-size-h1);
+  font-weight: 700;
+  margin: 0;
+}
+
+.hq-kpi__label {
+  color: var(--color-text-muted);
+  margin: var(--space-1) 0 0;
+}
+
+.hq-section__hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  margin: 0 0 var(--space-3);
+}
+
+.hq-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+/* 막대 — 차트 라이브러리 없이 CSS 폭 비율로 그린다. */
+.hq-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hq-bar {
+  display: grid;
+  grid-template-columns: 140px 1fr 72px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hq-bar__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hq-bar__track {
+  height: 16px;
+  background: var(--color-neutral-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hq-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 999px;
+}
+
+.hq-bar__value {
+  text-align: right;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.hq-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.hq-sort select {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-body);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@media (max-width: 640px) {
+  .hq-bar {
+    grid-template-columns: 100px 1fr 60px;
+  }
+}

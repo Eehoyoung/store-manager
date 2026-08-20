@@ -255,3 +255,98 @@ export interface AnalyticsResponsePerformance {
   avgResponseMinutes: number | null;
   retriedCount: number;
 }
+
+// ── 가맹본부(HQ, docs/13 §11.5) ──────────────────────────────────────────
+// ★ 문서 §11.5 예시 JSON과 실제 컨트롤러(api-spring/.../hq/HqDtos.java, HqController.java)가 다르다 —
+// 코드가 정답이다(오케스트레이터 지시). 특히 /hq/brands, /hq/brands/{brand}/stores 는 문서의
+// {items,hasMore} 래핑이 아니라 배열을 그대로 반환한다. analytics 의 issueTagRanking 항목에는
+// 문서와 달리 avgRating 이 없고, storeComparison(문서의 stores)의 미처리 필드명은 unprocessedCount 다.
+
+export interface HqBrand {
+  brandName: string;
+  storeCount: number;
+}
+
+export interface HqPlatformLink {
+  platform: string;
+  /** 확인된 값: PENDING(기본) · ERROR. LINKED 로 표기하는 경로는 아직 코드에 없다 — 미확인 코드는 원문 그대로 보여준다. */
+  linkStatus: string;
+}
+
+export interface HqStore {
+  storeId: string;
+  name: string;
+  address: string | null;
+  activated: boolean;
+  /** IN_SERVICE | SUSPENDED — 구독·청구 상세는 절대 내려주지 않는다(H9). */
+  serviceStatus: string;
+  platformLinks: HqPlatformLink[];
+  lastCollectedAt: string | null;
+  pendingCount: number;
+  blockedCount: number;
+  highRiskCount: number;
+  recentReviewCount: number;
+  recentAvgRating: number | null;
+}
+
+export interface HqAnalysis {
+  category: string | null;
+  sentiment: number | null;
+  issueTags: string[];
+  riskLevel: number | null;
+  riskReasons: string[];
+}
+
+export interface HqDraftSummary {
+  id: string;
+  status: DraftStatus;
+  content: string;
+}
+
+export interface HqReviewItem {
+  id: string;
+  storeId: string | null;
+  storeName: string | null;
+  platform: string;
+  rating: number | null;
+  body: string | null;
+  authorMasked: string;
+  orderedMenus: string[];
+  imageUrls: string[];
+  writtenAt: string | null;
+  writtenDateOnly: boolean;
+  collectedAt: string | null;
+  hasOwnerReply: boolean;
+  analysis: HqAnalysis | null;
+  draft: HqDraftSummary | null;
+}
+
+export interface HqReviewListResponse {
+  items: HqReviewItem[];
+  hasMore: boolean;
+}
+
+export interface HqIssueTagItem {
+  tag: string;
+  count: number;
+}
+
+export interface HqStoreComparisonItem {
+  storeId: string;
+  storeName: string;
+  reviewCount: number;
+  avgRating: number | null;
+  replyCompletionRate: number;
+  unprocessedCount: number;
+}
+
+export interface HqAnalyticsResponse {
+  from: string;
+  to: string;
+  totalReviews: number;
+  avgRating: number | null;
+  ratingDistribution: RatingBucket[];
+  categoryDistribution: CategoryBucket[];
+  issueTagRanking: HqIssueTagItem[];
+  storeComparison: HqStoreComparisonItem[];
+}

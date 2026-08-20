@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { storesApi } from "../api/stores";
+import { hqApi } from "../api/hq";
 import { Button } from "../components/Button";
 
 const CURRENT_STORE_KEY = "sm.currentStoreId";
@@ -24,6 +25,25 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [storeId, setStoreIdState] = useState<string | null>(() => localStorage.getItem(CURRENT_STORE_KEY));
+  // 본부 권한이 있을 때만 '가맹본부' 메뉴를 노출한다(U2).
+  // ★ 빈 배열은 정상 응답이다 — 권한이 없는 일반 사장님이며 에러가 아니다.
+  // 호출이 실패해도 앱이 깨지면 안 되므로 조용히 메뉴만 감춘다.
+  const [isHq, setIsHq] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    hqApi
+      .brands()
+      .then((brands) => {
+        if (alive) setIsHq(brands.length > 0);
+      })
+      .catch(() => {
+        if (alive) setIsHq(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const setStoreId = (id: string) => {
     localStorage.setItem(CURRENT_STORE_KEY, id);
@@ -84,6 +104,11 @@ export function AppShell() {
           <NavLink to={personaPath} className={navLinkClass}>
             페르소나
           </NavLink>
+          {isHq ? (
+            <NavLink to="/hq/brands" className={navLinkClass}>
+              가맹본부
+            </NavLink>
+          ) : null}
           <NavLink to="/settings" className={navLinkClass}>
             설정
           </NavLink>
