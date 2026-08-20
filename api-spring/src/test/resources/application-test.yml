@@ -19,3 +19,9 @@ app:
     # 테스트 전용 더미 마스터키(base64, 32바이트) - 운영 값 아님
     master-key: K/tAaCqZxldEye4SHcdQWB1so2ySJybU3mJfvDDpZ0g=
     key-id: test-key
+  internal:
+    # 테스트 전용 더미 토큰 - 운영 값 아님
+    token: test-internal-token
+  privacy:
+    # 테스트 전용 더미 salt - 운영 값 아님
+    salt: test-privacy-salt

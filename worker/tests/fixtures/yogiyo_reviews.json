@@ -1,0 +1,41 @@
+{
+  "errCode": "0000",
+  "errMsg": "success",
+  "result": "SUCCESS",
+  "data": {
+    "RESULT": "SUCCESS",
+    "ECODE": "null",
+    "ERRMSG": "null",
+    "ETRACK": "null",
+    "ERRDOC": "null",
+    "REVIEWLIST": [
+      {
+        "STORENAME": "국수면회소 요기요점",
+        "AVGEVALUE": "4.4",
+        "STOREID": "88213",
+        "LIST": [
+          {
+            "REVIEWID": "Y20240401001",
+            "EVALUE": "4",
+            "REVIEWDATE": "20240401",
+            "REVIEWCONTENTS": "맛은 좋은데 양이 적어요",
+            "NICKNAME": "cl**",
+            "CHANNEL": "YOGIYO",
+            "REVIEWSTATUS": "0",
+            "TASTEVALUE": "5",
+            "QUANTITYVALUE": "2",
+            "ORDER_LIST": [
+              {
+                "ORDERNUM": "null",
+                "PCKMTHD": "null",
+                "LIST": [{"MENUID": "2001", "MENUNM": "치즈라볶이"}]
+              }
+            ],
+            "LIST": [],
+            "RC_LIST": []
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -80,4 +80,11 @@ public class PlatformAccount {
     @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
+
+    /** DataAPI 로그인 실패 등 연동 오류 발생 시 상태를 전이한다 (docs/08 F-1, FR-105, collect-result action=LINK_ERROR). */
+    public void markLinkError(String ecode) {
+        this.linkStatus = "ERROR";
+        this.lastErrorCode = ecode;
+        this.lastErrorAt = Instant.now();
+    }
 }

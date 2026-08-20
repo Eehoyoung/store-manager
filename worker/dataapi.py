@@ -13,8 +13,9 @@ DataAPI(데이터허브) 클라이언트 — 리뷰 조회 / 댓글 등록.
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Callable, Literal, TypeVar
 
 import httpx
 
@@ -34,6 +35,16 @@ MAX_COMMENT_LENGTH = 280
 ECODE_LOGIN_FAIL = "ERR_MLCOM_MSG50059"  # 로그인 실패 — 재시도 금지, link_status=ERROR
 ECODE_DUPLICATE_COMMENT = "ERR_MDCOM_MSG00009"  # 댓글 중복 — 실패가 아님, ALREADY_REPLIED
 
+# ECODE → (재시도 가능 여부, 후속 조치). 후속 조치는 문서 08 §6.2 그대로:
+#   LINK_ERROR       재로그인 필요 — 연동 상태 ERROR, 사장님 알림 (Spring 이 실제 전이를 수행)
+#   ALREADY_REPLIED  실패가 아니라 정상 종료 시나리오
+#   FAIL             그 외 실패 — 재시도하지 않고 그대로 보고
+# 미확인 코드는 이 표에 없으므로 기본 재시도 금지 + FAIL 로 처리한다 (CLAUDE.md).
+ECODE_POLICY: dict[str, tuple[bool, str]] = {
+    ECODE_LOGIN_FAIL: (False, "LINK_ERROR"),
+    ECODE_DUPLICATE_COMMENT: (False, "ALREADY_REPLIED"),
+}
+
 
 def _s(v: Any) -> str | None:
     """DataAPI 는 값이 없을 때 JSON null 이 아니라 문자열 "null" 을 보낸다 (문서 08 F-2)."""
@@ -41,9 +52,21 @@ def _s(v: Any) -> str | None:
 
 
 def _is_retryable(ecode: str | None) -> bool:
-    """미확인 ECODE 는 기본 재시도 금지로 처리한다 (CLAUDE.md).
-    TODO: 전체 ECODE 목록 수령 후 세션만료/캡차=금지, 타임아웃/한도초과=허용 으로 세분화."""
-    return False
+    """ECODE_POLICY 에 등록된 코드만 재시도 가능 여부를 명시적으로 판단한다.
+    미확인 ECODE 는 기본 재시도 금지로 처리한다 (CLAUDE.md).
+    TODO: 전체 ECODE 목록 수령 후 세션만료/캡차·타임아웃/한도초과 케이스를 채운다."""
+    if ecode is None:
+        return False
+    policy = ECODE_POLICY.get(ecode)
+    return policy[0] if policy else False
+
+
+def ecode_action(ecode: str | None) -> str:
+    """ECODE 에 대응하는 후속 조치 라벨. 미확인 코드는 'FAIL' 로 처리하고 호출부가 로그를 남긴다."""
+    if ecode is None:
+        return "FAIL"
+    policy = ECODE_POLICY.get(ecode)
+    return policy[1] if policy else "FAIL"
 
 
 class DataApiError(Exception):
@@ -73,6 +96,44 @@ def parse_envelope(resp: dict) -> dict:
             raise AlreadyRepliedError(ecode, errmsg, retryable=False)
         raise DataApiError(ecode, errmsg, retryable=_is_retryable(ecode))
     return data
+
+
+def is_retryable_exception(exc: BaseException) -> bool:
+    """재시도 헬퍼(call_with_retry)가 재시도 여부를 판단하는 데 쓰는 분류기.
+    DataApiError 는 ECODE_POLICY 를 그대로 따르고, HTTP 레벨 예외(타임아웃·5xx)는
+    일시 장애로 보아 재시도 가능으로 분류한다 (문서 08 §6.2 '타임아웃·일시 장애' 행)."""
+    if isinstance(exc, DataApiError):
+        return exc.retryable
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return 500 <= exc.response.status_code < 600
+    return False
+
+
+_T = TypeVar("_T")
+
+
+def call_with_retry(
+    fn: Callable[[], _T],
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> _T:
+    """지수 백오프 재시도(최대 max_attempts 회). AlreadyRepliedError 는 정상 종료
+    시나리오이므로 즉시 그대로 전파하고, 재시도 불가로 분류된 예외도 즉시 전파한다.
+    sleep 을 주입 가능하게 해 테스트에서 대기 없이 즉시 실행되도록 한다."""
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return fn()
+        except AlreadyRepliedError:
+            raise
+        except Exception as exc:
+            if attempt >= max_attempts or not is_retryable_exception(exc):
+                raise
+            sleep(base_delay * (2 ** (attempt - 1)))
 
 
 def encrypt_password(raw_password: str) -> str:

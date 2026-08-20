@@ -1,0 +1,56 @@
+{
+  "errCode": "0000",
+  "errMsg": "success",
+  "result": "SUCCESS",
+  "data": {
+    "RESULT": "SUCCESS",
+    "ECODE": "null",
+    "ERRMSG": "null",
+    "ETRACK": "null",
+    "ERRDOC": "null",
+    "REVIEWLIST": [
+      {
+        "STORENAME": "국수면회소 강남점",
+        "AVGEVALUE": "4.6",
+        "STOREID": "14292949",
+        "LIST": [
+          {
+            "REVIEWID": "2024033100520097",
+            "EVALUE": "5",
+            "REVIEWDATE": "20240331",
+            "REVIEWCONTENTS": "맛있게 잘 먹었습니다",
+            "NICKNAME": "히리릴",
+            "CHANNEL": "BAEMIN",
+            "REVIEWSTATUS": "0",
+            "ORDER_LIST": [
+              {
+                "ORDERNUM": "null",
+                "PCKMTHD": "null",
+                "LIST": [
+                  {"MENUID": "1001", "MENUNM": "돌솥김치알밥"},
+                  {"MENUID": "1002", "MENUNM": "잔치국수"}
+                ]
+              }
+            ],
+            "LIST": [{"IMAGE": "https://cdn.example.com/review1.jpg"}],
+            "RC_LIST": [
+              {"RCID": "2024033103186049", "RDATE": "20240331", "RCCONTENTS": "히리릴님, 별 5개 리뷰 감사드립니다"}
+            ]
+          },
+          {
+            "REVIEWID": "2024033100520098",
+            "EVALUE": "3",
+            "REVIEWDATE": "20240401",
+            "REVIEWCONTENTS": "양이 조금 아쉬웠어요",
+            "NICKNAME": "달빛소년",
+            "CHANNEL": "BAEMIN",
+            "REVIEWSTATUS": "0",
+            "ORDER_LIST": [],
+            "LIST": [],
+            "RC_LIST": []
+          }
+        ]
+      }
+    ]
+  }
+}

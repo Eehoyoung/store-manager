@@ -3,9 +3,20 @@
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
-from dataapi import AlreadyRepliedError, Credentials, DataApiClient, DataApiError, _s, parse_envelope
+from dataapi import (
+    AlreadyRepliedError,
+    Credentials,
+    DataApiClient,
+    DataApiError,
+    _s,
+    call_with_retry,
+    ecode_action,
+    is_retryable_exception,
+    parse_envelope,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -75,3 +86,73 @@ def test_credentials_repr_masks_password():
     """절대규칙 5: LOGINPWD 는 로그에 평문으로 남지 않는다."""
     creds = Credentials(login_id="test", login_pwd_encrypted="super-secret-encrypted-value")
     assert "super-secret-encrypted-value" not in repr(creds)
+
+
+def test_ecode_action_maps_known_codes_and_defaults_unknown_to_fail():
+    assert ecode_action("ERR_MLCOM_MSG50059") == "LINK_ERROR"
+    assert ecode_action("ERR_MDCOM_MSG00009") == "ALREADY_REPLIED"
+    assert ecode_action("ERR_XXXX_UNKNOWN") == "FAIL"
+    assert ecode_action(None) == "FAIL"
+
+
+def test_call_with_retry_does_not_retry_when_ecode_not_retryable():
+    """retryable=False 인 DataApiError(로그인 실패 등)는 한 번만 시도하고 즉시 전파해야 한다."""
+    attempts = []
+
+    def _fail():
+        attempts.append(1)
+        raise DataApiError(ecode="ERR_MLCOM_MSG50059", errmsg="로그인 실패", retryable=False)
+
+    with pytest.raises(DataApiError):
+        call_with_retry(_fail, sleep=lambda s: pytest.fail("재시도해서는 안 됨"))
+    assert len(attempts) == 1
+
+
+def test_call_with_retry_does_not_retry_already_replied():
+    """ALREADY_REPLIED 는 실패가 아닌 정상 종료 시나리오 — 재시도하면 안 된다."""
+    attempts = []
+
+    def _dup():
+        attempts.append(1)
+        raise AlreadyRepliedError(ecode="ERR_MDCOM_MSG00009", errmsg="중복", retryable=False)
+
+    with pytest.raises(AlreadyRepliedError):
+        call_with_retry(_dup, sleep=lambda s: pytest.fail("재시도해서는 안 됨"))
+    assert len(attempts) == 1
+
+
+def test_call_with_retry_retries_timeout_up_to_max_attempts_then_raises():
+    """타임아웃 등 HTTP 레벨 예외는 재시도 가능으로 분류되어 최대 3회까지 시도한다."""
+    attempts = []
+    sleeps = []
+
+    def _timeout():
+        attempts.append(1)
+        raise httpx.TimeoutException("timed out")
+
+    with pytest.raises(httpx.TimeoutException):
+        call_with_retry(_timeout, max_attempts=3, base_delay=0.01, sleep=lambda s: sleeps.append(s))
+    assert len(attempts) == 3
+    assert len(sleeps) == 2  # 마지막 시도 후에는 sleep 하지 않음
+
+
+def test_call_with_retry_succeeds_after_transient_failure():
+    attempts = []
+
+    def _flaky():
+        attempts.append(1)
+        if len(attempts) < 2:
+            raise httpx.TimeoutException("timed out")
+        return "ok"
+
+    result = call_with_retry(_flaky, max_attempts=3, base_delay=0.01, sleep=lambda s: None)
+    assert result == "ok"
+    assert len(attempts) == 2
+
+
+def test_is_retryable_exception_classifies_5xx_as_retryable_and_4xx_as_not():
+    request = httpx.Request("POST", "https://example.com")
+    resp_500 = httpx.Response(500, request=request)
+    resp_400 = httpx.Response(400, request=request)
+    assert is_retryable_exception(httpx.HTTPStatusError("500", request=request, response=resp_500)) is True
+    assert is_retryable_exception(httpx.HTTPStatusError("400", request=request, response=resp_400)) is False

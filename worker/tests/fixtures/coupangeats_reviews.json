@@ -1,0 +1,39 @@
+{
+  "errCode": "0000",
+  "errMsg": "success",
+  "result": "SUCCESS",
+  "data": {
+    "RESULT": "SUCCESS",
+    "ECODE": "null",
+    "ERRMSG": "null",
+    "ETRACK": "null",
+    "ERRDOC": "null",
+    "REVIEWLIST": [
+      {
+        "STORENAME": "국수면회소 쿠팡이츠점",
+        "AVGEVALUE": "4.8",
+        "STOREID": "77102",
+        "LIST": [
+          {
+            "REVIEWID": "C20240401009",
+            "EVALUE": "5",
+            "REVIEWDATE": "20240402",
+            "REVIEWCONTENTS": "null",
+            "NICKNAME": "김**",
+            "CHANNEL": "COUPANGEATS",
+            "REVIEWSTATUS": "",
+            "ORDER_LIST": [
+              {
+                "ORDERNUM": "ORD-99213",
+                "PCKMTHD": "배달",
+                "LIST": [{"MENUID": "3001", "MENUNM": "국수세트"}]
+              }
+            ],
+            "LIST": [{"IMAGE": "null"}],
+            "RC_LIST": []
+          }
+        ]
+      }
+    ]
+  }
+}

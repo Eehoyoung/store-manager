@@ -34,6 +34,12 @@ app:
     # KMS 봉투암호화용 마스터키. LOGINPWD 등 자격증명은 이 키로 감싼 DEK로만 암호화한다.
     master-key: ${CREDENTIAL_MASTER_KEY}
     key-id: ${CREDENTIAL_KEY_ID:local-dev}
+  internal:
+    # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
+    token: ${INTERNAL_TOKEN}
+  privacy:
+    # 리뷰 작성자 닉네임 가명처리(author_hash) salt. 미설정 시 부팅 실패가 안전하다 — 기본값을 두지 않는다.
+    salt: ${AUTHOR_HASH_SALT}
 
 management:
   endpoints:
