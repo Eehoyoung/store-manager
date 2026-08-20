@@ -68,16 +68,24 @@ public class AnalyticsService {
         List<CategoryBucket> categoryDist = analyticsQueryRepository.categoryDistribution(store.getId(), from, to)
                 .stream().map(row -> new CategoryBucket((String) row[0], ((Number) row[1]).longValue())).toList();
 
-        Map<String, Long> statusCounts = new HashMap<>();
+        // 기간 지표: 답글 완료율은 "이 기간에 쓰인 리뷰" 기준을 유지한다.
+        Map<String, Long> periodStatusCounts = new HashMap<>();
         for (Object[] row : analyticsQueryRepository.latestDraftStatusCounts(store.getId(), from, to)) {
-            statusCounts.put((String) row[0], ((Number) row[1]).longValue());
+            periodStatusCounts.put((String) row[0], ((Number) row[1]).longValue());
         }
-        long publishedLike = statusCounts.getOrDefault("PUBLISHED", 0L) + statusCounts.getOrDefault("ALREADY_REPLIED", 0L);
-        long pending = statusCounts.getOrDefault("DRAFT", 0L);
-        long blocked = statusCounts.getOrDefault("BLOCKED", 0L);
+        long publishedLike = periodStatusCounts.getOrDefault("PUBLISHED", 0L)
+                + periodStatusCounts.getOrDefault("ALREADY_REPLIED", 0L);
         double completionRate = total == 0 ? 0.0 : round4((double) publishedLike / total);
 
-        long highRisk = analyticsQueryRepository.highRiskCount(store.getId(), from, to);
+        // ★ T-26: 현재 상태 지표(pendingCount/blockedCount/highRiskCount)는 기간 필터를 걷어내고 매장 전체의
+        // 미처리 현황을 센다 — 40일 전에 쓰인 리뷰라도 아직 검수 대기라면 대시보드에서 사라지면 안 된다.
+        Map<String, Long> allTimeStatusCounts = new HashMap<>();
+        for (Object[] row : analyticsQueryRepository.latestDraftStatusCountsAllTime(store.getId())) {
+            allTimeStatusCounts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        long pending = allTimeStatusCounts.getOrDefault("DRAFT", 0L);
+        long blocked = allTimeStatusCounts.getOrDefault("BLOCKED", 0L);
+        long highRisk = analyticsQueryRepository.highRiskPendingCount(store.getId());
 
         return new SummaryResponse(fromDate.toString(), toDate.toString(), total, avgRating, ratingDist,
                 categoryDist, completionRate, pending, blocked, highRisk);

@@ -260,7 +260,8 @@ class AnalyticsServiceIT {
         Long r2 = 리뷰를_만든다_수집시각(f, "p-2", day, collected2);
         초안을_만든다(f.storeId(), r2, "PUBLISHED", day.atTime(9, 10).atZone(KST).toInstant(), null, 1);
 
-        // r3: 아직 미완료(DRAFT) — completed/avgResponseMinutes 계산에서 제외
+        // r3: 아직 미완료(DRAFT, published_at 없음) — ★ 모집단이 collected_at 기준이므로 이 건도 분모에 들어간다.
+        // 모집단을 published_at 으로 잡으면 분모가 '이미 게시된 것' 이 되어 완료율이 항상 100% 가 된다.
         Instant collected3 = day.atTime(11, 0).atZone(KST).toInstant();
         Long r3 = 리뷰를_만든다_수집시각(f, "p-3", day, collected3);
         초안을_만든다(f.storeId(), r3, "DRAFT", null, null, 0);
@@ -268,9 +269,10 @@ class AnalyticsServiceIT {
         AnalyticsDtos.ResponsePerformanceResponse res = analyticsService.response(f.ownerPublicId(),
                 f.storePublicId(), "2026-08-01", "2026-08-20");
 
-        assertThat(res.totalReviews()).isEqualTo(3);
+        assertThat(res.totalReviews()).isEqualTo(3); // ★ 이 기간에 수집된 일감 전체(r1,r2,r3)
         assertThat(res.completedCount()).isEqualTo(2); // r1, r2 만 PUBLISHED
-        assertThat(res.completionRate()).isCloseTo(2.0 / 3, within(0.001));
+        // ★ 완료율이 100% 가 아니라 2/3 로 나와야 한다. 미처리 1건이 지표에 드러나는 것이 이 지표의 존재 이유다.
+        assertThat(res.completionRate()).isCloseTo(2.0 / 3.0, within(0.001));
         assertThat(res.autoApprovalRate()).isCloseTo(0.5, within(0.001)); // 완료 2건 중 자동승인 1건(r2)
         assertThat(res.avgResponseMinutes()).isCloseTo(20.0, within(0.01)); // (30+10)/2, written_at 이 아니라 collected_at 기준
         assertThat(res.retriedCount()).isEqualTo(1); // r2 만 retry_count>0
@@ -278,5 +280,37 @@ class AnalyticsServiceIT {
         AnalyticsDtos.ResponsePerformanceResponse noRange = analyticsService.response(f.ownerPublicId(),
                 f.storePublicId(), null, null);
         assertThat(noRange).isNotNull();
+    }
+
+    // ── T-26: 현재 상태 지표는 기간 필터를 걷어낸다 ──────────────────────
+
+    @Test
+    void summary는_기간_밖_리뷰의_미처리_초안도_pendingCount에_잡고_totalReviews에는_잡지_않는다() {
+        매장픽스처 f = 매장을_만든다("t26-owner@example.com");
+        LocalDate today = LocalDate.of(2026, 8, 20);
+        LocalDate oldDay = today.minusDays(40); // 조회 기간(from~to) 밖 — 40일 전 작성
+
+        // 기간 밖(40일 전) 리뷰: 아직 DRAFT(검수 대기) — 일감이므로 절대 화면에서 사라지면 안 된다.
+        Long oldPendingReview = 리뷰를_만든다(f, "old-1", 3, oldDay);
+        분석을_만든다(oldPendingReview, "IMPROVEMENT", 0);
+        초안을_만든다(f.storeId(), oldPendingReview, "DRAFT", null);
+
+        // 기간 밖(40일 전) 고위험 리뷰: 아직 BLOCKED(미처리) — 마찬가지로 화면에서 사라지면 안 된다.
+        Long oldBlockedReview = 리뷰를_만든다(f, "old-2", 1, oldDay);
+        분석을_만든다(oldBlockedReview, "COMPLAINT", 3);
+        초안을_만든다(f.storeId(), oldBlockedReview, "BLOCKED", null);
+
+        // 기간 안(오늘) 리뷰 1건 — totalReviews 는 이것만 세야 한다.
+        Long recentReview = 리뷰를_만든다(f, "recent-1", 5, today);
+        분석을_만든다(recentReview, "PRAISE", 0);
+        초안을_만든다(f.storeId(), recentReview, "PUBLISHED", today.atStartOfDay(KST).toInstant());
+
+        AnalyticsDtos.SummaryResponse res = analyticsService.summary(f.ownerPublicId(), f.storePublicId(),
+                today.toString(), today.toString());
+
+        assertThat(res.totalReviews()).isEqualTo(1); // ★ 기간 지표 — 오늘 작성된 리뷰 1건만
+        assertThat(res.pendingCount()).isEqualTo(1); // ★ 전체 기준 — 40일 전 DRAFT 도 잡힌다
+        assertThat(res.blockedCount()).isEqualTo(1); // ★ 전체 기준 — 40일 전 BLOCKED 도 잡힌다
+        assertThat(res.highRiskCount()).isEqualTo(1); // ★ 전체 기준 — risk_level>=3 이면서 아직 BLOCKED 인 건
     }
 }

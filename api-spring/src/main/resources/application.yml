@@ -34,6 +34,14 @@ app:
     publish:
       # 게시 스케줄러(S9) 활성화 여부. 테스트 프로파일은 이 값을 설정하지 않아 기본적으로 꺼진다.
       enabled: ${PUBLISH_SCHEDULER_ENABLED:true}
+    billing:
+      # 청구·미납 배치(B3/B4) 활성화 여부. 테스트 프로파일은 false 로 재정의한다.
+      enabled: ${BILLING_SCHEDULER_ENABLED:true}
+  billing:
+    # 계좌이체 입금 안내 정보(docs/13 §9). 실제 계좌번호는 절대 커밋하지 않는다 — 기본값 없음, 미설정 시 부팅 실패.
+    bank-name: ${BILLING_BANK_NAME}
+    account-no: ${BILLING_ACCOUNT_NO}
+    account-holder: ${BILLING_ACCOUNT_HOLDER}
   jwt:
     secret: ${JWT_SECRET}
     access-ttl-seconds: 1800
