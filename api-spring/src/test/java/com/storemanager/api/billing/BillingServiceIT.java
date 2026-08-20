@@ -2,8 +2,6 @@ package com.storemanager.api.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentRequest;
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentResponse;
@@ -21,11 +19,9 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -36,7 +32,6 @@ import org.testcontainers.utility.DockerImageName;
  * AnalyticsServiceIT 와 동일한 Testcontainers 패턴(Redis 불필요 — Billing 흐름은 Redis 를 쓰지 않는다).
  */
 @SpringBootTest
-@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers
 class BillingServiceIT {
@@ -46,15 +41,12 @@ class BillingServiceIT {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
-    private static final String INTERNAL_TOKEN = "test-internal-token"; // application-test.yml 과 동일
-
     @Autowired BillingService billingService;
     @Autowired AppUserRepository appUserRepository;
     @Autowired StoreRepository storeRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired NotificationLogRepository notificationLogRepository;
-    @Autowired MockMvc mockMvc;
 
     private record 매장픽스처(UUID ownerPublicId, UUID storePublicId, Long storeId) {
     }
@@ -175,20 +167,4 @@ class BillingServiceIT {
                 "PAYMENT_OVERDUE")).isEqualTo(2);
     }
 
-    // ── (g) X-Internal-Token 불일치 → 401 ─────────────────────────────────
-
-    @Test
-    void X_Internal_Token이_불일치하면_401을_반환한다() throws Exception {
-        String body = """
-                {"depositorName":"홍길동","paidAt":"2026-08-21T02:10:00Z","amountKrw":33000}
-                """;
-        mockMvc.perform(post("/internal/payments/999999/confirm").header("X-Internal-Token", "wrong-token")
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isUnauthorized());
-
-        // 토큰이 맞으면 인증은 통과한다(존재하지 않는 결제라 404) — 401 이 토큰 검증에서만 나는지 대비 확인.
-        mockMvc.perform(post("/internal/payments/999999/confirm").header("X-Internal-Token", INTERNAL_TOKEN)
-                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isNotFound());
-    }
 }

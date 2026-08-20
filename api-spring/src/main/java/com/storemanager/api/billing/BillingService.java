@@ -35,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 구독·청구·미납 처리 (docs/13 §9, 계좌이체 전용). 카드·PG 는 다루지 않는다(절대규칙).
+ * 레거시 자체 계좌이체 처리. 신규 결제에는 사용하지 않으며 삭제 전 데이터 호환용으로만 남긴다.
  * ★ 이 클래스는 depositorName·계좌번호를 로그에 남기지 않는다(절대규칙 5 와 동일한 이유, B7).
  */
 @Service

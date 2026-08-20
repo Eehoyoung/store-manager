@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.List;
 
-/** 구독·결제(계좌이체 전용) 요청/응답 DTO (docs/13 §9). */
+/** 레거시 자체 결제 조회·운영자 확인 DTO. Groble 신규 결제에는 사용하지 않는다. */
 final class BillingDtos {
 
     private BillingDtos() {
@@ -14,7 +14,7 @@ final class BillingDtos {
     record BillingMethod(String type) {
     }
 
-    /** GET/POST /stores/{storeId}/subscription 응답. */
+    /** GET /stores/{storeId}/subscription 레거시 응답. */
     record SubscriptionResponse(String status, String planCode, long priceKrw, long vatKrw, long totalKrw,
             String currentPeriodStart, String currentPeriodEnd, BillingMethod billingMethod) {
     }

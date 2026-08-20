@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * subscription 테이블 매핑 (docs/11 §2.7). 계좌이체 전용 — {@code billing_key} 는 죽은 컬럼(V11 코멘트 참고, 값을 쓰지 않는다).
+ * subscription 테이블 매핑 (docs/11 §2.7). Groble 공식 스키마 수령 전 기존 결제 필드를 임의 재사용하지 않는다.
  * ★ TRIAL 은 이번 범위가 아니다. DDL 기본값은 TRIAL 이지만 이 서비스는 구독 생성 시 항상 ACTIVE 를 명시적으로 넣는다.
  * 상태 전이는 반드시 이 클래스의 메서드를 통해서만 한다(ReplyDraft 와 동일한 원칙).
  */

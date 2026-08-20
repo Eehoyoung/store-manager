@@ -36,12 +36,14 @@ app:
       enabled: ${PUBLISH_SCHEDULER_ENABLED:true}
     billing:
       # 청구·미납 배치(B3/B4) 활성화 여부. 테스트 프로파일은 false 로 재정의한다.
-      enabled: ${BILLING_SCHEDULER_ENABLED:true}
+      # 자체 계좌이체 청구는 폐기됐다. Groble 상태 동기화 구현 전까지 절대 실행하지 않는다.
+      enabled: ${BILLING_SCHEDULER_ENABLED:false}
   billing:
     # 계좌이체 입금 안내 정보(docs/13 §9). 실제 계좌번호는 절대 커밋하지 않는다 — 기본값 없음, 미설정 시 부팅 실패.
-    bank-name: ${BILLING_BANK_NAME}
-    account-no: ${BILLING_ACCOUNT_NO}
-    account-holder: ${BILLING_ACCOUNT_HOLDER}
+    # 레거시 자체 계좌이체 서비스가 제거될 때까지 빈 기본값으로만 유지한다.
+    bank-name: ${BILLING_BANK_NAME:}
+    account-no: ${BILLING_ACCOUNT_NO:}
+    account-holder: ${BILLING_ACCOUNT_HOLDER:}
   jwt:
     secret: ${JWT_SECRET}
     access-ttl-seconds: 1800
