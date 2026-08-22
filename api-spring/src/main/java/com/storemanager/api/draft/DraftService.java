@@ -46,7 +46,11 @@ public class DraftService {
 
     private static final Logger log = LoggerFactory.getLogger(DraftService.class);
     private static final short RISK_AUTO_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3
-    private static final List<String> ACTIVE_REPLY_STATUSES = List.of("DRAFT", "SCHEDULED", "PUBLISHED", "ALREADY_REPLIED");
+    // ★ BLOCKED 가 여기 있어야 한다. 수집은 매 폴링마다 최근 2일을 재조회하므로(데이터처리 2번),
+    //   BLOCKED 를 빼면 위험 리뷰를 폴링 주기마다 다시 분석한다 — 그것도 T3(가장 비싼 모델)로.
+    //   차단된 건은 다시 만들지 않는다. 풀자동화에서 재생성 UI 는 폐기됐다.
+    private static final List<String> ACTIVE_REPLY_STATUSES =
+            List.of("DRAFT", "SCHEDULED", "PUBLISHED", "ALREADY_REPLIED", "BLOCKED");
 
     private final ReplyDraftRepository replyDraftRepository;
     private final ReviewAnalysisRepository reviewAnalysisRepository;

@@ -59,6 +59,20 @@ def fetch_examples(store_id: str, review_text: str, k: int = 4) -> list[StyleExa
                 if remaining == 0:
                     return manual
 
+                # ★ 임베딩을 여기서 지연 적재한다. backfill_embeddings 는 있었지만 아무도 부르지
+                #   않아 죽은 코드였고, 그래서 RC_LIST 코퍼스(핵심 자산)가 영영 임베딩되지 않은 채
+                #   RAG 가 조용히 최신순 fallback 으로만 동작했다. 품질 저하가 로그에도 안 남는다.
+                #   별도 스케줄러를 두지 않는 이유: 필요한 시점은 '이 매장의 few-shot 을 뽑을 때'
+                #   하나뿐이고, 한 번 채우면 다음부터는 대상이 없어 비용이 0 이다.
+                cur.execute(
+                    "SELECT COUNT(*) FROM reply_style_sample "
+                    "WHERE store_id = %s::bigint AND embedding IS NULL",
+                    (store_id,),
+                )
+                (missing,) = cur.fetchone()
+                if missing:
+                    backfill_embeddings(store_id)
+
                 cur.execute(
                     "SELECT COUNT(*) FROM reply_style_sample "
                     "WHERE store_id = %s::bigint AND source <> 'MANUAL' AND embedding IS NOT NULL",
