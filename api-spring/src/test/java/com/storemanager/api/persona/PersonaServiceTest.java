@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.ai.AiClient;
+import com.storemanager.api.ai.BannedWordQueryRepository;
 import com.storemanager.api.ai.AiClientDtos.AnalysisOut;
 import com.storemanager.api.ai.AiClientDtos.AnalyzeAndDraftResponse;
 import com.storemanager.api.ai.AiClientDtos.DraftOut;
@@ -65,6 +66,7 @@ class PersonaServiceTest {
     @Mock private StyleSampleQueryRepository styleSampleQueryRepository;
     @Mock private com.storemanager.api.draft.ReviewAnalysisRepository reviewAnalysisRepository;
     @Mock private AiClient aiClient;
+    @Mock private BannedWordQueryRepository bannedWordQueryRepository;
     @Mock private AuditLogRepository auditLogRepository;
 
     private PersonaService personaService;
@@ -79,7 +81,7 @@ class PersonaServiceTest {
     void setUp() {
         personaService = new PersonaService(storePersonaRepository, storeRepository, appUserRepository,
                 unifiedReviewRepository, styleSampleQueryRepository, reviewAnalysisRepository, aiClient,
-                new ObjectMapper(), auditLogRepository);
+                bannedWordQueryRepository, new ObjectMapper(), auditLogRepository);
         // lenient: bean-validation-only 테스트(autoMaxRisk_* 등)는 personaService 를 호출하지 않아 이 스텁을 안 쓴다.
         org.mockito.Mockito.lenient().when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
@@ -194,16 +196,17 @@ class PersonaServiceTest {
                 .lengthMin((short) 60).lengthMax((short) 150).build();
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
-        UnifiedReview review = UnifiedReview.builder().id(30L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(30L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-30").rating((short) 1).body("이물질이 나왔어요").build();
-        when(unifiedReviewRepository.findById(30L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", -0.9f, List.of("이물질"), 3, List.of("FOREIGN_OBJECT"),
                 "m", "v1");
         when(aiClient.analyzeAndDraft(any()))
                 .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(), false, List.of()));
 
         ApiException ex = assertThrows(ApiException.class,
-                () -> personaService.preview(ownerPublicId, storePublicId, new PreviewRequest("30", null)));
+                () -> personaService.preview(ownerPublicId, storePublicId, new PreviewRequest(reviewPublicId.toString(), null)));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RISK_LEVEL_TOO_HIGH);
         verify(storePersonaRepository, never()).save(any());
@@ -215,15 +218,17 @@ class PersonaServiceTest {
                 .lengthMin((short) 60).lengthMax((short) 150).build();
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
-        UnifiedReview review = UnifiedReview.builder().id(31L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(31L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-31").rating((short) 5).body("맛있어요").build();
-        when(unifiedReviewRepository.findById(31L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         AnalysisOut analysisOut = new AnalysisOut("PRAISE", 0.9f, List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 감사합니다 :)", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
         when(aiClient.analyzeAndDraft(any()))
                 .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of()));
 
-        PreviewResponse res = personaService.preview(ownerPublicId, storePublicId, new PreviewRequest("31", null));
+        PreviewResponse res = personaService.preview(ownerPublicId, storePublicId,
+                new PreviewRequest(reviewPublicId.toString(), null));
 
         assertThat(res.content()).isEqualTo("고객님, 감사합니다 :)");
         // PersonaService 는 ReplyDraftRepository 자체를 의존하지 않는다 — 구조적으로 reply_draft 를 쓸 수 없다.
@@ -240,16 +245,17 @@ class PersonaServiceTest {
                 .lengthMin((short) 60).lengthMax((short) 150).build();
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
-        UnifiedReview review = UnifiedReview.builder().id(32L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(32L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-32").rating((short) 1).body("머리카락이 나왔습니다").build();
-        when(unifiedReviewRepository.findById(32L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(reviewAnalysisRepository.findById(32L)).thenReturn(Optional.of(
                 com.storemanager.api.draft.ReviewAnalysis.builder().reviewId(32L).category("COMPLAINT")
                         .sentiment(-0.9f).riskLevel((short) 3).riskReasons(new String[] {"FOREIGN_OBJECT"})
                         .model("m").promptVersion("v1").build()));
 
         ApiException ex = assertThrows(ApiException.class,
-                () -> personaService.preview(ownerPublicId, storePublicId, new PreviewRequest("32", null)));
+                () -> personaService.preview(ownerPublicId, storePublicId, new PreviewRequest(reviewPublicId.toString(), null)));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RISK_LEVEL_TOO_HIGH);
         // 차단 대상에 LLM 비용을 쓰지 않는다.

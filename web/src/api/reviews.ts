@@ -9,7 +9,7 @@ export interface ReviewListFilter {
   hasReply?: boolean;
   from?: string; // yyyy-MM-dd
   to?: string; // yyyy-MM-dd
-  page?: number;
+  cursor?: string;
   size?: number;
 }
 
@@ -24,7 +24,7 @@ export const reviewsApi = {
     if (filter.hasReply != null) qs.set("hasReply", String(filter.hasReply));
     if (filter.from) qs.set("from", filter.from);
     if (filter.to) qs.set("to", filter.to);
-    qs.set("page", String(filter.page ?? 0));
+    if (filter.cursor) qs.set("cursor", filter.cursor);
     qs.set("size", String(filter.size ?? 20));
     return apiRequest<ReviewListResponse>(`/stores/${storeId}/reviews?${qs.toString()}`);
   },

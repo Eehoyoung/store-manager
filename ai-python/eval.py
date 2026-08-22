@@ -28,17 +28,9 @@ import guardrails
 import prompts
 
 GOLDENSET_DEFAULT = Path(__file__).resolve().parent / "goldenset" / "reviews.jsonl"
-
-# ── risk_level=3 키워드 룰 (문서 12 §1.2 그대로) ──────────────────────────
-_RISK3_KEYWORDS: dict[str, list[str]] = {
-    "FOOD_POISONING": ["식중독", "배탈", "설사", "구토", "병원", "응급실", "진단서"],
-    "FOREIGN_OBJECT": ["이물질", "벌레", "머리카락", "비닐", "플라스틱", "유리", "곰팡이", "상한", "쉰내"],
-    "LEGAL": ["신고", "고소", "고발", "소송", "변호사", "위생과", "보건소", "식약처", "소비자원"],
-    "MEDIA": ["방송", "제보", "기자", "커뮤니티에 올리"],
-}
-# HYGIENE 은 문서 12 예시상 위생 지적 전용 사유코드. 이물질/곰팡이류와 겹치는 표현이 많아
-# FOREIGN_OBJECT 키워드 중 위생 맥락 단어("곰팡이","상한","쉰내")도 HYGIENE 후보로 함께 표시한다.
-_HYGIENE_KEYWORDS = ["위생", "곰팡이", "상한", "쉰내", "비위생"]
+HIGH_RISK_DEFAULT = Path(__file__).resolve().parent / "goldenset" / "high_risk.jsonl"
+# "auto"면 main.py의 실제 분류 파이프라인을 사용한다.
+AUTO = "auto"
 
 _ABUSIVE_KEYWORDS = [
     "쓰레기", "사기", "꺼져", "미친", "병신", "개새끼", "씨발", "지랄",
@@ -158,8 +150,29 @@ def load_goldenset(path: Path) -> list[dict]:
     return rows
 
 
-# 분류기 선택 기본값. "auto" = main.py 파이프라인이 있으면 그것을 쓴다.
-AUTO = "auto"
+def evaluate_high_risk(rows: list[dict], classifier=AUTO) -> dict:
+    """고위험 강화셋의 위험 재현율과 정상 문맥 오탐을 별도로 계산한다."""
+    main_classifier = _try_import_main_classifier() if classifier is AUTO else classifier
+    positives = [row for row in rows if row["expected"]["riskLevel"] >= 3]
+    negatives = [row for row in rows if row["expected"]["riskLevel"] < 3]
+    predicted = {row["id"]: predict(row, main_classifier) for row in rows}
+    misses = [row["id"] for row in positives if predicted[row["id"]]["risk_level"] < 3]
+    false_positives = [row["id"] for row in negatives if predicted[row["id"]]["risk_level"] >= 3]
+    recall = 1 - len(misses) / len(positives) if positives else 1.0
+    true_positives = len(positives) - len(misses)
+    precision = true_positives / (true_positives + len(false_positives)) if true_positives else 0.0
+    false_positive_rate = len(false_positives) / len(negatives) if negatives else 0.0
+    return {
+        "total": len(rows),
+        "positive_total": len(positives),
+        "recall": recall,
+        "precision": precision,
+        "misses": misses,
+        "false_positive_rate": false_positive_rate,
+        "false_positives": false_positives,
+        "used_main_classifier": main_classifier is not None,
+        "passed": recall >= 0.95,
+    }
 
 
 def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) -> dict:
@@ -255,7 +268,16 @@ def main(argv: list[str] | None = None, classifier=AUTO) -> int:
     parser = argparse.ArgumentParser(description="골든셋 자동 평가 하네스")
     parser.add_argument("--goldenset", type=Path, default=GOLDENSET_DEFAULT)
     parser.add_argument("--threshold-recall", type=float, default=0.95)
+    parser.add_argument("--high-risk", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.high_risk:
+        report = evaluate_high_risk(load_goldenset(HIGH_RISK_DEFAULT))
+        print(f"[고위험 강화셋] 총 {report['total']}건 / 재현율 {report['recall']:.1%} / "
+              f"정밀도 {report['precision']:.1%}")
+        print(f"  누락: {report['misses']}")
+        print(f"  오탐: {report['false_positive_rate']:.1%} {report['false_positives']}")
+        return 0 if report["passed"] else 1
 
     rows = load_goldenset(args.goldenset)
     report = evaluate(rows, threshold_recall=args.threshold_recall, classifier=classifier)

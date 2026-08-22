@@ -4,6 +4,7 @@ import com.storemanager.api.draft.DraftDtos.GenerateDraftsRequest;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsResponse;
 import com.storemanager.api.security.CurrentUser;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +24,7 @@ public class DraftController {
 
     @PostMapping("/api/v1/reviews/{reviewId}/drafts")
     @ResponseStatus(HttpStatus.CREATED)
-    public GenerateDraftsResponse generate(@PathVariable Long reviewId,
+    public GenerateDraftsResponse generate(@PathVariable UUID reviewId,
             @Valid @RequestBody(required = false) GenerateDraftsRequest req) {
         return draftService.generateDrafts(CurrentUser.publicId(), reviewId,
                 req == null ? new GenerateDraftsRequest(1, null) : req);

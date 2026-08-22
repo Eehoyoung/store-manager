@@ -16,8 +16,12 @@ public final class AiClientDtos {
     public record ReviewIn(int rating, String body, List<String> menus, String platform) {
     }
 
+    public record BannedWordIn(String word, String category, String matchType) {
+    }
+
     public record PersonaIn(String tone, boolean useEmoji, int emojiLevel, String customerTitle, String signature,
-            List<String> bannedWords, int lengthMin, int lengthMax, Integer personaSeed) {
+            List<String> bannedWords, List<BannedWordIn> globalBannedWords, int lengthMin, int lengthMax,
+            Integer personaSeed) {
     }
 
     public record OptionsIn(int variants, String instruction, String forceTier) {

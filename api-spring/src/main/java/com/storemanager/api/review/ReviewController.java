@@ -29,14 +29,14 @@ public class ReviewController {
             @RequestParam(required = false) Boolean hasReply,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) UUID cursor,
             @RequestParam(defaultValue = "20") int size) {
         return reviewService.listReviews(CurrentUser.publicId(), storeId, status, category, minRating, maxRating,
-                riskLevel, hasReply, from, to, page, size);
+                riskLevel, hasReply, from, to, cursor, size);
     }
 
     @GetMapping("/api/v1/reviews/{reviewId}")
-    public ReviewDetailResponse get(@PathVariable Long reviewId) {
+    public ReviewDetailResponse get(@PathVariable UUID reviewId) {
         return reviewService.getReview(CurrentUser.publicId(), reviewId);
     }
 }

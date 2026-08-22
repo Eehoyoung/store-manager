@@ -44,6 +44,14 @@ class ReviewIn(BaseModel):
     platform: str
 
 
+class BannedWordIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    word: str
+    category: str
+    match_type: str = Field(alias="matchType")
+
+
 class PersonaIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -53,6 +61,7 @@ class PersonaIn(BaseModel):
     customer_title: str = Field(default="고객님", alias="customerTitle")
     signature: str | None = None
     banned_words: list[str] = Field(default_factory=list, alias="bannedWords")
+    global_banned_words: list[BannedWordIn] = Field(default_factory=list, alias="globalBannedWords")
     length_min: int = Field(default=60, alias="lengthMin")
     length_max: int = Field(default=150, alias="lengthMax")
     persona_seed: int | None = Field(default=None, alias="personaSeed")
@@ -214,7 +223,11 @@ def _produce_variant(
         if content is None:
             return None, ["GENERATION_FAILED"]
 
-        flags = guardrails.check(content, risk_level, review_body=req.review.body)
+        banned_rules = [(r.word, r.category, r.match_type) for r in req.persona.global_banned_words]
+        banned_rules.extend((word, "STORE", "CONTAINS") for word in req.persona.banned_words)
+        flags = guardrails.check(
+            content, risk_level, review_body=req.review.body, extra_banned_words=banned_rules
+        )
         content_flags = [f for f in flags if f != "G8_RISK"]
 
         if not content_flags:

@@ -9,12 +9,36 @@ import eval as eval_mod
 
 def test_goldenset_category_ratio_matches_spec():
     rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
-    assert len(rows) == 100
+    assert len(rows) == 500
     counts = Counter(r["category"] for r in rows)
     assert counts == {
+        "PRAISE": 150, "POSITIVE": 125, "IMPROVEMENT": 100,
+        "COMPLAINT": 75, "ABUSIVE": 25, "NOISE": 25,
+    }
+    expected_per_industry = {
         "PRAISE": 30, "POSITIVE": 25, "IMPROVEMENT": 20,
         "COMPLAINT": 15, "ABUSIVE": 5, "NOISE": 5,
     }
+    for industry in {r["industry"] for r in rows}:
+        assert Counter(r["category"] for r in rows if r["industry"] == industry) == expected_per_industry
+    assert len({r["id"] for r in rows}) == 500
+
+
+def test_high_risk_set_matches_spec():
+    rows = eval_mod.load_goldenset(eval_mod.HIGH_RISK_DEFAULT)
+    assert len(rows) == 50
+    assert Counter(r["riskType"] for r in rows) == {
+        "FOOD_POISONING": 15, "FOREIGN_OBJECT": 15, "HYGIENE": 10, "LEGAL": 5, "MEDIA": 5,
+    }
+    assert len({r["id"] for r in rows}) == 50
+
+
+def test_high_risk_evaluation_exposes_context_false_positives():
+    report = eval_mod.evaluate_high_risk(eval_mod.load_goldenset(eval_mod.HIGH_RISK_DEFAULT))
+    assert report["recall"] >= 0.95
+    assert report["precision"] >= 0.60
+    assert report["passed"] is True
+    assert {"H-015", "H-030"} <= set(report["false_positives"])
 
 
 def test_goldenset_risk3_rows_all_marked_must_block():

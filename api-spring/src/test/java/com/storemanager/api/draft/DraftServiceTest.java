@@ -7,8 +7,11 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.ai.AiClient;
+import com.storemanager.api.ai.BannedWordQueryRepository;
 import com.storemanager.api.ai.AiClientDtos.AnalysisOut;
 import com.storemanager.api.ai.AiClientDtos.AnalyzeAndDraftResponse;
+import com.storemanager.api.ai.AiClientDtos.AnalyzeAndDraftRequest;
+import com.storemanager.api.ai.AiClientDtos.BannedWordIn;
 import com.storemanager.api.ai.AiClientDtos.DraftOut;
 import com.storemanager.api.ai.LlmUsageLogRepository;
 import com.storemanager.api.audit.AuditLog;
@@ -33,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -49,6 +53,7 @@ class DraftServiceTest {
     @Mock private StorePersonaRepository storePersonaRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private AiClient aiClient;
+    @Mock private BannedWordQueryRepository bannedWordQueryRepository;
     @Mock private LlmUsageLogRepository llmUsageLogRepository;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private Notifier notifier;
@@ -63,22 +68,25 @@ class DraftServiceTest {
     @BeforeEach
     void setUp() {
         draftService = new DraftService(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
-                storeRepository, storePersonaRepository, appUserRepository, aiClient, llmUsageLogRepository,
-                auditLogRepository, notifier, new ObjectMapper());
+                storeRepository, storePersonaRepository, appUserRepository, aiClient, bannedWordQueryRepository,
+                llmUsageLogRepository, auditLogRepository, notifier, new ObjectMapper());
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 
     @Test
     void 자동승인_조건을_모두_만족하면_초안_생성직후_SCHEDULED로_전이한다() {
-        UnifiedReview review = UnifiedReview.builder().id(20L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(20L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-20").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
         StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
                 .delayHours((short) 0).publishWindows("[]")
                 .personaSeed(1).build();
-        when(unifiedReviewRepository.findById(20L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+        when(bannedWordQueryRepository.findActiveGlobal())
+                .thenReturn(List.of(new BannedWordIn("치료", "MEDICAL", "CONTAINS")));
 
         AnalysisOut analysisOut = new AnalysisOut("POSITIVE", 0.9f, List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 감사합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
@@ -87,23 +95,28 @@ class DraftServiceTest {
         when(reviewAnalysisRepository.findById(20L)).thenReturn(Optional.empty());
         when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = draftService.generateDrafts(ownerPublicId, 20L, new GenerateDraftsRequest(1, null));
+        var result = draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
 
         assertThat(result.drafts()).hasSize(1);
         assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
+        ArgumentCaptor<AnalyzeAndDraftRequest> requestCaptor = ArgumentCaptor.forClass(AnalyzeAndDraftRequest.class);
+        org.mockito.Mockito.verify(aiClient).analyzeAndDraft(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().persona().globalBannedWords())
+                .containsExactly(new BannedWordIn("치료", "MEDICAL", "CONTAINS"));
         org.mockito.Mockito.verify(auditLogRepository).save(
                 org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
     }
 
     @Test
     void 풀자동화는_별점과_무관하게_안전한_초안을_SCHEDULED로_전이한다() {
-        UnifiedReview review = UnifiedReview.builder().id(21L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(21L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-21").rating((short) 3).body("그저 그래요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
         StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
                 .delayHours((short) 0).publishWindows("[]")
                 .personaSeed(1).build();
-        when(unifiedReviewRepository.findById(21L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
 
@@ -114,7 +127,7 @@ class DraftServiceTest {
         when(reviewAnalysisRepository.findById(21L)).thenReturn(Optional.empty());
         when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = draftService.generateDrafts(ownerPublicId, 21L, new GenerateDraftsRequest(1, null));
+        var result = draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
 
         assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
         org.mockito.Mockito.verify(auditLogRepository).save(
@@ -123,12 +136,13 @@ class DraftServiceTest {
 
     @Test
     void 스텁_분류결과는_풀자동_게시하지_않는다() {
-        UnifiedReview review = UnifiedReview.builder().id(24L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(24L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-24").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
         StorePersona persona = StorePersona.builder().storeId(100L).delayHours((short) 0).publishWindows("[]")
                 .personaSeed(1).build();
-        when(unifiedReviewRepository.findById(24L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
         AnalysisOut analysis = new AnalysisOut("POSITIVE", 1f, List.of(), 0, List.of(), "stub", "v1");
@@ -138,7 +152,7 @@ class DraftServiceTest {
         when(reviewAnalysisRepository.findById(24L)).thenReturn(Optional.empty());
         when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = draftService.generateDrafts(ownerPublicId, 24L, new GenerateDraftsRequest(1, null));
+        var result = draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
 
         assertThat(result.drafts().get(0).status()).isEqualTo("BLOCKED");
         assertThat(result.drafts().get(0).guardrailFlags()).containsExactly("AUTOMATION_MODEL_UNAVAILABLE");
@@ -146,12 +160,13 @@ class DraftServiceTest {
 
     @Test
     void 가드레일_전량차단시_BLOCKED_초안을_저장하고_422를_던진다() {
-        UnifiedReview review = UnifiedReview.builder().id(22L).storeId(100L).linkId(1L).platform("BAEMIN")
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(22L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-22").rating((short) 1).body("환불해주세요").writtenAt(Instant.now())
                 .collectedAt(Instant.now()).build();
         StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY").publishWindows("[]")
                 .personaSeed(1).build();
-        when(unifiedReviewRepository.findById(22L)).thenReturn(Optional.of(review));
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
 
@@ -163,7 +178,7 @@ class DraftServiceTest {
         when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ApiException ex = assertThrows(ApiException.class,
-                () -> draftService.generateDrafts(ownerPublicId, 22L, new GenerateDraftsRequest(1, null)));
+                () -> draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null)));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
         org.mockito.Mockito.verify(replyDraftRepository).save(

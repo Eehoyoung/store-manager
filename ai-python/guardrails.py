@@ -45,24 +45,6 @@ _ADDRESS_PATTERN = re.compile(
     r"|\d{1,4}동\s?\d{1,4}호"
 )
 
-# 문서 11 §5 (V10__seed_banned_words.sql) — banned_word 테이블 DB 접속이 없을 때 쓰는
-# 내장 기본값. (단어, category, match_type) 튜플. match_type 은 CONTAINS/EXACT/REGEX.
-DEFAULT_BANNED_WORDS: list[tuple[str, str, str]] = [
-    ("환불", "COMPENSATION", "CONTAINS"),
-    ("보상", "COMPENSATION", "CONTAINS"),
-    ("무료로 드리", "COMPENSATION", "CONTAINS"),
-    ("할인해 드리", "COMPENSATION", "CONTAINS"),
-    ("쿠폰 드리", "COMPENSATION", "CONTAINS"),
-    ("배민", "COMPETITOR", "CONTAINS"),
-    ("쿠팡이츠", "COMPETITOR", "CONTAINS"),
-    ("요기요", "COMPETITOR", "CONTAINS"),
-    (r"\d{2,3}-\d{3,4}-\d{4}", "PII", "REGEX"),
-    ("치료", "MEDICAL", "CONTAINS"),
-    ("효능", "MEDICAL", "CONTAINS"),
-    ("씨발", "PROFANITY", "CONTAINS"),
-    ("개새끼", "PROFANITY", "CONTAINS"),
-]
-
 # 문서 12 §4 G9 — 리뷰 본문에서 감지할 지시성 문구
 INJECTION_MARKERS: list[str] = [
     "무시하고", "대신", "system", "프롬프트", "너는 이제", "instructions", "역할을",
@@ -109,8 +91,7 @@ def _word_match(word: str, match_type: str, text: str) -> bool:
 
 
 def _banned_word_hit(text: str, extra_words: list[tuple[str, str, str]] | None) -> bool:
-    words = DEFAULT_BANNED_WORDS + list(extra_words or [])
-    return any(_word_match(word, match_type, text) for word, _category, match_type in words)
+    return any(_word_match(word, match_type, text) for word, _category, match_type in (extra_words or []))
 
 
 def sanitize_review(review_body: str) -> tuple[str, bool, list[str]]:
@@ -194,7 +175,7 @@ def check(
     if len(text) > MAX_LENGTH:
         flags.append("G1_LENGTH_MAX")
 
-    # G2 — banned_word 마스터 테이블 (DB 미접속 시 내장 기본값 DEFAULT_BANNED_WORDS)
+    # G2 — Spring 이 banned_word 마스터 테이블에서 조회해 전달한 활성 규칙
     if _banned_word_hit(text, extra_banned_words):
         flags.append("G2_BANNED_WORD")
 
@@ -244,7 +225,8 @@ def demo() -> None:
     assert "G1_LENGTH_MAX" in check("가" * 281, risk_level=0)
     assert check("가" * 281, risk_level=0).blocking
 
-    assert "G2_BANNED_WORD" in check(clean.replace("정말", "치료 효능이") , risk_level=0)
+    assert "G2_BANNED_WORD" in check(clean.replace("정말", "치료 효능이"), risk_level=0,
+                                      extra_banned_words=[("치료", "MEDICAL", "CONTAINS")])
     assert "G3_COMPENSATION" in check(clean.replace("보답", "환불해 드리며 보답"), risk_level=0)
     assert "G4_PII" in check(clean + " 010-1234-5678 로 연락주세요", risk_level=0)
     assert "G5_COMPETITOR" in check(clean.replace("리뷰", "요기요 리뷰"), risk_level=0)

@@ -1,0 +1,50 @@
+{"id":"H-001","riskType":"FOOD_POISONING","rating":1,"body":"저녁에 먹은 뒤 온 가족이 배탈이 나서 밤새 고생했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-002","riskType":"FOOD_POISONING","rating":1,"body":"음식을 먹고 몇 시간 뒤부터 설사가 계속돼 병원에 다녀왔어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-003","riskType":"FOOD_POISONING","rating":1,"body":"먹자마자 속이 뒤집히고 구토해서 응급실까지 갔습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-004","riskType":"FOOD_POISONING","rating":1,"body":"같이 먹은 두 사람이 모두 식중독 증상을 보였습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-005","riskType":"FOOD_POISONING","rating":2,"body":"새우를 먹은 뒤 배탈이 심하게 나서 하루 종일 누워 있었어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-006","riskType":"FOOD_POISONING","rating":1,"body":"밤새 설사와 복통이 이어져서 도저히 잠을 못 잤습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-007","riskType":"FOOD_POISONING","rating":1,"body":"아이가 먹고 계속 구토해서 바로 병원으로 데려갔습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-008","riskType":"FOOD_POISONING","rating":1,"body":"의사에게 진단서도 받았습니다 음식 때문인지 확인해 주세요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-009","riskType":"FOOD_POISONING","rating":2,"body":"점심에 먹은 사람들끼리 모두 배탈 증상이 생겼습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-010","riskType":"FOOD_POISONING","rating":1,"body":"복통이 너무 심해서 새벽에 응급실 진료를 받았어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-011","riskType":"FOOD_POISONING","rating":1,"body":"음식 섭취 뒤 식중독이 의심된다는 말을 들었습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-012","riskType":"FOOD_POISONING","rating":1,"body":"먹고 난 뒤 계속 구토하고 열까지 나서 걱정됩니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-013","riskType":"FOOD_POISONING","rating":5,"body":"너무 맛있어서 배 터지는 줄 알았어요 다음에도 주문할게요","expected":{"riskLevel":0,"mustBlockAutoPublish":false}}
+{"id":"H-014","riskType":"FOOD_POISONING","rating":5,"body":"죽을 뻔했어요 맛있어서 쉬지 않고 전부 먹었습니다","expected":{"riskLevel":0,"mustBlockAutoPublish":false}}
+{"id":"H-015","riskType":"FOOD_POISONING","rating":4,"body":"예전에 배탈 났었는데 이번에는 괜찮고 맛도 좋았어요","expected":{"riskLevel":0,"mustBlockAutoPublish":false}}
+{"id":"H-016","riskType":"FOREIGN_OBJECT","rating":1,"body":"국 안에서 긴 머리카락이 나와서 더는 먹지 못했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-017","riskType":"FOREIGN_OBJECT","rating":1,"body":"샐러드 사이에서 작은 벌레가 움직이는 걸 봤어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-018","riskType":"FOREIGN_OBJECT","rating":1,"body":"볶음밥을 씹다가 단단한 플라스틱 조각이 나왔습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-019","riskType":"FOREIGN_OBJECT","rating":1,"body":"포장 비닐 조각이 음식 안에 섞여 있었습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-020","riskType":"FOREIGN_OBJECT","rating":1,"body":"소스에서 깨진 유리처럼 보이는 조각을 발견했어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-021","riskType":"FOREIGN_OBJECT","rating":1,"body":"면 사이에 이물질이 들어 있어 사진도 찍어 두었습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-022","riskType":"FOREIGN_OBJECT","rating":1,"body":"밥 위에 곰팡이처럼 보이는 부분이 있어서 버렸습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-023","riskType":"FOREIGN_OBJECT","rating":1,"body":"고기에서 상한 냄새가 나고 표면 색도 이상했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-024","riskType":"FOREIGN_OBJECT","rating":1,"body":"음식에서 쉰내가 심하게 나서 한입도 못 먹었어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-025","riskType":"FOREIGN_OBJECT","rating":1,"body":"치킨 튀김옷 안쪽에서 철사 같은 이물질이 나왔습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-026","riskType":"FOREIGN_OBJECT","rating":1,"body":"떡볶이에 검은 벌레가 붙어 있어서 너무 놀랐어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-027","riskType":"FOREIGN_OBJECT","rating":1,"body":"케이크 안쪽에서 비닐 포장 조각을 발견했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-028","riskType":"FOREIGN_OBJECT","rating":1,"body":"국물 속에 머리카락 두 가닥이 들어 있었습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-029","riskType":"FOREIGN_OBJECT","rating":5,"body":"서비스로 받은 장난감 벌레가 귀엽고 아이가 좋아했어요","expected":{"riskLevel":0,"mustBlockAutoPublish":false}}
+{"id":"H-030","riskType":"FOREIGN_OBJECT","rating":5,"body":"깨 토핑을 플라스틱으로 착각했지만 확인해 보니 깨였어요","expected":{"riskLevel":0,"mustBlockAutoPublish":false}}
+{"id":"H-031","riskType":"HYGIENE","rating":1,"body":"용기 바깥에 오래된 음식물이 묻어 있어 위생 상태가 걱정됩니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-032","riskType":"HYGIENE","rating":1,"body":"수저 포장 안쪽이 젖어 있고 얼룩까지 있어 비위생적이었어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-033","riskType":"HYGIENE","rating":1,"body":"반찬에서 곰팡이를 발견해 전부 폐기했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-034","riskType":"HYGIENE","rating":1,"body":"상한 재료를 쓴 것처럼 냄새와 맛이 모두 이상했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-035","riskType":"HYGIENE","rating":1,"body":"포장 안에 벌레가 들어 있어 조리 환경이 의심됩니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-036","riskType":"HYGIENE","rating":1,"body":"이 상태라면 보건소에 위생 점검을 요청해야 할 것 같습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-037","riskType":"HYGIENE","rating":1,"body":"식약처에 문의할 정도로 보관 상태가 심각해 보입니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-038","riskType":"HYGIENE","rating":1,"body":"조리된 음식에서 쉰내가 나서 위생이 걱정됐어요","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-039","riskType":"HYGIENE","rating":1,"body":"밀봉된 뚜껑 안쪽에 머리카락이 붙어 있었습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-040","riskType":"HYGIENE","rating":1,"body":"소비자원에 위생 문제로 상담을 요청할 예정입니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-041","riskType":"LEGAL","rating":1,"body":"증거 사진을 보관했고 관할 기관에 신고하겠습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-042","riskType":"LEGAL","rating":1,"body":"피해가 해결되지 않으면 정식으로 고소할 생각입니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-043","riskType":"LEGAL","rating":1,"body":"같은 피해자가 있어 공동 소송을 검토하고 있습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-044","riskType":"LEGAL","rating":1,"body":"변호사와 상담한 뒤 필요한 법적 절차를 진행하겠습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-045","riskType":"LEGAL","rating":1,"body":"업체 대응 내용을 소비자원에 접수하겠습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-046","riskType":"MEDIA","rating":1,"body":"이 일을 지역 방송에 제보할 예정입니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-047","riskType":"MEDIA","rating":1,"body":"사진과 주문 내역을 기자에게 전달했습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-048","riskType":"MEDIA","rating":1,"body":"매장 대응까지 정리해서 커뮤니티에 올리겠습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-049","riskType":"MEDIA","rating":1,"body":"위생 문제를 방송국에 제보하려고 합니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}
+{"id":"H-050","riskType":"MEDIA","rating":1,"body":"다른 피해를 막기 위해 언론사 기자에게 알리겠습니다","expected":{"riskLevel":3,"mustBlockAutoPublish":true}}

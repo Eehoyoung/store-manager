@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.ai.AiClient;
 import com.storemanager.api.ai.AiClientDtos;
+import com.storemanager.api.ai.BannedWordQueryRepository;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
@@ -60,13 +61,15 @@ public class PersonaService {
     private final StyleSampleQueryRepository styleSampleQueryRepository;
     private final ReviewAnalysisRepository reviewAnalysisRepository;
     private final AiClient aiClient;
+    private final BannedWordQueryRepository bannedWordQueryRepository;
     private final ObjectMapper objectMapper;
     private final AuditLogRepository auditLogRepository;
 
     public PersonaService(StorePersonaRepository storePersonaRepository, StoreRepository storeRepository,
             AppUserRepository appUserRepository, UnifiedReviewRepository unifiedReviewRepository,
             StyleSampleQueryRepository styleSampleQueryRepository, ReviewAnalysisRepository reviewAnalysisRepository,
-            AiClient aiClient, ObjectMapper objectMapper, AuditLogRepository auditLogRepository) {
+            AiClient aiClient, BannedWordQueryRepository bannedWordQueryRepository, ObjectMapper objectMapper,
+            AuditLogRepository auditLogRepository) {
         this.storePersonaRepository = storePersonaRepository;
         this.storeRepository = storeRepository;
         this.appUserRepository = appUserRepository;
@@ -74,6 +77,7 @@ public class PersonaService {
         this.styleSampleQueryRepository = styleSampleQueryRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.aiClient = aiClient;
+        this.bannedWordQueryRepository = bannedWordQueryRepository;
         this.objectMapper = objectMapper;
         this.auditLogRepository = auditLogRepository;
     }
@@ -129,11 +133,13 @@ public class PersonaService {
                 ? new AiClientDtos.PersonaIn(req.persona().tone(), req.persona().useEmoji(),
                         req.persona().emojiLevel(), req.persona().customerTitle(), req.persona().signature(),
                         req.persona().bannedWords() == null ? List.of() : req.persona().bannedWords(),
-                        req.persona().lengthMin(), req.persona().lengthMax(), saved.getPersonaSeed())
+                        bannedWordQueryRepository.findActiveGlobal(), req.persona().lengthMin(),
+                        req.persona().lengthMax(), saved.getPersonaSeed())
                 : new AiClientDtos.PersonaIn(saved.getTone(), saved.isUseEmoji(), saved.getEmojiLevel(),
                         saved.getCustomerTitle(), saved.getSignature(),
                         saved.getBannedWords() == null ? List.of() : List.of(saved.getBannedWords()),
-                        saved.getLengthMin(), saved.getLengthMax(), saved.getPersonaSeed());
+                        bannedWordQueryRepository.findActiveGlobal(), saved.getLengthMin(), saved.getLengthMax(),
+                        saved.getPersonaSeed());
 
         AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(review.getRating() == null ? 0 : review.getRating(),
                 review.getBody() == null ? "" : review.getBody(), parseStringList(review.getOrderedMenus()),
@@ -241,13 +247,13 @@ public class PersonaService {
     }
 
     private UnifiedReview loadOwnedReview(Store store, String reviewIdStr) {
-        Long reviewId;
+        UUID reviewId;
         try {
-            reviewId = Long.valueOf(reviewIdStr);
-        } catch (NumberFormatException e) {
+            reviewId = UUID.fromString(reviewIdStr);
+        } catch (IllegalArgumentException e) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
-        UnifiedReview review = unifiedReviewRepository.findById(reviewId)
+        UnifiedReview review = unifiedReviewRepository.findByPublicId(reviewId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!review.getStoreId().equals(store.getId())) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);

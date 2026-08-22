@@ -3,7 +3,7 @@
 문서 12 §4 G1~G9 전부를 다룬다. 가드레일마다 걸리는 케이스/안 걸리는 케이스를
 최소 1쌍씩 둔다.
 """
-from guardrails import check, sanitize_review, DEFAULT_BANNED_WORDS
+from guardrails import check, sanitize_review
 
 # G1 하한(60자)을 넘기기 위한 공용 "깨끗한" 답글 (다른 가드레일에는 걸리지 않는다)
 CLEAN = (
@@ -44,10 +44,13 @@ def test_g1_boundary_60_and_280_pass():
     assert "G1_LENGTH_MAX" not in check("가" * 280, risk_level=0)
 
 
-# ── G2 금칙어(banned_word 내장 기본값) ──────────────────────────────────
+# ── G2 금칙어(banned_word DB 전달값) ───────────────────────────────────
 
-def test_g2_default_seed_word_blocked():
-    assert "G2_BANNED_WORD" in check(CLEAN.replace("정말", "치료 효능이"), risk_level=0)
+def test_g2_db_seed_word_blocked():
+    rules = [("치료", "MEDICAL", "CONTAINS")]
+    assert "G2_BANNED_WORD" in check(
+        CLEAN.replace("정말", "치료 효능이"), risk_level=0, extra_banned_words=rules
+    )
 
 
 def test_g2_clean_text_not_blocked():
@@ -66,11 +69,6 @@ def test_g2_match_type_exact_vs_regex():
     assert "G2_BANNED_WORD" not in check(CLEAN, risk_level=0, extra_banned_words=exact)
     regex = [(r"\d{3}-\d{4}", "PII", "REGEX")]
     assert "G2_BANNED_WORD" in check(CLEAN + " 010-1234", risk_level=0, extra_banned_words=regex)
-
-
-def test_g2_seed_list_has_expected_categories():
-    categories = {c for _w, c, _mt in DEFAULT_BANNED_WORDS}
-    assert {"COMPENSATION", "COMPETITOR", "PII", "MEDICAL"} <= categories
 
 
 # ── G3 보상 약속 (정규식 4개 각각) ──────────────────────────────────────

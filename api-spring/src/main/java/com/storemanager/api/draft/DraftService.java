@@ -7,6 +7,7 @@ import com.storemanager.api.ai.AiClient;
 import com.storemanager.api.ai.AiClientDtos;
 import com.storemanager.api.ai.AiClientDtos.AnalyzeAndDraftResponse;
 import com.storemanager.api.ai.AiClientDtos.DraftOut;
+import com.storemanager.api.ai.BannedWordQueryRepository;
 import com.storemanager.api.ai.LlmUsageLog;
 import com.storemanager.api.ai.LlmUsageLogRepository;
 import com.storemanager.api.audit.AuditLog;
@@ -54,6 +55,7 @@ public class DraftService {
     private final StorePersonaRepository storePersonaRepository;
     private final AppUserRepository appUserRepository;
     private final AiClient aiClient;
+    private final BannedWordQueryRepository bannedWordQueryRepository;
     private final LlmUsageLogRepository llmUsageLogRepository;
     private final AuditLogRepository auditLogRepository;
     private final Notifier notifier;
@@ -62,8 +64,8 @@ public class DraftService {
     public DraftService(ReplyDraftRepository replyDraftRepository, ReviewAnalysisRepository reviewAnalysisRepository,
             UnifiedReviewRepository unifiedReviewRepository, StoreRepository storeRepository,
             StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient,
-            LlmUsageLogRepository llmUsageLogRepository, AuditLogRepository auditLogRepository, Notifier notifier,
-            ObjectMapper objectMapper) {
+            BannedWordQueryRepository bannedWordQueryRepository, LlmUsageLogRepository llmUsageLogRepository,
+            AuditLogRepository auditLogRepository, Notifier notifier, ObjectMapper objectMapper) {
         this.replyDraftRepository = replyDraftRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -71,6 +73,7 @@ public class DraftService {
         this.storePersonaRepository = storePersonaRepository;
         this.appUserRepository = appUserRepository;
         this.aiClient = aiClient;
+        this.bannedWordQueryRepository = bannedWordQueryRepository;
         this.llmUsageLogRepository = llmUsageLogRepository;
         this.auditLogRepository = auditLogRepository;
         this.notifier = notifier;
@@ -88,10 +91,11 @@ public class DraftService {
      * 이 메서드에서 던지는 다른 ApiException 은 모두 쓰기 이전 단계라 롤백 대상이 없다.
      */
     @Transactional(noRollbackFor = ApiException.class)
-    public GenerateDraftsResponse generateDrafts(UUID ownerPublicId, Long reviewId, GenerateDraftsRequest req) {
+    public GenerateDraftsResponse generateDrafts(UUID ownerPublicId, UUID reviewPublicId, GenerateDraftsRequest req) {
         AppUser owner = resolveUser(ownerPublicId);
-        UnifiedReview review = unifiedReviewRepository.findById(reviewId)
+        UnifiedReview review = unifiedReviewRepository.findByPublicId(reviewPublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        Long reviewId = review.getId();
         Store store = loadOwnedStore(owner, review.getStoreId());
         StorePersona persona = storePersonaRepository.findById(store.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -165,7 +169,7 @@ public class DraftService {
             notifyHighRisk(store, reviewId);
         }
 
-        return new GenerateDraftsResponse(saved.stream().map(DraftResponse::from).toList());
+        return new GenerateDraftsResponse(saved.stream().map(d -> DraftResponse.from(d, reviewPublicId)).toList());
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
@@ -219,7 +223,8 @@ public class DraftService {
                 persona.getTone(), persona.isUseEmoji(), persona.getEmojiLevel(), persona.getCustomerTitle(),
                 persona.getSignature(),
                 persona.getBannedWords() == null ? List.of() : List.of(persona.getBannedWords()),
-                persona.getLengthMin(), persona.getLengthMax(), persona.getPersonaSeed());
+                bannedWordQueryRepository.findActiveGlobal(), persona.getLengthMin(), persona.getLengthMax(),
+                persona.getPersonaSeed());
         int variants = req != null && req.variants() != null ? req.variants() : 1;
         String instruction = req == null ? null : req.instruction();
         AiClientDtos.OptionsIn optionsIn = new AiClientDtos.OptionsIn(variants, instruction, null);

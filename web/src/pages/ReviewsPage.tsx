@@ -10,7 +10,6 @@ import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
 import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
-import { Pagination } from "../components/Pagination";
 import { Button } from "../components/Button";
 import { DRAFT_STATUS_META } from "../components/draftStatus";
 import { describeCategory, describePlatform, describeRiskReason } from "../lib/labels";
@@ -40,7 +39,6 @@ export function ReviewsPage() {
   const hasReply = searchParams.get("hasReply") ?? "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
-  const page = Number(searchParams.get("page") ?? 0);
 
   // 필터 값을 URL 쿼리스트링에 반영한다(새로고침·뒤로가기에도 유지). 필터가 바뀌면 1페이지로 되돌린다.
   const updateFilter = (patch: Record<string, string>) => {
@@ -49,19 +47,16 @@ export function ReviewsPage() {
       if (v) next.set(k, v);
       else next.delete(k);
     }
-    next.delete("page");
-    setSearchParams(next);
-  };
-
-  const setPage = (p: number) => {
-    const next = new URLSearchParams(searchParams);
-    if (p > 0) next.set("page", String(p));
-    else next.delete("page");
+    setCursor(null);
+    setCursorHistory([]);
     setSearchParams(next);
   };
 
   const [items, setItems] = useState<ReviewSummary[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -79,16 +74,17 @@ export function ReviewsPage() {
         hasReply: hasReply ? hasReply === "true" : undefined,
         from: from || undefined,
         to: to || undefined,
-        page,
+        cursor: cursor || undefined,
         size: PAGE_SIZE,
       })
       .then((res) => {
         setItems(res.items);
         setHasMore(res.hasMore);
+        setNextCursor(res.nextCursor);
       })
       .catch((e) => setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, page, retryTick]);
+  }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, cursor, retryTick]);
 
   if (!storeId) {
     return <EmptyState title="매장을 먼저 선택해 주세요" />;
@@ -180,7 +176,32 @@ export function ReviewsPage() {
         </ul>
       ) : null}
 
-      {items && items.length > 0 ? <Pagination page={page} hasMore={hasMore} onPageChange={setPage} /> : null}
+      {items && items.length > 0 ? (
+        <nav className="pagination" aria-label="리뷰 페이지 이동">
+          <Button
+            type="button"
+            disabled={cursorHistory.length === 0}
+            onClick={() => {
+              const previous = cursorHistory[cursorHistory.length - 1] ?? null;
+              setCursorHistory((history) => history.slice(0, -1));
+              setCursor(previous);
+            }}
+          >
+            이전
+          </Button>
+          <span className="pagination__label" aria-current="page">{cursorHistory.length + 1} 페이지</span>
+          <Button
+            type="button"
+            disabled={!hasMore || !nextCursor}
+            onClick={() => {
+              setCursorHistory((history) => [...history, cursor]);
+              setCursor(nextCursor);
+            }}
+          >
+            다음
+          </Button>
+        </nav>
+      ) : null}
 
       <ReviewDetailModal reviewId={selectedId} onClose={() => setSelectedId(null)} />
     </div>

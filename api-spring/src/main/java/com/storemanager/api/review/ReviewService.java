@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,15 +56,24 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public ReviewListResponse listReviews(UUID ownerPublicId, UUID storePublicId, String status, String category,
             Integer minRating, Integer maxRating, Integer riskLevel, Boolean hasReply, String from, String to,
-            int page, int size) {
+            UUID cursor, int size) {
         AppUser owner = resolveUser(ownerPublicId);
         Store store = loadOwnedStore(owner, storePublicId);
 
-        Page<UnifiedReview> result = reviewQueryRepository.search(store.getId(), blankToNull(status),
-                blankToNull(category), toShort(minRating), toShort(maxRating), toShort(riskLevel), hasReply,
-                parseFromDate(from), parseToDateExclusive(to), PageRequest.of(page, size));
+        if (size < 1 || size > 100) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 합니다."));
+        }
+        UnifiedReview boundary = cursor == null ? null : reviewQueryRepository.findByPublicId(cursor)
+                .filter(r -> r.getStoreId().equals(store.getId()))
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        List<UnifiedReview> reviews = result.getContent();
+        List<UnifiedReview> fetched = reviewQueryRepository.searchAfter(store.getId(), blankToNull(status),
+                blankToNull(category), toShort(minRating), toShort(maxRating), toShort(riskLevel), hasReply,
+                parseFromDate(from), parseToDateExclusive(to), boundary == null ? OPEN_END : boundary.getWrittenAt(),
+                boundary == null ? Long.MAX_VALUE : boundary.getId(), PageRequest.of(0, size + 1));
+
+        boolean hasMore = fetched.size() > size;
+        List<UnifiedReview> reviews = hasMore ? fetched.subList(0, size) : fetched;
         List<Long> reviewIds = reviews.stream().map(UnifiedReview::getId).toList();
         Map<Long, ReviewAnalysis> analysisByReviewId = new HashMap<>();
         Map<Long, ReplyDraft> latestDraftByReviewId = new HashMap<>();
@@ -81,22 +89,25 @@ public class ReviewService {
         List<ReviewSummaryResponse> items = reviews.stream()
                 .map(r -> toSummary(r, analysisByReviewId.get(r.getId()), latestDraftByReviewId.get(r.getId())))
                 .toList();
-        return new ReviewListResponse(items, result.hasNext());
+        String nextCursor = hasMore ? reviews.get(reviews.size() - 1).getPublicId().toString() : null;
+        return new ReviewListResponse(items, nextCursor, hasMore);
     }
 
     @Transactional(readOnly = true)
-    public ReviewDetailResponse getReview(UUID ownerPublicId, Long reviewId) {
+    public ReviewDetailResponse getReview(UUID ownerPublicId, UUID reviewPublicId) {
         AppUser owner = resolveUser(ownerPublicId);
-        UnifiedReview review = reviewQueryRepository.findById(reviewId)
+        UnifiedReview review = reviewQueryRepository.findByPublicId(reviewPublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         loadOwnedStore(owner, review.getStoreId());
+
+        Long reviewId = review.getId();
 
         ReviewAnalysis analysis = reviewQueryRepository.findAnalysesByReviewIds(List.of(reviewId)).stream()
                 .findFirst().orElse(null);
         List<DraftSummaryResponse> drafts = reviewQueryRepository.findDraftsByReviewId(reviewId).stream()
                 .map(ReviewService::toDraftSummary).toList();
 
-        return new ReviewDetailResponse(String.valueOf(review.getId()), review.getPlatform(),
+        return new ReviewDetailResponse(review.getPublicId().toString(), review.getPlatform(),
                 toInt(review.getRating()), review.getBody(), review.getAuthorMasked(),
                 parseStringList(review.getOrderedMenus()), parseStringList(review.getImageUrls()),
                 toIso(review.getWrittenAt()), review.isWrittenDateOnly(), toIso(review.getCollectedAt()),
@@ -106,7 +117,7 @@ public class ReviewService {
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
 
     private ReviewSummaryResponse toSummary(UnifiedReview r, ReviewAnalysis analysis, ReplyDraft latestDraft) {
-        return new ReviewSummaryResponse(String.valueOf(r.getId()), r.getPlatform(), toInt(r.getRating()),
+        return new ReviewSummaryResponse(r.getPublicId().toString(), r.getPlatform(), toInt(r.getRating()),
                 r.getBody(), r.getAuthorMasked(), parseStringList(r.getOrderedMenus()),
                 parseStringList(r.getImageUrls()), toIso(r.getWrittenAt()), r.isWrittenDateOnly(),
                 toIso(r.getCollectedAt()), r.isHasOwnerReply(), toAnalysisResponse(analysis),
@@ -117,7 +128,7 @@ public class ReviewService {
         if (d == null) {
             return null;
         }
-        return new DraftSummaryResponse(String.valueOf(d.getId()), d.getStatus(), d.getContent());
+        return new DraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent());
     }
 
     private static AnalysisResponse toAnalysisResponse(ReviewAnalysis a) {

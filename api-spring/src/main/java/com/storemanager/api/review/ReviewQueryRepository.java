@@ -4,7 +4,8 @@ import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReviewAnalysis;
 import java.time.Instant;
 import java.util.List;
-import org.springframework.data.domain.Page;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -18,7 +19,7 @@ import org.springframework.data.repository.query.Param;
  */
 public interface ReviewQueryRepository extends JpaRepository<UnifiedReview, Long> {
 
-    @Query(value = """
+    @Query("""
             SELECT r FROM UnifiedReview r
             LEFT JOIN ReviewAnalysis a ON a.reviewId = r.id
             LEFT JOIN ReplyDraft d ON d.id = (
@@ -32,28 +33,18 @@ public interface ReviewQueryRepository extends JpaRepository<UnifiedReview, Long
               AND (:hasReply IS NULL OR r.hasOwnerReply = :hasReply)
               AND r.writtenAt >= :from
               AND r.writtenAt < :to
+              AND (r.writtenAt < :cursorWrittenAt
+                   OR (r.writtenAt = :cursorWrittenAt AND r.id < :cursorId))
             ORDER BY r.writtenAt DESC, r.id DESC
-            """,
-            countQuery = """
-            SELECT COUNT(r) FROM UnifiedReview r
-            LEFT JOIN ReviewAnalysis a ON a.reviewId = r.id
-            LEFT JOIN ReplyDraft d ON d.id = (
-                SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
-            WHERE r.storeId = :storeId
-              AND (:status IS NULL OR d.status = :status)
-              AND (:category IS NULL OR a.category = :category)
-              AND (:minRating IS NULL OR r.rating >= :minRating)
-              AND (:maxRating IS NULL OR r.rating <= :maxRating)
-              AND (:riskLevel IS NULL OR a.riskLevel >= :riskLevel)
-              AND (:hasReply IS NULL OR r.hasOwnerReply = :hasReply)
-              AND r.writtenAt >= :from
-              AND r.writtenAt < :to
             """)
-    Page<UnifiedReview> search(@Param("storeId") Long storeId, @Param("status") String status,
+    List<UnifiedReview> searchAfter(@Param("storeId") Long storeId, @Param("status") String status,
             @Param("category") String category, @Param("minRating") Short minRating,
             @Param("maxRating") Short maxRating, @Param("riskLevel") Short riskLevel,
             @Param("hasReply") Boolean hasReply, @Param("from") Instant from, @Param("to") Instant to,
+            @Param("cursorWrittenAt") Instant cursorWrittenAt, @Param("cursorId") Long cursorId,
             Pageable pageable);
+
+    Optional<UnifiedReview> findByPublicId(UUID publicId);
 
     @Query("SELECT a FROM ReviewAnalysis a WHERE a.reviewId IN :reviewIds")
     List<ReviewAnalysis> findAnalysesByReviewIds(@Param("reviewIds") List<Long> reviewIds);
