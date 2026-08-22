@@ -1,41 +1,158 @@
+/*
+ * 셸 — 베젤(헤더) + 운항 상태 배너 + 좌측 레일 + 계기면(본문).
+ * 마크업은 하나, 배치만 미디어쿼리로 바꾼다(모바일 하단 탭 / 데스크톱 좌측 레일).
+ */
 .shell {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  background: var(--color-bg);
 }
+
+/* ── 베젤 ───────────────────────────────────────────────── */
 .shell__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-panel);
   border-bottom: 1px solid var(--color-border);
-  background: #fff;
   flex-wrap: wrap;
 }
 .shell__brand {
-  font-weight: 800;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: var(--font-size-h2);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+}
+/* 브랜드 옆 상태 눈금 — 이름의 '파일럿'을 한 번만 시각화한다. */
+.shell__brand::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 3px solid var(--color-primary);
+  transform: translateY(-2px);
 }
 .shell__user {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
 }
+
+/* ── 운항 상태 배너 (시그니처) ───────────────────────────── */
+.annunciator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  border-left: 5px solid var(--color-text-muted);
+  background: var(--color-surface);
+}
+.annunciator__lamp {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  box-shadow: 0 0 0 3px rgba(70, 82, 92, 0.16);
+}
+.annunciator__state {
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+.annunciator__detail {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.annunciator__action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-danger);
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--font-size-small);
+  text-decoration: none;
+}
+.annunciator__action:hover {
+  background: var(--color-danger-dark);
+  color: #fff;
+}
+.annunciator__count {
+  font-weight: 700;
+  font-size: var(--font-size-h3);
+  color: var(--color-danger);
+}
+
+.annunciator--engaged {
+  border-left-color: var(--color-engaged);
+  background: var(--color-engaged-bg);
+}
+.annunciator--engaged .annunciator__lamp {
+  background: var(--color-engaged);
+  box-shadow: 0 0 0 3px rgba(11, 110, 79, 0.18);
+}
+.annunciator--attention {
+  border-left-color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+.annunciator--attention .annunciator__lamp {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.2);
+  animation: lamp-pulse 2s ease-in-out infinite;
+}
+.annunciator--unknown {
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+.annunciator--unknown .annunciator__lamp {
+  background: var(--color-warning);
+  box-shadow: 0 0 0 3px rgba(138, 82, 0, 0.18);
+}
+
+/* 경고등만 맥동한다. 그 외 어떤 것도 움직이지 않는다 — 계기는 장식하지 않는다. */
+@keyframes lamp-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(179, 38, 30, 0.08);
+  }
+}
+
+/* ── 본문 ───────────────────────────────────────────────── */
 .shell__body {
   flex: 1;
   display: flex;
 }
 .shell__main {
   flex: 1;
-  padding: var(--space-5) var(--space-4) calc(var(--space-5) + 72px);
-  max-width: 960px;
+  padding: var(--space-6) var(--space-5) calc(var(--space-6) + 88px);
+  max-width: var(--content-max);
   margin: 0 auto;
   width: 100%;
 }
+
+/* ── 레일 ───────────────────────────────────────────────── */
 .shell__nav {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 .shell__nav-link {
   display: flex;
@@ -45,52 +162,78 @@
   padding: 0 var(--space-3);
   color: var(--color-text);
   text-decoration: none;
-  font-weight: 700;
-  border-radius: var(--radius);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
 }
+.shell__nav-link:hover {
+  background: var(--color-neutral-bg);
+  color: var(--color-text);
+}
+/* 활성 항목은 색이 아니라 '눈금'으로 표시한다 — 색각 이상에서도 구분된다. */
 .shell__nav-link--active {
-  background: var(--color-info-bg);
+  background: var(--color-primary-bg);
   color: var(--color-primary-dark);
+  border-left-color: var(--color-primary);
 }
 
 /* 모바일: 하단 탭 */
 @media (max-width: 719px) {
+  .shell__header,
+  .annunciator {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .annunciator__action {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .shell__main {
+    padding: var(--space-5) var(--space-4) calc(var(--space-5) + 88px);
+  }
   .shell__nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 900;
-    background: #fff;
+    background: var(--color-panel);
     border-top: 1px solid var(--color-border);
     justify-content: space-around;
     padding: var(--space-2);
+    overflow-x: auto;
   }
   .shell__nav-link {
     flex-direction: column;
     font-size: var(--font-size-small);
     gap: 2px;
-    flex: 1;
+    flex: 1 0 auto;
+    border-left: none;
+    border-top: 3px solid transparent;
+    white-space: nowrap;
+  }
+  .shell__nav-link--active {
+    border-left: none;
+    border-top-color: var(--color-primary);
   }
 }
 
-/* 데스크톱: 좌측 사이드바 */
+/* 데스크톱: 좌측 레일 */
 @media (min-width: 720px) {
   .shell__body {
     flex-direction: row;
   }
   .shell__nav {
     flex-direction: column;
-    padding: var(--space-4);
+    padding: var(--space-5) var(--space-3);
     border-right: 1px solid var(--color-border);
-    min-width: 200px;
+    background: var(--color-panel);
+    min-width: var(--rail-width);
     align-items: stretch;
   }
   .shell__nav-link {
     justify-content: flex-start;
     padding: 0 var(--space-4);
-  }
-  .shell__main {
-    padding-bottom: var(--space-5);
   }
 }

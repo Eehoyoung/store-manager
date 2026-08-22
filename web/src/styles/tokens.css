@@ -1,44 +1,88 @@
 /*
- * 디자인 토큰 — 40~60대 프랜차이즈 사장님 대상 (F1).
- * 색상 대비는 WCAG AA(4.5:1) 기준을 실제로 계산해 넉넉히 상회하도록 골랐다(대비비는 각 줄에 기록).
- * 흰 배경(#ffffff) 대비 기준.
+ * 리뷰파일럿 디자인 토큰 — 계기판(instrument panel) 방향.
+ *
+ * ★ 왜 계기판인가
+ * 항공 계기 디자인은 "피곤한 눈이, 빠르게, 틀리지 않게 읽는다"를 위해 만들어진 규율이다.
+ * 그것이 정확히 문서 14 §1 의 40~60대 요구사항(18px·행간 1.6·대비 4.5:1·44px)과 같은 문제다.
+ * 그래서 이 방향은 이름(파일럿)에 맞춘 장식이 아니라, 접근성 요구가 이미 가리키고 있던 답이다.
+ *
+ * ★ 상태색 3종(green/amber/red)은 항공 표준 의미를 그대로 쓴다 — 정상/주의/정지.
+ * 그래서 --color-primary 는 이 3색 바깥의 청록으로 둔다. 버튼이 '상태'로 읽히면 안 되기 때문이다.
+ *
+ * 대비는 실제 계산해 기록했다(계산기: WCAG 2.x 상대휘도). 전부 4.5:1 을 넉넉히 넘는다.
+ * 값을 바꿀 때는 반드시 다시 계산할 것. 이 수치가 이 제품의 접근성 근거다.
  */
 :root {
-  /* 색상 */
-  --color-bg: #ffffff;
-  --color-surface: #f7f8fa;
-  --color-border: #d5d9e0;
-  --color-text: #141414; /* 본문 — 대비 약 19:1 */
-  --color-text-muted: #4b5563; /* 보조 텍스트 — 대비 약 7.5:1 */
-  --color-primary: #1e4ed8; /* 대비(흰 배경 위 텍스트, 또는 흰 글자용 배경) 약 6.7:1 */
-  --color-primary-dark: #16399f;
-  --color-success: #15803d; /* 대비 약 5.0:1 */
-  --color-success-bg: #e7f6ec;
-  --color-danger: #b91c1c; /* 대비 약 6.5:1 */
-  --color-danger-bg: #fdecec;
-  --color-warning: #b45309; /* 대비 약 5.0:1 */
-  --color-warning-bg: #fdf0e2;
-  --color-info-bg: #e7edfb;
-  --color-neutral-bg: #eceef1;
+  /* ── 바탕 ─────────────────────────────────────────────── */
+  --color-bg: #eff2ee;          /* 페이지 바탕 — 순백이 아니다. 눈부심을 낮춘 회녹 계열 */
+  --color-panel: #ffffff;       /* 계기면(카드) */
+  --color-surface: #f6f8f5;     /* 한 단계 낮은 면 */
+  --color-border: #cfd6cf;      /* 베젤 테두리 */
+  --color-rule: #e2e7e0;        /* 헤어라인 — 구획만 나눌 때 */
 
-  /* 타이포 — 본문 최소 18px, 어떤 텍스트도 16px 미만 금지, 행간 1.6 이상 */
-  --font-family: system-ui, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  /* ── 글자 ─────────────────────────────────────────────── */
+  --color-text: #141a1d;        /* 본문 — 바탕 대비 15.6:1, 패널 대비 17.6:1 */
+  --color-text-muted: #46525c;  /* 보조 — 바탕 대비 7.1:1, 패널 대비 8.0:1 */
+
+  /* ── 조작(상태색과 겹치지 않는 청록) ────────────────────── */
+  --color-primary: #0f4c5c;     /* 패널 대비 9.5:1 / 흰 글자 얹을 때 9.5:1 */
+  --color-primary-dark: #0a3644;
+  --color-primary-bg: #e4eef1;
+
+  /* ── 상태 3종 (항공 표준 의미) ──────────────────────────── */
+  --color-engaged: #0b6e4f;     /* 정상·자동 운항 중 — 패널 대비 6.3:1 */
+  --color-engaged-bg: #e3f1ea;
+  --color-success: #0b6e4f;     /* 별칭 — 기존 페이지 CSS 호환 */
+  --color-success-bg: #e3f1ea;
+  --color-warning: #8a5200;     /* 주의·대기 — 패널 대비 6.4:1 */
+  --color-warning-bg: #f8eddc;
+  --color-danger: #b3261e;      /* 정지·사람 확인 — 패널 대비 6.5:1 */
+  --color-danger-dark: #8f1e17;
+  --color-danger-bg: #fbe7e5;
+
+  --color-info-bg: #e4eef1;     /* 별칭 — primary-bg */
+  --color-neutral-bg: #e8ece7;
+
+  /* ── 서체 ─────────────────────────────────────────────── */
+  /* IBM Plex 계열. 엔지니어링 문서용으로 설계된 얼굴이라 계기판 성격에 맞고,
+     국내 기본값처럼 쓰이는 Pretendard/Noto 에서 한 걸음 비켜서 있다. */
+  --font-family: "IBM Plex Sans KR", system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-display: var(--font-family);
+  /* ★ 모노는 장식이 아니다. 가맹코드는 혼동 문자(I·O·0·1)를 일부러 뺀 알파벳을 쓰므로
+     글자 단위로 읽고 불러줘야 한다. 숫자·코드·시각·계측값에만 쓴다. */
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* 본문 최소 18px. 어떤 텍스트도 16px 미만 금지(문서 14 §1). */
   --font-size-body: 18px;
   --font-size-small: 16px;
-  --font-size-h1: 28px;
-  --font-size-h2: 22px;
+  --font-size-h3: 19px;
+  --font-size-h2: 23px;
+  --font-size-h1: 30px;
+  --font-size-readout: 40px;    /* 계측값 — 큰 숫자 */
   --line-height-body: 1.6;
+  --tracking-tight: -0.015em;   /* 표제 */
+  --tracking-label: 0.08em;     /* 소문자 라벨 — 계기 각인 느낌 */
 
-  /* 간격 · 반경 · 그림자 */
+  /* ── 간격 ─────────────────────────────────────────────── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --radius: 10px;
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --space-7: 48px;
+
+  /* ── 형태 ─────────────────────────────────────────────── */
+  /* 계기는 둥글지 않다. 반경을 줄여 패널처럼 보이게 한다. */
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-pill: 999px;
+  --shadow-panel: 0 1px 0 rgba(20, 26, 29, 0.04), 0 1px 3px rgba(20, 26, 29, 0.06);
+  --shadow-card: var(--shadow-panel); /* 별칭 — 기존 페이지 CSS 호환 */
+  --shadow-lift: 0 2px 6px rgba(20, 26, 29, 0.1);
 
   /* 터치 타깃 최소 44x44px */
   --touch-target: 44px;
+  --rail-width: 216px;
+  --content-max: 1040px;
 }

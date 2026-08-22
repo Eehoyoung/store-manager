@@ -1,4 +1,9 @@
-/* Button */
+/*
+ * 공통 컴포넌트 — 계기판 언어.
+ * 규칙: 모서리는 얕고, 테두리는 또렷하고, 그림자는 거의 없다. 색은 상태에만 쓴다.
+ */
+
+/* ── Button ─────────────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -6,54 +11,67 @@
   gap: var(--space-2);
   min-height: var(--touch-target);
   min-width: var(--touch-target);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-5);
   border-radius: var(--radius);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
+  font-family: var(--font-display);
   font-size: var(--font-size-body);
   font-weight: 600;
+  letter-spacing: -0.01em;
   cursor: pointer;
   text-decoration: none;
   line-height: 1;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 .btn--primary {
   background: var(--color-primary);
   color: #fff;
+  border-color: var(--color-primary);
 }
 .btn--primary:hover:not(:disabled) {
   background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
 }
 .btn--secondary {
-  background: #fff;
+  background: var(--color-panel);
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
 .btn--secondary:hover:not(:disabled) {
-  background: var(--color-info-bg);
+  background: var(--color-primary-bg);
 }
 .btn--danger {
   background: var(--color-danger);
   color: #fff;
+  border-color: var(--color-danger);
+}
+.btn--danger:hover:not(:disabled) {
+  background: var(--color-danger-dark);
+  border-color: var(--color-danger-dark);
 }
 .btn--small {
-  min-height: 36px;
-  padding: 0 var(--space-3);
+  min-height: 38px;
+  padding: 0 var(--space-4);
   font-size: var(--font-size-small);
 }
 .btn__spinner {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.45);
   border-top-color: #fff;
   animation: btn-spin 0.7s linear infinite;
   flex-shrink: 0;
 }
 .btn--secondary .btn__spinner {
-  border-color: rgba(30, 78, 216, 0.3);
+  border-color: rgba(15, 76, 92, 0.28);
   border-top-color: var(--color-primary);
 }
 @keyframes btn-spin {
@@ -62,54 +80,69 @@
   }
 }
 
-/* Card */
+/* ── Card = 계기면 ───────────────────────────────────────── */
 .card {
-  background: #fff;
+  background: var(--color-panel);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  padding: var(--space-4);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-5);
 }
 
-/* Badge — 색만으로 구분하지 않도록 아이콘 기호 + 텍스트를 함께 쓴다(F1). */
+/* ── Badge ──────────────────────────────────────────────
+ * 색만으로 구분하지 않는다 — 기호와 텍스트를 항상 함께 쓴다(문서 14 §1).
+ * 좌측 굵은 막대로 상태를 한 번 더 표시해 색각 이상에서도 구분되게 한다. */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-left-width: 4px;
   font-size: var(--font-size-small);
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.5;
 }
 .badge--neutral {
   background: var(--color-neutral-bg);
   color: var(--color-text);
+  border-color: var(--color-border);
+  border-left-color: var(--color-text-muted);
 }
 .badge--info {
-  background: var(--color-info-bg);
+  background: var(--color-primary-bg);
   color: var(--color-primary-dark);
+  border-color: #c3d8de;
+  border-left-color: var(--color-primary);
 }
 .badge--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: var(--color-engaged-bg);
+  color: var(--color-engaged);
+  border-color: #b9dbcb;
+  border-left-color: var(--color-engaged);
 }
 .badge--warning {
   background: var(--color-warning-bg);
   color: var(--color-warning);
-  border: 2px solid var(--color-warning);
+  border-color: #e3cba3;
+  border-left-color: var(--color-warning);
 }
 .badge--danger {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+  border-color: #eebfbb;
+  border-left-color: var(--color-danger);
 }
 
-/* Field / Select */
+/* ── Field / Select ─────────────────────────────────────── */
 .field {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 .field__label {
   display: block;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   margin-bottom: var(--space-2);
 }
 .field__hint {
@@ -121,35 +154,64 @@
   width: 100%;
   min-height: var(--touch-target);
   padding: 0 var(--space-3);
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-body);
-  background: #fff;
+  background: var(--color-panel);
+  transition: border-color 0.12s ease;
+}
+.field__input:hover:not(:disabled) {
+  border-color: #adb8ad;
+}
+.field__input:focus {
+  border-bottom-color: var(--color-primary);
+}
+textarea.field__input {
+  padding: var(--space-3);
+  line-height: var(--line-height-body);
+  resize: vertical;
 }
 .field__select {
   padding-right: var(--space-4);
 }
 .field__input--error {
   border-color: var(--color-danger);
+  border-bottom-color: var(--color-danger);
 }
 .field__error {
+  display: flex;
+  gap: var(--space-2);
   color: var(--color-danger);
   font-size: var(--font-size-small);
   margin: var(--space-2) 0 0;
+  font-weight: 600;
+}
+.field__error::before {
+  content: "!";
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
   font-weight: 700;
+  text-align: center;
+  line-height: 20px;
 }
 
-/* Modal — 네이티브 <dialog> */
+/* ── Modal ──────────────────────────────────────────────── */
 .modal {
-  border: none;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: var(--space-5);
   max-width: 480px;
   width: calc(100% - 32px);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-lift);
+  color: var(--color-text);
 }
 .modal::backdrop {
-  background: rgba(20, 20, 20, 0.5);
+  background: rgba(20, 26, 29, 0.55);
 }
 .modal__title {
   margin-top: 0;
@@ -162,7 +224,7 @@
   flex-wrap: wrap;
 }
 
-/* Toast */
+/* ── Toast ──────────────────────────────────────────────── */
 .toast-region {
   position: fixed;
   bottom: var(--space-5);
@@ -172,44 +234,52 @@
   flex-direction: column;
   gap: var(--space-2);
   z-index: 1000;
-  width: min(420px, calc(100% - 32px));
+  width: min(440px, calc(100% - 32px));
 }
 .toast {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  background: var(--color-panel);
   font-weight: 600;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-lift);
 }
 .toast--info {
-  background: var(--color-info-bg);
+  border-left-color: var(--color-primary);
   color: var(--color-primary-dark);
 }
 .toast--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  border-left-color: var(--color-engaged);
+  color: var(--color-engaged);
 }
 .toast--danger {
-  background: var(--color-danger-bg);
+  border-left-color: var(--color-danger);
   color: var(--color-danger);
 }
 
-/* EmptyState */
+/* ── EmptyState — 빈 화면은 지시문이다. 분위기를 내지 않는다. ── */
 .empty-state {
   text-align: center;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-7) var(--space-4);
   color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
 }
 .empty-state__title {
-  font-size: var(--font-size-h2);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: var(--font-size-h3);
+  font-weight: 650;
   color: var(--color-text);
+  margin-bottom: var(--space-2);
 }
 
-/* Skeleton */
+/* ── Skeleton ───────────────────────────────────────────── */
 .skeleton {
-  background: linear-gradient(90deg, var(--color-neutral-bg) 25%, #f4f5f7 37%, var(--color-neutral-bg) 63%);
+  background: linear-gradient(90deg, var(--color-neutral-bg) 25%, #f2f5f1 37%, var(--color-neutral-bg) 63%);
   background-size: 400% 100%;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   animation: skeleton-shimmer 1.4s ease infinite;
   margin-bottom: var(--space-3);
 }
@@ -222,11 +292,17 @@
   }
 }
 
-/* Pagination */
+/* ── Pagination ─────────────────────────────────────────── */
 .pagination {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
   margin: var(--space-5) 0;
+}
+.pagination span {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }

@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { Field } from "../components/Field";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { AuthAside } from "../components/AuthAside";
 
 interface FormState {
   name: string;
@@ -103,6 +104,7 @@ export function SignupPage() {
 
   return (
     <div className="auth-page">
+      <AuthAside />
       <Card className="auth-card">
         <h1 className="auth-card__title">회원가입</h1>
         <form onSubmit={handleSubmit} noValidate>

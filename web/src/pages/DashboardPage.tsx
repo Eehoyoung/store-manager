@@ -129,7 +129,8 @@ export function DashboardPage() {
           className="card dashboard-stat dashboard-stat--clickable dashboard-stat--danger"
         >
           <p className="dashboard-stat__value">{summary.highRiskCount}</p>
-          <p className="dashboard-stat__label">고위험 → 리뷰 목록으로 이동</p>
+          <p className="dashboard-stat__label">고위험</p>
+          <p className="dashboard-stat__action" aria-hidden="true">리뷰 보기 →</p>
         </Link>
       </div>
 

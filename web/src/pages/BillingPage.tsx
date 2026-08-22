@@ -31,7 +31,7 @@ export function BillingPage() {
       <h1>구독 결제</h1>
       <Card className="billing-page__card">
         <p className="billing-page__eyebrow">외부 결제 · 우리 서비스는 결제정보를 저장하지 않음</p>
-        <h2>매장 매니저 월 구독</h2>
+        <h2>리뷰파일럿 월 구독</h2>
         <p className="billing-page__price">월 33,000원 <small>(VAT 포함)</small></p>
         <ul className="billing-page__methods" aria-label="지원 결제수단">
           <li>앱카드·카드 할부</li>
@@ -54,7 +54,7 @@ export function BillingPage() {
           <li>서명 검증된 공식 결제 결과 연동 전까지 구독 활성화는 운영 확인 상태로 유지됩니다.</li>
         </ol>
       </Card>
-      <p className="field__hint">결제정보는 Groble에서 처리되며 매장 매니저는 카드번호나 CVC를 저장하지 않습니다.</p>
+      <p className="field__hint">결제정보는 Groble에서 처리되며 리뷰파일럿은 카드번호나 CVC를 저장하지 않습니다.</p>
     </div>
   );
 }

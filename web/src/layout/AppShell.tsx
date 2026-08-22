@@ -5,6 +5,7 @@ import { storesApi } from "../api/stores";
 import { hqApi } from "../api/hq";
 import { adminApi } from "../api/admin";
 import { Button } from "../components/Button";
+import { StatusBanner } from "../components/StatusBanner";
 
 const CURRENT_STORE_KEY = "sm.currentStoreId";
 
@@ -82,7 +83,7 @@ export function AppShell() {
   return (
     <div className="shell">
       <header className="shell__header">
-        <span className="shell__brand">매장 매니저</span>
+        <span className="shell__brand">리뷰파일럿</span>
         {user ? (
           <div className="shell__user">
             <span>{user.name} 사장님</span>
@@ -92,6 +93,8 @@ export function AppShell() {
           </div>
         ) : null}
       </header>
+      {/* 운항 상태 배너 — 셸에 고정한다. 제품의 약속이 항상 보여야 한다. */}
+      <StatusBanner storeId={storeId} />
       <div className="shell__body">
         <nav className="shell__nav" aria-label="주 메뉴">
           <NavLink to="/stores" className={navLinkClass}>

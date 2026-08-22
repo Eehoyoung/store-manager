@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { Field } from "../components/Field";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { AuthAside } from "../components/AuthAside";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -33,6 +34,7 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
+      <AuthAside />
       <Card className="auth-card">
         <h1 className="auth-card__title">로그인</h1>
         <form onSubmit={handleSubmit} noValidate>

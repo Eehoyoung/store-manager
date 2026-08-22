@@ -18,18 +18,31 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1 {
-  font-size: var(--font-size-h1);
-  line-height: 1.4;
+/* 표제는 굵기와 자간으로 성격을 낸다 — 크기만 키우지 않는다. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.3;
   margin: 0 0 var(--space-4);
 }
-
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: 700;
+}
 h2 {
   font-size: var(--font-size-h2);
-  line-height: 1.4;
-  margin: 0 0 var(--space-3);
+  font-weight: 650;
+  margin-bottom: var(--space-3);
+}
+h3 {
+  font-size: var(--font-size-h3);
+  font-weight: 650;
+  margin-bottom: var(--space-2);
 }
 
 p {
@@ -38,6 +51,10 @@ p {
 
 a {
   color: var(--color-primary);
+  text-underline-offset: 3px;
+}
+a:hover {
+  color: var(--color-primary-dark);
 }
 
 button,
@@ -48,10 +65,30 @@ textarea {
   color: inherit;
 }
 
-/* 포커스 링을 절대 지우지 않는다 — 키보드 사용자를 위한 접근성 요구(F2). */
+/* 포커스 링을 절대 지우지 않는다 — 키보드 사용자를 위한 접근성 요구(문서 14 §1). */
 :focus-visible {
   outline: 3px solid var(--color-primary);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * 계기 각인 라벨 — 작은 대문자 자간 라벨.
+ * ★ 크기는 16px 미만으로 내리지 않는다. 자간과 굵기로만 '라벨'임을 표시한다.
+ */
+.label-etched {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+/* 숫자·코드·시각 — 자리수가 흔들리지 않게 고정폭 + tabular numerals */
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 .sr-only {
@@ -67,7 +104,18 @@ textarea {
 }
 
 .page-loading {
-  padding: var(--space-6);
+  padding: var(--space-7);
   text-align: center;
   color: var(--color-text-muted);
+}
+
+/* 움직임을 줄이도록 설정한 사용자에게는 모든 전환을 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

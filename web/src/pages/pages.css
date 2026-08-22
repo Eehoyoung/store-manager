@@ -1,18 +1,169 @@
+/* ── 인증 (로그인·회원가입) ────────────────────────────────
+ * 좌측은 제품의 판정 규칙, 우측은 폼. 마케팅 문구 대신 동작을 보여준다.
+ */
 .auth-page {
-  display: flex;
-  justify-content: center;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: var(--space-6);
   padding: var(--space-6) var(--space-4);
+  background: var(--color-bg);
 }
 .auth-card {
-  max-width: 420px;
+  max-width: 460px;
   width: 100%;
+  justify-self: center;
+  align-self: center;
+  padding: var(--space-6);
 }
 .auth-card__title {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.auth-aside {
+  max-width: 560px;
+  justify-self: center;
+  align-self: center;
+}
+.auth-aside__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.auth-aside__eyebrow::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 3px solid var(--color-primary);
+}
+.auth-aside__headline {
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.025em;
+  margin: 0 0 var(--space-4);
+}
+.auth-aside__lede {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-5);
+}
+.auth-aside__rules {
+  list-style: none;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 판정 한 줄 = 램프 + 판정 + 예시 + 설명. 색만으로 구분하지 않는다. */
+.auth-rule {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-left-width: 5px;
+  border-radius: var(--radius);
+}
+.auth-rule__lamp {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  align-self: center;
+}
+.auth-rule__verdict {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.auth-rule__example {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.auth-rule__note {
+  grid-column: 2 / -1;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+.auth-rule--engaged {
+  border-left-color: var(--color-engaged);
+}
+.auth-rule--engaged .auth-rule__lamp {
+  background: var(--color-engaged);
+}
+.auth-rule--engaged .auth-rule__verdict {
+  color: var(--color-engaged);
+}
+.auth-rule--caution {
+  border-left-color: var(--color-warning);
+}
+.auth-rule--caution .auth-rule__lamp {
+  background: var(--color-warning);
+}
+.auth-rule--caution .auth-rule__verdict {
+  color: var(--color-warning);
+}
+.auth-rule--stopped {
+  border-left-color: var(--color-danger);
+}
+.auth-rule--stopped .auth-rule__lamp {
+  background: var(--color-danger);
+}
+.auth-rule--stopped .auth-rule__verdict {
+  color: var(--color-danger);
+}
+.auth-aside__foot {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-rule);
+  padding-top: var(--space-3);
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .auth-page {
+    grid-template-columns: 1.05fr 0.95fr;
+    align-content: center;
+    gap: var(--space-7);
+    padding: var(--space-7) var(--space-6);
+  }
+  .auth-aside {
+    justify-self: end;
+  }
+  .auth-card {
+    justify-self: start;
+  }
 }
 .auth-card__error {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
   color: var(--color-danger);
+  font-weight: 600;
+  font-size: var(--font-size-small);
+  background: var(--color-danger-bg);
+  border: 1px solid #eebfbb;
+  border-left: 4px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.auth-card__error::before {
+  content: "!";
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: #fff;
   font-weight: 700;
+  text-align: center;
+  line-height: 20px;
 }
 .auth-card__submit {
   width: 100%;
@@ -293,7 +444,7 @@
   border-color: var(--color-primary);
 }
 .review-card--risk {
-  border: 2px solid var(--color-danger);
+  border-left: 5px solid var(--color-danger);
 }
 .review-card__head {
   display: flex;
@@ -363,25 +514,47 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-3);
 }
+/* 계기 판독값 — 숫자는 고정폭으로 두어 자리수가 흔들리지 않게 한다. */
 .dashboard-stat {
-  text-align: center;
+  text-align: left;
+  border-top: 3px solid var(--color-primary);
 }
 .dashboard-stat__value {
-  font-size: var(--font-size-h1);
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-readout);
+  font-weight: 600;
+  line-height: 1.1;
   margin: 0 0 var(--space-2);
-  color: var(--color-primary-dark);
+  color: var(--color-text);
+  letter-spacing: -0.02em;
 }
 .dashboard-stat__label {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
 }
+/* 카드 전체가 링크다 — 밑줄이 판독값까지 번지지 않게 막는다. */
 .dashboard-stat--clickable {
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.dashboard-stat__action {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--color-danger);
 }
 .dashboard-stat--clickable:hover {
   border-color: var(--color-primary);
+  box-shadow: var(--shadow-lift);
+}
+.dashboard-stat--danger {
+  border-top-color: var(--color-danger);
 }
 .dashboard-stat--danger .dashboard-stat__value {
   color: var(--color-danger);
@@ -441,12 +614,27 @@
   width: 100%;
   border-collapse: collapse;
 }
+/* 표: 헤더는 각인 라벨, 숫자 칸은 고정폭 — 세로로 자리수를 비교할 수 있어야 한다. */
 .dashboard-table th,
 .dashboard-table td {
   text-align: left;
-  padding: var(--space-2) var(--space-2);
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-rule);
   font-size: var(--font-size-small);
+}
+.dashboard-table th {
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  color: var(--color-text-muted);
+  border-bottom-color: var(--color-border);
+}
+.dashboard-table td + td,
+.dashboard-table th + th {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-table td + td {
+  font-family: var(--font-mono);
 }
 .dashboard-metric-list {
   list-style: none;
@@ -699,7 +887,22 @@
 
 .hq-store-table th {
   background: var(--color-surface);
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+/* ★ 이 표의 뒤쪽 칸은 순수 숫자가 아니라 '검수대기 2 · 차단 1' 같은 복합 문구다.
+   숫자용 고정폭·우측정렬을 걸면 줄바꿈이 깨진다. 숫자 정렬만 켜고 배치는 그대로 둔다. */
+.hq-store-table td,
+.hq-store-table th {
+  font-variant-numeric: tabular-nums;
+  vertical-align: top;
+}
+.hq-store-table td:last-child,
+.hq-store-table th:last-child,
+.hq-store-table td:nth-last-child(2),
+.hq-store-table th:nth-last-child(2) {
   white-space: nowrap;
 }
 
@@ -830,8 +1033,12 @@
 }
 
 .hq-kpi__value {
-  font-size: var(--font-size-h1);
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-readout);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
@@ -1018,6 +1225,8 @@
   text-align: right;
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .hq-sort {
