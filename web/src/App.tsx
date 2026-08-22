@@ -20,7 +20,9 @@ import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminPage } from "./pages/AdminPage";
 
-// 라우트 표 (F5). 결제·구독, 전자계약 화면은 Sprint 6+ 라 ComingSoon 으로 남겨둔다.
+// 라우트 표 (문서 14 §2). 전자계약은 보류이므로 온보딩 안에서 '준비 중' 으로만 표시한다.
+// /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
+// 서버가 403/404 로 막는다. 링크를 보여주고 클릭 후 거절하는 흐름을 만들지 말 것.
 function App() {
   return (
     <AuthProvider>

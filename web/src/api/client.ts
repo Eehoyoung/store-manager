@@ -25,7 +25,7 @@ export class NetworkError extends Error {}
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
-  /** approve/bulk-approve/publish 등 되돌릴 수 없는 요청에 붙인다(docs/13 §1 멱등성). */
+  /** 되돌릴 수 없는 요청(게시·해지 접수 등)에 붙인다(docs/13 §1 멱등성). 승인·거절 API는 풀자동화로 폐기됐다. */
   idempotencyKey?: string;
 }
 
