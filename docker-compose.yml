@@ -90,6 +90,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
       api-spring:
         condition: service_started
     environment:
@@ -99,6 +101,15 @@ services:
       DATAAPI_BASE_URL: ${DATAAPI_BASE_URL:-https://datahub-dev.scraping.co.kr}
       DATAAPI_TOKEN: ${DATAAPI_TOKEN:-}
       DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-false}
+      # LOGINPWD 암호화 파라미터. 미설정이면 encrypt_password() 가 호출 시점에 막는다(평문 전송 방지).
+      DATAAPI_ENC_SPEC: ${DATAAPI_ENC_SPEC:-}
+      DATAAPI_ENC_KEY: ${DATAAPI_ENC_KEY:-}
+      DATAAPI_ENC_IV: ${DATAAPI_ENC_IV:-}
+      # T-2: platform_account 조회 + 봉투암호화 복호화. 워커가 DB 를 읽는 유일한 용도다.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-storemanager}:${POSTGRES_PASSWORD:-storemanager}@postgres:5432/${POSTGRES_DB:-storemanager}
+      CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?CREDENTIAL_MASTER_KEY를 .env에 설정하세요}
+      # 호출 예산 하드 게이트. 0 이면 무제한(운영 기본), 테스트 토큰을 쓸 때만 잔여 횟수를 넣는다.
+      DATAAPI_CALL_BUDGET: ${DATAAPI_CALL_BUDGET:-0}
     command: ["celery", "-A", "celery_app", "worker", "--beat", "--loglevel=INFO"]
 
   web:

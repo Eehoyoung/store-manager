@@ -41,3 +41,6 @@ docs/
 CLAUDE.md
 AGENTS.md
 .claude/
+
+# 실연동 점검(smoke_dataapi.py)이 남기는 실매장 리뷰 원문 — 가명처리 전 커밋 금지
+worker/fixture_*_review.json
