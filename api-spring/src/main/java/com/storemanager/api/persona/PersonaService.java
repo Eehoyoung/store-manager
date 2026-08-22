@@ -132,11 +132,12 @@ public class PersonaService {
         AiClientDtos.PersonaIn personaIn = req.persona() != null
                 ? new AiClientDtos.PersonaIn(req.persona().tone(), req.persona().useEmoji(),
                         req.persona().emojiLevel(), req.persona().customerTitle(), req.persona().signature(),
+                        req.persona().openingStyle(),
                         req.persona().bannedWords() == null ? List.of() : req.persona().bannedWords(),
                         bannedWordQueryRepository.findActiveGlobal(), req.persona().lengthMin(),
                         req.persona().lengthMax(), saved.getPersonaSeed())
                 : new AiClientDtos.PersonaIn(saved.getTone(), saved.isUseEmoji(), saved.getEmojiLevel(),
-                        saved.getCustomerTitle(), saved.getSignature(),
+                        saved.getCustomerTitle(), saved.getSignature(), saved.getOpeningStyle(),
                         saved.getBannedWords() == null ? List.of() : List.of(saved.getBannedWords()),
                         bannedWordQueryRepository.findActiveGlobal(), saved.getLengthMin(), saved.getLengthMax(),
                         saved.getPersonaSeed());

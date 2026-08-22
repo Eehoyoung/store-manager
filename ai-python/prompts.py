@@ -135,7 +135,14 @@ def build_generate_messages(category: str, review, persona, few_shot_text: str) 
     emoji_label = _EMOJI_LABELS.get(persona.emoji_level, "1개 이하") if persona.use_emoji else "사용 안 함"
     banned = ", ".join(persona.banned_words) if persona.banned_words else "(없음)"
     signature = persona.signature or "(없음)"
-    seed_hint = persona_seed_hint(persona.persona_seed)
+    # ★ 사장님이 '답글 시작 스타일' 을 직접 적었으면 그것을 쓴다.
+    #   시드 기반 인사말은 아무 것도 안 적었을 때 답글이 매번 똑같아 보이지 않게 하는 장치일 뿐이다.
+    #   사람이 적은 값을 무작위 문구로 덮으면, 설정 화면이 동작하지 않는 것처럼 보인다.
+    opening_style = (getattr(persona, "opening_style", None) or "").strip()
+    if opening_style:
+        seed_hint = f"'{opening_style}' 스타일로 시작하라."
+    else:
+        seed_hint = persona_seed_hint(persona.persona_seed)
 
     system = (
         "너는 매장 사장님을 대신해 배달앱 리뷰에 답글을 작성한다.\n\n"

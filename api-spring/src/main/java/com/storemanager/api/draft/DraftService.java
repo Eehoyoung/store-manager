@@ -221,7 +221,7 @@ public class DraftService {
                 review.getPlatform());
         AiClientDtos.PersonaIn personaIn = new AiClientDtos.PersonaIn(
                 persona.getTone(), persona.isUseEmoji(), persona.getEmojiLevel(), persona.getCustomerTitle(),
-                persona.getSignature(),
+                persona.getSignature(), persona.getOpeningStyle(),
                 persona.getBannedWords() == null ? List.of() : List.of(persona.getBannedWords()),
                 bannedWordQueryRepository.findActiveGlobal(), persona.getLengthMin(), persona.getLengthMax(),
                 persona.getPersonaSeed());

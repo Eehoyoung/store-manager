@@ -20,8 +20,8 @@ public final class AiClientDtos {
     }
 
     public record PersonaIn(String tone, boolean useEmoji, int emojiLevel, String customerTitle, String signature,
-            List<String> bannedWords, List<BannedWordIn> globalBannedWords, int lengthMin, int lengthMax,
-            Integer personaSeed) {
+            String openingStyle, List<String> bannedWords, List<BannedWordIn> globalBannedWords,
+            int lengthMin, int lengthMax, Integer personaSeed) {
     }
 
     public record OptionsIn(int variants, String instruction, String forceTier) {

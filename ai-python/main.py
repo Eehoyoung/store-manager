@@ -60,6 +60,8 @@ class PersonaIn(BaseModel):
     emoji_level: int = Field(default=1, alias="emojiLevel")
     customer_title: str = Field(default="고객님", alias="customerTitle")
     signature: str | None = None
+    # 사장님이 직접 입력한 답글 시작 스타일. 있으면 시드 기반 인사말보다 우선한다.
+    opening_style: str | None = Field(default=None, alias="openingStyle")
     banned_words: list[str] = Field(default_factory=list, alias="bannedWords")
     global_banned_words: list[BannedWordIn] = Field(default_factory=list, alias="globalBannedWords")
     length_min: int = Field(default=60, alias="lengthMin")
