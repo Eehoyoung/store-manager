@@ -14,10 +14,9 @@
 
 ## 사전 요구사항
 
-- JDK 17
-- Node 22
-- Python 3.12+
 - Docker Desktop
+
+호스트에서 모듈을 직접 실행하는 경우에만 JDK 17, Node 22, Python 3.12+가 필요합니다.
 
 ## 로컬 포트
 
@@ -28,31 +27,23 @@
 |--------|------------|
 | Postgres | 5433 |
 | Redis | 6380 |
-| Spring | 8080 |
-| AI Service (FastAPI) | 8001 |
-| Web (Vite) | 5173 |
+| Spring | 18080 |
+| AI Service (FastAPI) | 18001 |
+| Web (Vite preview) | 15173 |
+| Worker | 외부 포트 없음 |
 
 ## 로컬 실행 순서
 
 ```bash
-# 1. 인프라 (Postgres+pgvector, Redis)
-docker compose up -d
+# 전체 스택 빌드·기동 (Postgres/Redis/Spring/AI/Worker/Web)
+docker compose up -d --build
 
 # 2. 환경변수
 cp .env.example .env
 # .env 를 열어 값 채우기 (JWT_SECRET, CREDENTIAL_MASTER_KEY 등)
 
-# 3. Spring
-cd api-spring && ./gradlew bootRun
-
-# 4. AI Service
-cd ai-python && uvicorn main:app --reload --port 8001
-
-# 5. Collector Worker
-cd worker && celery -A tasks worker -l info
-
-# 6. Web
-cd web && npm install && npm run dev
+# 브라우저: http://localhost:15173
+# API 상태: http://localhost:18080/actuator/health
 ```
 
 ## 테스트

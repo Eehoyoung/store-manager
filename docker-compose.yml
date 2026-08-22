@@ -1,6 +1,6 @@
-# 로컬 개발용 인프라 전용 compose 파일.
-# 애플리케이션(Spring/FastAPI/Celery/Web)은 컨테이너로 띄우지 않는다.
-# 로컬에서는 각각 gradlew bootRun / uvicorn / celery / npm run dev 로 직접 실행한다.
+# 전체 로컬 스택 Compose 파일.
+# StockMate와 겹치지 않도록 호스트 포트는 18080/18001/15173을 사용한다.
+# 컨테이너 내부에서는 표준 포트와 서비스명을 사용한다.
 
 services:
   postgres:
@@ -38,6 +38,79 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api-spring:
+    build:
+      context: ./api-spring
+    container_name: storemanager-api
+    ports:
+      - "${STORE_MANAGER_API_PORT:-18080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-python:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-storemanager}
+      DB_USERNAME: ${POSTGRES_USER:-storemanager}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-storemanager}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_BASE_URL: http://ai-python:8001
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:15173}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET를 .env에 설정하세요}
+      CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?CREDENTIAL_MASTER_KEY를 .env에 설정하세요}
+      CREDENTIAL_KEY_ID: ${CREDENTIAL_KEY_ID:-local-docker}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN을 .env에 설정하세요}
+      AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?AUTHOR_HASH_SALT를 .env에 설정하세요}
+      PUBLISH_SCHEDULER_ENABLED: ${PUBLISH_SCHEDULER_ENABLED:-true}
+      BILLING_SCHEDULER_ENABLED: ${BILLING_SCHEDULER_ENABLED:-false}
+
+  ai-python:
+    build:
+      context: ./ai-python
+    container_name: storemanager-ai
+    ports:
+      - "${STORE_MANAGER_AI_PORT:-18001}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN을 .env에 설정하세요}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-storemanager}:${POSTGRES_PASSWORD:-storemanager}@postgres:5432/${POSTGRES_DB:-storemanager}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+  worker:
+    build:
+      context: ./worker
+    container_name: storemanager-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      api-spring:
+        condition: service_started
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SPRING_INTERNAL_URL: http://api-spring:8080
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN을 .env에 설정하세요}
+      DATAAPI_BASE_URL: ${DATAAPI_BASE_URL:-https://datahub-dev.scraping.co.kr}
+      DATAAPI_TOKEN: ${DATAAPI_TOKEN:-}
+      DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-false}
+    command: ["celery", "-A", "celery_app", "worker", "--beat", "--loglevel=INFO"]
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:18080/api/v1}
+    container_name: storemanager-web
+    ports:
+      - "${STORE_MANAGER_WEB_PORT:-15173}:5173"
+    depends_on:
+      api-spring:
+        condition: service_started
 
 volumes:
   storemanager-pgdata:
