@@ -50,12 +50,13 @@ public class HqController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Integer riskLevel,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String issueTag,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return hqService.listReviews(CurrentUser.publicId(), brandName, storeId, minRating, maxRating, category,
-                riskLevel, status, from, to, page, size);
+                riskLevel, status, issueTag, from, to, page, size);
     }
 
     /** FR-804 — 브랜드 집계(별점·카테고리 분포, 이슈 태그 랭킹, 매장별 비교). */

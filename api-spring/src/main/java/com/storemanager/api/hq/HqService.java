@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.common.ApiException;
+import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.draft.PublishScheduleCalculator;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReviewAnalysis;
@@ -16,9 +18,12 @@ import com.storemanager.api.hq.HqDtos.HqDraftSummaryResponse;
 import com.storemanager.api.hq.HqDtos.HqReviewItem;
 import com.storemanager.api.hq.HqDtos.HqReviewListResponse;
 import com.storemanager.api.hq.HqDtos.HqStoreResponse;
+import com.storemanager.api.hq.HqDtos.DailyRiskItem;
 import com.storemanager.api.hq.HqDtos.IssueTagItem;
+import com.storemanager.api.hq.HqDtos.MenuIssueItem;
 import com.storemanager.api.hq.HqDtos.PlatformLinkStatus;
 import com.storemanager.api.hq.HqDtos.RatingBucket;
+import com.storemanager.api.hq.HqDtos.RiskClusterItem;
 import com.storemanager.api.hq.HqDtos.StoreComparisonItem;
 import com.storemanager.api.review.ReviewQueryRepository;
 import com.storemanager.api.review.UnifiedReview;
@@ -29,10 +34,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -144,6 +153,14 @@ public class HqService {
     public HqReviewListResponse listReviews(UUID userPublicId, String brandName, UUID storePublicId,
             Integer minRating, Integer maxRating, String category, Integer riskLevel, String status, String from,
             String to, int page, int size) {
+        return listReviews(userPublicId, brandName, storePublicId, minRating, maxRating, category, riskLevel, status,
+                null, from, to, page, size);
+    }
+
+    @Transactional
+    public HqReviewListResponse listReviews(UUID userPublicId, String brandName, UUID storePublicId,
+            Integer minRating, Integer maxRating, String category, Integer riskLevel, String status, String issueTag,
+            String from, String to, int page, int size) {
         AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
 
         List<Long> storeIds;
@@ -159,9 +176,15 @@ public class HqService {
             return new HqReviewListResponse(List.of(), false);
         }
 
-        Page<UnifiedReview> result = hqQueryRepository.searchBrandReviews(storeIds, blankToNull(status),
-                blankToNull(category), toShort(minRating), toShort(maxRating), toShort(riskLevel),
-                parseFromDate(from), parseToDateExclusive(to), PageRequest.of(page, size));
+        String normalizedIssueTag = blankToNull(issueTag);
+        PageRequest pageable = PageRequest.of(page, size);
+        Page<UnifiedReview> result = normalizedIssueTag == null
+                ? hqQueryRepository.searchBrandReviews(storeIds, blankToNull(status), blankToNull(category),
+                        toShort(minRating), toShort(maxRating), toShort(riskLevel), parseFromDate(from),
+                        parseToDateExclusive(to), pageable)
+                : hqQueryRepository.searchBrandReviewsByIssueTag(storeIds, normalizedIssueTag, blankToNull(status),
+                        blankToNull(category), toShort(minRating), toShort(maxRating), toShort(riskLevel),
+                        parseFromDate(from), parseToDateExclusive(to), pageable);
 
         List<UnifiedReview> reviews = result.getContent();
         List<Long> reviewIds = reviews.stream().map(UnifiedReview::getId).toList();
@@ -184,7 +207,7 @@ public class HqService {
 
         List<HqReviewItem> items = reviews.stream().map(r -> {
             Store s = storeById.get(r.getStoreId());
-            return new HqReviewItem(String.valueOf(r.getId()), s == null ? null : s.getPublicId().toString(),
+            return new HqReviewItem(r.getPublicId().toString(), s == null ? null : s.getPublicId().toString(),
                     s == null ? null : s.getName(), r.getPlatform(), toInt(r.getRating()), r.getBody(),
                     r.getAuthorMasked(), parseStringList(r.getOrderedMenus()), parseStringList(r.getImageUrls()),
                     toIso(r.getWrittenAt()), r.isWrittenDateOnly(), toIso(r.getCollectedAt()), r.isHasOwnerReply(),
@@ -204,25 +227,86 @@ public class HqService {
         List<Store> stores = hqQueryRepository.findStoresByBrandName(brandName);
         LocalDate toDate = parseOrDefault(toStr, LocalDate.now(KST));
         LocalDate fromDate = parseOrDefault(fromStr, toDate.minusDays(DEFAULT_ANALYTICS_RANGE_DAYS - 1L));
+        long rangeDays = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
+        if (rangeDays <= 0) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    Map.of("from", fromDate.toString(), "to", toDate.toString()));
+        }
+        LocalDate previousToDate = fromDate.minusDays(1);
+        LocalDate previousFromDate = previousToDate.minusDays(rangeDays - 1);
         Instant from = fromDate.atStartOfDay(KST).toInstant();
         Instant to = toDate.plusDays(1).atStartOfDay(KST).toInstant();
+        Instant previousFrom = previousFromDate.atStartOfDay(KST).toInstant();
+        Instant previousTo = from;
 
         if (stores.isEmpty()) {
-            return new HqAnalyticsResponse(fromDate.toString(), toDate.toString(), 0, null, List.of(), List.of(),
-                    List.of(), List.of());
+            return new HqAnalyticsResponse(fromDate.toString(), toDate.toString(), previousFromDate.toString(),
+                    previousToDate.toString(), null, 0, 0, 0, null, 0, 0, List.of(), List.of(), List.of(),
+                    List.of(), List.of(), List.of(), List.of());
         }
         List<Long> storeIds = stores.stream().map(Store::getId).toList();
 
         Object[] countAvg = hqQueryRepository.brandReviewCountAndAvgRating(storeIds, from, to).get(0);
         long total = ((Number) countAvg[0]).longValue();
         Double avgRating = countAvg[1] == null ? null : round1(((Number) countAvg[1]).doubleValue());
+        long analyzed = hqQueryRepository.analyzedReviewCount(storeIds, from, to);
+        long previousAnalyzed = hqQueryRepository.analyzedReviewCount(storeIds, previousFrom, previousTo);
+        double analysisCoverageRate = total == 0 ? 0 : round4((double) analyzed / total);
+
+        String dataAsOf = hqQueryRepository.lastCollectedAtByStore(storeIds).stream()
+                .map(row -> (Instant) row[1]).filter(java.util.Objects::nonNull).max(Comparator.naturalOrder())
+                .map(Instant::toString).orElse(null);
 
         List<RatingBucket> ratingDist = hqQueryRepository.brandRatingDistribution(storeIds, from, to).stream()
                 .map(row -> new RatingBucket(((Number) row[0]).intValue(), ((Number) row[1]).longValue())).toList();
         List<CategoryBucket> categoryDist = hqQueryRepository.brandCategoryDistribution(storeIds, from, to).stream()
                 .map(row -> new CategoryBucket((String) row[0], ((Number) row[1]).longValue())).toList();
-        List<IssueTagItem> issueTags = hqQueryRepository.brandIssueTagRanking(storeIds, from, to).stream()
-                .map(row -> new IssueTagItem((String) row[0], ((Number) row[1]).longValue())).toList();
+        Map<String, Object[]> currentIssues = rowsByKey(hqQueryRepository.brandIssueTagStats(storeIds, from, to));
+        Map<String, Object[]> previousIssues = rowsByKey(
+                hqQueryRepository.brandIssueTagStats(storeIds, previousFrom, previousTo));
+        Set<String> allTags = new LinkedHashSet<>(currentIssues.keySet());
+        allTags.addAll(previousIssues.keySet());
+        List<IssueTagItem> issueTags = allTags.stream().map(tag -> {
+            Object[] current = currentIssues.get(tag);
+            Object[] previous = previousIssues.get(tag);
+            long count = number(current, 1);
+            long previousCount = number(previous, 1);
+            long affectedStores = number(current, 2);
+            Double rate = ratePer100(count, analyzed);
+            Double previousRate = ratePer100(previousCount, previousAnalyzed);
+            Double delta = rate == null || previousRate == null ? null : round1(rate - previousRate);
+            Double issueAvgRating = current == null || current[3] == null ? null
+                    : round1(((Number) current[3]).doubleValue());
+            return new IssueTagItem(tag, count, previousCount, rate, previousRate, delta, affectedStores,
+                    issueAvgRating, issueSignal(count, previousCount, affectedStores, delta));
+        }).sorted(Comparator.comparingInt((IssueTagItem i) -> signalPriority(i.signal()))
+                .thenComparing(IssueTagItem::count, Comparator.reverseOrder()).thenComparing(IssueTagItem::tag))
+                .toList();
+
+        Map<String, Object[]> currentRisks = rowsByKey(hqQueryRepository.brandRiskClusters(storeIds, from, to));
+        Map<String, Object[]> previousRisks = rowsByKey(
+                hqQueryRepository.brandRiskClusters(storeIds, previousFrom, previousTo));
+        Set<String> allReasons = new LinkedHashSet<>(currentRisks.keySet());
+        allReasons.addAll(previousRisks.keySet());
+        List<RiskClusterItem> riskClusters = allReasons.stream().map(reason -> new RiskClusterItem(reason,
+                number(currentRisks.get(reason), 1), number(previousRisks.get(reason), 1),
+                number(currentRisks.get(reason), 2)))
+                .sorted(Comparator.comparing(RiskClusterItem::count).reversed()
+                        .thenComparing(RiskClusterItem::reason))
+                .toList();
+
+        Object[] highRiskSummary = hqQueryRepository.brandHighRiskSummary(storeIds, from, to).get(0);
+        long highRiskReviews = ((Number) highRiskSummary[0]).longValue();
+        long highRiskAffectedStores = ((Number) highRiskSummary[1]).longValue();
+
+        List<MenuIssueItem> menuIssues = hqQueryRepository.brandMenuIssues(storeIds, from, to).stream()
+                .map(row -> new MenuIssueItem((String) row[0], (String) row[1], ((Number) row[2]).longValue(),
+                        ((Number) row[3]).longValue(), row[4] == null ? null : round1(((Number) row[4]).doubleValue())))
+                .toList();
+        List<DailyRiskItem> dailyRiskTrend = hqQueryRepository.brandDailyRiskTrend(storeIds, from, to).stream()
+                .map(row -> new DailyRiskItem(row[0].toString(), ((Number) row[1]).longValue(),
+                        ((Number) row[2]).longValue(), ((Number) row[3]).longValue()))
+                .toList();
 
         Map<Long, Object[]> periodStatsByStore = new HashMap<>();
         for (Object[] row : hqQueryRepository.perStorePeriodReviewStats(storeIds, from, to)) {
@@ -255,8 +339,10 @@ public class HqService {
                     completionRate, unprocessed);
         }).toList();
 
-        return new HqAnalyticsResponse(fromDate.toString(), toDate.toString(), total, avgRating, ratingDist,
-                categoryDist, issueTags, comparison);
+        return new HqAnalyticsResponse(fromDate.toString(), toDate.toString(), previousFromDate.toString(),
+                previousToDate.toString(), dataAsOf, total, analyzed, analysisCoverageRate, avgRating,
+                highRiskReviews, highRiskAffectedStores, ratingDist, categoryDist, issueTags, riskClusters,
+                menuIssues, dailyRiskTrend, comparison);
     }
 
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
@@ -326,7 +412,7 @@ public class HqService {
         if (d == null) {
             return null;
         }
-        return new HqDraftSummaryResponse(String.valueOf(d.getId()), d.getStatus(), d.getContent());
+        return new HqDraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent());
     }
 
     private List<String> parseStringList(String json) {
@@ -363,6 +449,45 @@ public class HqService {
 
     private static double round4(double v) {
         return Math.round(v * 10000) / 10000.0;
+    }
+
+    private static Map<String, Object[]> rowsByKey(List<Object[]> rows) {
+        Map<String, Object[]> result = new HashMap<>();
+        for (Object[] row : rows) {
+            result.put((String) row[0], row);
+        }
+        return result;
+    }
+
+    private static long number(Object[] row, int index) {
+        return row == null || row[index] == null ? 0 : ((Number) row[index]).longValue();
+    }
+
+    private static Double ratePer100(long count, long analyzed) {
+        return analyzed == 0 ? null : round1((double) count * 100 / analyzed);
+    }
+
+    /** 고정·투명 기준. 파일럿에서 오탐이 확인되기 전까지 별도 설정 시스템은 만들지 않는다. */
+    private static String issueSignal(long count, long previousCount, long affectedStores, Double deltaRatePoints) {
+        if (count >= 3 && affectedStores >= 2 && previousCount == 0) {
+            return "NEW";
+        }
+        if (count >= 3 && affectedStores >= 2 && deltaRatePoints != null && deltaRatePoints >= 5) {
+            return "RISING";
+        }
+        if (deltaRatePoints != null && deltaRatePoints <= -5) {
+            return "FALLING";
+        }
+        return "STABLE";
+    }
+
+    private static int signalPriority(String signal) {
+        return switch (signal) {
+            case "NEW" -> 0;
+            case "RISING" -> 1;
+            case "STABLE" -> 2;
+            default -> 3;
+        };
     }
 
     private static LocalDate parseOrDefault(String s, LocalDate fallback) {

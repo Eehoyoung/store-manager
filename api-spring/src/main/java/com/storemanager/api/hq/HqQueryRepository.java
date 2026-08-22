@@ -104,6 +104,44 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
             @Param("maxRating") Short maxRating, @Param("riskLevel") Short riskLevel, @Param("from") Instant from,
             @Param("to") Instant to, Pageable pageable);
 
+    /** issueTag 는 null 이 아닌 경우에만 이 쿼리를 호출한다. PostgreSQL 배열 조건의 null 타입 추론을 피한다. */
+    @Query(value = """
+            SELECT r.* FROM unified_review r
+            LEFT JOIN review_analysis a ON a.review_id = r.id
+            LEFT JOIN reply_draft d ON d.id = (
+                SELECT MAX(d2.id) FROM reply_draft d2 WHERE d2.review_id = r.id)
+            WHERE r.store_id IN (:storeIds)
+              AND :issueTag = ANY(a.issue_tags)
+              AND (:status IS NULL OR d.status = :status)
+              AND (:category IS NULL OR a.category = :category)
+              AND (:minRating IS NULL OR r.rating >= :minRating)
+              AND (:maxRating IS NULL OR r.rating <= :maxRating)
+              AND (:riskLevel IS NULL OR a.risk_level >= :riskLevel)
+              AND r.written_at >= :from
+              AND r.written_at < :to
+            ORDER BY r.written_at DESC, r.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(r.id) FROM unified_review r
+            LEFT JOIN review_analysis a ON a.review_id = r.id
+            LEFT JOIN reply_draft d ON d.id = (
+                SELECT MAX(d2.id) FROM reply_draft d2 WHERE d2.review_id = r.id)
+            WHERE r.store_id IN (:storeIds)
+              AND :issueTag = ANY(a.issue_tags)
+              AND (:status IS NULL OR d.status = :status)
+              AND (:category IS NULL OR a.category = :category)
+              AND (:minRating IS NULL OR r.rating >= :minRating)
+              AND (:maxRating IS NULL OR r.rating <= :maxRating)
+              AND (:riskLevel IS NULL OR a.risk_level >= :riskLevel)
+              AND r.written_at >= :from
+              AND r.written_at < :to
+            """, nativeQuery = true)
+    Page<UnifiedReview> searchBrandReviewsByIssueTag(@Param("storeIds") List<Long> storeIds,
+            @Param("issueTag") String issueTag, @Param("status") String status,
+            @Param("category") String category, @Param("minRating") Short minRating,
+            @Param("maxRating") Short maxRating, @Param("riskLevel") Short riskLevel, @Param("from") Instant from,
+            @Param("to") Instant to, Pageable pageable);
+
     // ── FR-804: 브랜드 집계 ────────────────────────────────────────────
 
     @Query("SELECT COUNT(r), AVG(r.rating) FROM UnifiedReview r "
@@ -133,6 +171,77 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
             ORDER BY cnt DESC
             """, nativeQuery = true)
     List<Object[]> brandIssueTagRanking(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    @Query("SELECT COUNT(a) FROM ReviewAnalysis a JOIN UnifiedReview r ON r.id = a.reviewId "
+            + "WHERE r.storeId IN :storeIds AND r.writtenAt >= :from AND r.writtenAt < :to")
+    long analyzedReviewCount(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    /** 이슈별 건수·영향 매장·평균 별점. 기간 비교는 같은 쿼리를 현재/직전 기간에 각각 실행한다. */
+    @Query(value = """
+            SELECT tag, COUNT(*) AS cnt, COUNT(DISTINCT r.store_id) AS stores, AVG(r.rating) AS avg_rating
+            FROM review_analysis a
+            JOIN unified_review r ON r.id = a.review_id
+            CROSS JOIN LATERAL unnest(a.issue_tags) AS tag
+            WHERE r.store_id IN (:storeIds) AND r.written_at >= :from AND r.written_at < :to
+            GROUP BY tag
+            """, nativeQuery = true)
+    List<Object[]> brandIssueTagStats(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    /** 고위험 사유 군집. 모델 태그가 아니라 저장된 risk_reasons만 사용한다. */
+    @Query(value = """
+            SELECT reason, COUNT(*) AS cnt, COUNT(DISTINCT r.store_id) AS stores
+            FROM review_analysis a
+            JOIN unified_review r ON r.id = a.review_id
+            CROSS JOIN LATERAL unnest(a.risk_reasons) AS reason
+            WHERE r.store_id IN (:storeIds) AND r.written_at >= :from AND r.written_at < :to
+              AND a.risk_level >= 3
+            GROUP BY reason
+            ORDER BY cnt DESC, reason
+            """, nativeQuery = true)
+    List<Object[]> brandRiskClusters(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    @Query(value = """
+            SELECT COUNT(*) AS cnt, COUNT(DISTINCT r.store_id) AS stores
+            FROM review_analysis a
+            JOIN unified_review r ON r.id = a.review_id
+            WHERE r.store_id IN (:storeIds) AND r.written_at >= :from AND r.written_at < :to
+              AND a.risk_level >= 3
+            """, nativeQuery = true)
+    List<Object[]> brandHighRiskSummary(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    /** 주문 메뉴와 이슈의 동시 출현 상위 10개. 별도 AI 호출 없이 기존 JSONB/태그를 집계한다. */
+    @Query(value = """
+            SELECT menu, tag, COUNT(*) AS cnt, COUNT(DISTINCT r.store_id) AS stores, AVG(r.rating) AS avg_rating
+            FROM review_analysis a
+            JOIN unified_review r ON r.id = a.review_id
+            CROSS JOIN LATERAL jsonb_array_elements_text(r.ordered_menus) AS menu
+            CROSS JOIN LATERAL unnest(a.issue_tags) AS tag
+            WHERE r.store_id IN (:storeIds) AND r.written_at >= :from AND r.written_at < :to
+              AND menu <> ''
+            GROUP BY menu, tag
+            ORDER BY cnt DESC, stores DESC, menu, tag
+            LIMIT 10
+            """, nativeQuery = true)
+    List<Object[]> brandMenuIssues(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    @Query(value = """
+            SELECT (r.written_at AT TIME ZONE 'Asia/Seoul')::date AS day,
+                   COUNT(*) AS analyzed,
+                   COUNT(*) FILTER (WHERE cardinality(a.issue_tags) > 0) AS issue_reviews,
+                   COUNT(*) FILTER (WHERE a.risk_level >= 3) AS high_risk
+            FROM review_analysis a
+            JOIN unified_review r ON r.id = a.review_id
+            WHERE r.store_id IN (:storeIds) AND r.written_at >= :from AND r.written_at < :to
+            GROUP BY day
+            ORDER BY day
+            """, nativeQuery = true)
+    List<Object[]> brandDailyRiskTrend(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
             @Param("to") Instant to);
 
     /** 매장별 비교표용 — 기간 내 리뷰수·평균별점. */

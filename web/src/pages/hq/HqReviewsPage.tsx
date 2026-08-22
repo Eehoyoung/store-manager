@@ -68,8 +68,11 @@ export function HqReviewsPage() {
       storeId: params.get("storeId") ?? "",
       category: params.get("category") ?? "",
       riskLevel: params.get("riskLevel") ?? "",
+      issueTag: params.get("issueTag") ?? "",
       status: params.get("status") ?? "",
       minRating: params.get("minRating") ?? "",
+      from: params.get("from") ?? "",
+      to: params.get("to") ?? "",
       page: Number(params.get("page") ?? "0"),
     }),
     [params],
@@ -101,7 +104,10 @@ export function HqReviewsPage() {
         category: filter.category || undefined,
         riskLevel: filter.riskLevel ? Number(filter.riskLevel) : undefined,
         status: filter.status || undefined,
+        issueTag: filter.issueTag || undefined,
         minRating: filter.minRating ? Number(filter.minRating) : undefined,
+        from: filter.from || undefined,
+        to: filter.to || undefined,
         page: filter.page,
         size: PAGE_SIZE,
       })
@@ -125,6 +131,16 @@ export function HqReviewsPage() {
         브랜드 전체 리뷰를 조회합니다. 본부는 <strong>조회만</strong> 할 수 있으며 답글 작성·승인은
         각 가맹점에서 진행합니다.
       </p>
+
+      {filter.issueTag ? (
+        <div className="hq-active-filter" role="status">
+          <span>이슈 필터: <strong>{filter.issueTag}</strong></span>
+          {filter.from && filter.to ? <span>{filter.from} ~ {filter.to}</span> : null}
+          <Button type="button" variant="secondary" onClick={() => setFilter("issueTag", "")}>
+            필터 해제
+          </Button>
+        </div>
+      ) : null}
 
       <div className="hq-filters">
         <Select

@@ -86,13 +86,19 @@ class HqServiceIT {
     }
 
     private Long 리뷰를_만든다(매장픽스처 f, String platformReviewId, int rating, int riskLevel, LocalDate writtenDate) {
+        return 리뷰를_만든다(f, platformReviewId, rating, riskLevel, writtenDate, new String[0], new String[0], "[]");
+    }
+
+    private Long 리뷰를_만든다(매장픽스처 f, String platformReviewId, int rating, int riskLevel,
+            LocalDate writtenDate, String[] issueTags, String[] riskReasons, String orderedMenus) {
         UnifiedReview review = unifiedReviewRepository.save(UnifiedReview.builder()
                 .storeId(f.storeId()).linkId(f.linkId()).platform("BAEMIN").platformReviewId(platformReviewId)
                 .rating((short) rating).body("리뷰본문").writtenAt(writtenDate.atStartOfDay(KST).toInstant())
+                .orderedMenus(orderedMenus)
                 .build());
         reviewAnalysisRepository.save(ReviewAnalysis.builder().reviewId(review.getId())
                 .category(riskLevel >= 3 ? "COMPLAINT" : "PRAISE").sentiment(0f).riskLevel((short) riskLevel)
-                .model("m").promptVersion("v1").build());
+                .issueTags(issueTags).riskReasons(riskReasons).model("m").promptVersion("v1").build());
         return review.getId();
     }
 
@@ -195,5 +201,67 @@ class HqServiceIT {
         List<HqDtos.HqBrandResponse> res = hqService.listBrands(사용자.getPublicId());
 
         assertThat(res).isEmpty();
+    }
+
+    @Test
+    void 이상징후_레이더는_동일기간_발생률과_영향매장_고위험_메뉴근거를_집계한다() {
+        매장픽스처 store1 = 매장을_만든다("레이더브랜드", "radar-owner1@example.com");
+        매장픽스처 store2 = 매장을_만든다("레이더브랜드", "radar-owner2@example.com");
+        UUID hqUser = 본부사용자를_만든다("radar-hq@example.com", "레이더브랜드");
+
+        // 직전 3일: 분석 10건 중 배달지연 1건(10.0건/100건).
+        for (int i = 0; i < 10; i++) {
+            리뷰를_만든다(store1, "radar-prev-" + i, 4, 0, LocalDate.of(2026, 8, 7),
+                    i == 0 ? new String[] {"배달지연"} : new String[0], new String[0], "[]");
+        }
+        // 현재 3일: 분석 10건 중 배달지연 3건(30.0건/100건), 2개 매장에 걸쳐 발생.
+        for (int i = 0; i < 10; i++) {
+            매장픽스처 target = i == 1 ? store2 : store1;
+            boolean issue = i < 3;
+            리뷰를_만든다(target, "radar-now-" + i, issue ? 2 : 5, issue && i == 2 ? 3 : 0,
+                    LocalDate.of(2026, 8, 10), issue ? new String[] {"배달지연"} : new String[0],
+                    issue && i == 2 ? new String[] {"FOREIGN_OBJECT"} : new String[0],
+                    issue ? "[\"치킨세트\"]" : "[]");
+        }
+
+        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "레이더브랜드", "2026-08-08", "2026-08-10");
+
+        assertThat(result.analysisCoverageRate()).isEqualTo(1.0);
+        assertThat(result.highRiskReviews()).isEqualTo(1);
+        assertThat(result.highRiskAffectedStores()).isEqualTo(1);
+        assertThat(result.issueTagRanking()).filteredOn(i -> i.tag().equals("배달지연")).singleElement()
+                .satisfies(i -> {
+                    assertThat(i.count()).isEqualTo(3);
+                    assertThat(i.previousCount()).isEqualTo(1);
+                    assertThat(i.ratePer100()).isEqualTo(30.0);
+                    assertThat(i.previousRatePer100()).isEqualTo(10.0);
+                    assertThat(i.deltaRatePoints()).isEqualTo(20.0);
+                    assertThat(i.affectedStoreCount()).isEqualTo(2);
+                    assertThat(i.signal()).isEqualTo("RISING");
+                });
+        assertThat(result.riskClusters()).anySatisfy(r -> {
+            assertThat(r.reason()).isEqualTo("FOREIGN_OBJECT");
+            assertThat(r.count()).isEqualTo(1);
+        });
+        assertThat(result.menuIssues()).anySatisfy(m -> {
+            assertThat(m.menu()).isEqualTo("치킨세트");
+            assertThat(m.tag()).isEqualTo("배달지연");
+            assertThat(m.count()).isEqualTo(3);
+        });
+    }
+
+    @Test
+    void 레이더_이슈를_클릭하면_해당_태그의_근거리뷰만_조회한다() {
+        매장픽스처 store = 매장을_만든다("드릴다운브랜드", "drill-owner@example.com");
+        UUID hqUser = 본부사용자를_만든다("drill-hq@example.com", "드릴다운브랜드");
+        LocalDate day = LocalDate.of(2026, 8, 10);
+        리뷰를_만든다(store, "drill-delay", 2, 1, day, new String[] {"배달지연"}, new String[0], "[]");
+        리뷰를_만든다(store, "drill-taste", 2, 1, day, new String[] {"맛"}, new String[0], "[]");
+
+        HqDtos.HqReviewListResponse result = hqService.listReviews(hqUser, "드릴다운브랜드", null, null, null,
+                null, null, null, "배달지연", "2026-08-10", "2026-08-10", 0, 20);
+
+        assertThat(result.items()).singleElement()
+                .satisfies(item -> assertThat(item.analysis().issueTags()).containsExactly("배달지연"));
     }
 }

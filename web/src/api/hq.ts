@@ -8,6 +8,7 @@ export interface HqReviewFilter {
   category?: string;
   riskLevel?: number;
   status?: string;
+  issueTag?: string;
   from?: string; // yyyy-MM-dd
   to?: string; // yyyy-MM-dd
   page?: number;
@@ -29,6 +30,7 @@ export const hqApi = {
     if (filter.category) qs.set("category", filter.category);
     if (filter.riskLevel != null) qs.set("riskLevel", String(filter.riskLevel));
     if (filter.status) qs.set("status", filter.status);
+    if (filter.issueTag) qs.set("issueTag", filter.issueTag);
     if (filter.from) qs.set("from", filter.from);
     if (filter.to) qs.set("to", filter.to);
     qs.set("page", String(filter.page ?? 0));

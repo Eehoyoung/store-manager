@@ -48,7 +48,21 @@ final class HqDtos {
     record CategoryBucket(String category, long count) {
     }
 
-    record IssueTagItem(String tag, long count) {
+    /**
+     * 브랜드 이슈 추이. 발생률 분모는 전체 리뷰가 아니라 분석 완료 리뷰다.
+     * analysisCoverageRate 를 함께 내려 분석 누락을 정상으로 오해하지 않게 한다.
+     */
+    record IssueTagItem(String tag, long count, long previousCount, Double ratePer100, Double previousRatePer100,
+            Double deltaRatePoints, long affectedStoreCount, Double avgRating, String signal) {
+    }
+
+    record RiskClusterItem(String reason, long count, long previousCount, long affectedStoreCount) {
+    }
+
+    record MenuIssueItem(String menu, String tag, long count, long affectedStoreCount, Double avgRating) {
+    }
+
+    record DailyRiskItem(String date, long analyzedCount, long issueReviewCount, long highRiskCount) {
     }
 
     /** FR-804 매장별 비교. 미처리 건수는 pendingCount+blockedCount+highRiskCount 합계(현재 기준, 기간 무관). */
@@ -56,8 +70,12 @@ final class HqDtos {
             double replyCompletionRate, long unprocessedCount) {
     }
 
-    record HqAnalyticsResponse(String from, String to, long totalReviews, Double avgRating,
+    record HqAnalyticsResponse(String from, String to, String previousFrom, String previousTo, String dataAsOf,
+            long totalReviews, long analyzedReviews, double analysisCoverageRate, Double avgRating,
+            long highRiskReviews, long highRiskAffectedStores,
             List<RatingBucket> ratingDistribution, List<CategoryBucket> categoryDistribution,
-            List<IssueTagItem> issueTagRanking, List<StoreComparisonItem> storeComparison) {
+            List<IssueTagItem> issueTagRanking, List<RiskClusterItem> riskClusters,
+            List<MenuIssueItem> menuIssues, List<DailyRiskItem> dailyRiskTrend,
+            List<StoreComparisonItem> storeComparison) {
     }
 }
