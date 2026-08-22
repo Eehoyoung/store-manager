@@ -81,6 +81,13 @@ public class PlatformAccount {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    /**
+     * 등록 시 사장님이 지정한 매장. 첫 수집에서 플랫폼 STOREID 를 발견하면 이 매장과 연결한다.
+     * 이 값이 없으면 발견한 플랫폼 매장을 어디에 붙일지 알 수 없어 리뷰가 전부 버려진다.
+     */
+    @Column(name = "intended_store_id")
+    private Long intendedStoreId;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -94,6 +101,24 @@ public class PlatformAccount {
         this.linkStatus = "ERROR";
         this.lastErrorCode = ecode;
         this.lastErrorAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * DataAPI 조회가 실제로 성공했을 때 연동 완료로 전이한다.
+     *
+     * ★ '요청을 보냈다' 가 아니라 'data.RESULT == SUCCESS 를 받았다' 일 때만 호출한다(절대규칙 2).
+     *   verifiedAt 은 처음 성공한 시점을 남기고, lastSyncedAt 은 매번 갱신한다 —
+     *   "언제부터 연동됐나" 와 "마지막으로 언제 돌았나" 는 다른 질문이다.
+     */
+    public void markVerified() {
+        this.linkStatus = "LINKED";
+        this.lastErrorCode = null;
+        this.lastErrorAt = null;
+        if (this.verifiedAt == null) {
+            this.verifiedAt = Instant.now();
+        }
+        this.lastSyncedAt = Instant.now();
         this.updatedAt = Instant.now();
     }
 

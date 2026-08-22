@@ -15,6 +15,10 @@ public enum ErrorCode {
     SUBSCRIPTION_INACTIVE(HttpStatus.FORBIDDEN, "구독이 활성 상태가 아닙니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "이미 존재하는 리소스입니다."),
+    // 같은 배달앱 계정을 두 곳에서 연동하면 같은 매장을 이중 수집하고 답글이 겹친다. 검사는 유지하되
+    // 사장님이 다음에 무엇을 해야 하는지 문구로 알려준다(문서 14 §1 — 오류는 원인과 다음 행동을 말한다).
+    PLATFORM_ACCOUNT_ALREADY_LINKED(HttpStatus.CONFLICT,
+            "이미 연동된 배달앱 계정입니다. 기존 연동을 해지한 뒤 다시 시도해 주세요."),
     DRAFT_ALREADY_PUBLISHED(HttpStatus.CONFLICT, "이미 게시된 답글입니다."),
     REVIEW_ALREADY_REPLIED(HttpStatus.CONFLICT, "플랫폼에 이미 답글이 존재합니다."),
     INVALID_DRAFT_STATE(HttpStatus.CONFLICT, "현재 상태에서는 이 작업을 할 수 없습니다."),

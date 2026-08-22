@@ -12,6 +12,14 @@ import { Skeleton } from "../components/Skeleton";
 
 const labels: Record<DeliveryPlatform, string> = { BAEMIN: "배민", YOGIYO: "요기요", COUPANGEATS: "쿠팡이츠" };
 
+const LINK_BADGE: Record<string, { tone: "success" | "danger" | "warning"; icon: string; label: string }> = {
+  LINKED: { tone: "success", icon: "✓", label: "연동 완료" },
+  ERROR: { tone: "danger", icon: "!", label: "연동 오류" },
+  PENDING: { tone: "warning", icon: "•", label: "검증 보류" },
+  EXPIRED: { tone: "warning", icon: "•", label: "재연동 필요" },
+  REVOKED: { tone: "warning", icon: "•", label: "해제됨" },
+};
+
 export function PlatformAccountsPage() {
   const [accounts, setAccounts] = useState<PlatformAccountResponse[] | null>(null);
   const [stores, setStores] = useState<StoreResponse[]>([]);
@@ -49,9 +57,9 @@ export function PlatformAccountsPage() {
         </div>
       </div>
       <Card className="platform-accounts-page__notice">
-        <Badge tone="warning" icon="⚠">DataAPI 검증 보류</Badge>
-        <p>등록 1건당 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 자동 발견할 예정입니다.</p>
-        <p>현재는 DataAPI 토큰과 LOGINPWD 공식 암호화 규격 대기로 조회·검증이 보류되며, 등록 결과는 <strong>매장 조회 대기(PENDING)</strong>로 표시됩니다.</p>
+        <Badge tone="warning" icon="⚠">매장 조회 대기</Badge>
+        <p>등록 1건당 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 자동 발견합니다.</p>
+        <p>조회는 등록 직후가 아니라 <strong>수집 작업이 처음 도는 시점</strong>에 이뤄집니다. 그전까지 등록 결과는 <strong>매장 조회 대기(PENDING)</strong>로 표시됩니다.</p>
       </Card>
       {stores.length > 0 ? <PlatformAccountForm stores={stores} onRegistered={onRegistered} /> : null}
       {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
@@ -69,13 +77,19 @@ export function PlatformAccountsPage() {
                     <h2>{labels[account.platform]}</h2>
                     <p>{account.maskedLoginId}</p>
                   </div>
-                  <Badge tone={account.linkStatus === "ERROR" ? "danger" : "warning"} icon={account.linkStatus === "ERROR" ? "!" : "•"}>
-                    {account.linkStatus === "ERROR" ? "연동 오류" : "검증 보류"}
+                  {/* 상태는 3종이다. LINKED 를 '검증 보류' 로 묶어 버리면 연동이 끝났는지 알 수 없다. */}
+                  <Badge
+                    tone={LINK_BADGE[account.linkStatus]?.tone ?? "warning"}
+                    icon={LINK_BADGE[account.linkStatus]?.icon ?? "•"}
+                  >
+                    {LINK_BADGE[account.linkStatus]?.label ?? "검증 보류"}
                   </Badge>
                 </div>
                 <p>{account.statusMessage}</p>
                 <p className="platform-account-card__links">
-                  {account.links.length ? `플랫폼 매장 ${account.links.length}개 자동 매핑됨` : "플랫폼 매장 조회 대기 중"}
+                  {account.links.length
+                    ? `플랫폼 매장 ${account.links.length}개 자동 매핑됨`
+                    : "플랫폼 매장 조회 대기 중"}
                 </p>
                 <Button type="button" variant="danger" small onClick={() => void revoke(account)}>연동 해제</Button>
               </Card>

@@ -29,6 +29,13 @@ public class CredentialService {
     /** 자격증명을 봉투암호화해 저장한다. rawPassword 는 이 메서드 스택 밖으로 나가지 않는다. */
     @Transactional
     public PlatformAccount save(Long ownerId, String platform, String loginId, String rawPassword) {
+        return save(ownerId, platform, loginId, rawPassword, null);
+    }
+
+    /** 등록 시 지정한 매장까지 함께 저장한다. 이 값이 없으면 첫 수집에서 발견한
+     *  플랫폼 매장을 어느 매장에 붙일지 알 수 없어 리뷰가 전부 버려진다. */
+    public PlatformAccount save(Long ownerId, String platform, String loginId, String rawPassword,
+            Long intendedStoreId) {
         EnvelopeCipher.EncryptedSecret secret = envelopeCipher.encrypt(rawPassword);
         PlatformAccount account = PlatformAccount.builder()
                 .ownerId(ownerId)
@@ -40,6 +47,7 @@ public class CredentialService {
                 .passwordFingerprint(envelopeCipher.fingerprint(rawPassword))
                 .kmsKeyId(secret.keyId())
                 .encAlgorithm(secret.algorithm())
+                .intendedStoreId(intendedStoreId)
                 .build();
         return platformAccountRepository.saveAndFlush(account);
     }

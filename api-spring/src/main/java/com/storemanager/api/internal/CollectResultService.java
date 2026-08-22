@@ -7,6 +7,7 @@ import com.storemanager.api.collect.DataApiCallLog;
 import com.storemanager.api.collect.DataApiCallLogRepository;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
@@ -124,6 +125,9 @@ public class CollectResultService {
                     .findByPlatformAndPlatformStoreId(req.platform(), storeBlock.platformStoreId())
                     .orElse(null);
             if (link == null) {
+                link = autoLink(requestAccountId, req.platform(), storeBlock);
+            }
+            if (link == null) {
                 // 사용자가 아직 이 매장을 우리 시스템에 매핑하지 않았다 — 실패가 아니라 건너뛴다.
                 skipped++;
                 continue;
@@ -153,6 +157,16 @@ public class CollectResultService {
                     }
                 }
             }
+        }
+
+        // 수집이 실제로 성공했으면 계정을 '연동 완료' 로 전이한다.
+        // ★ 이게 없으면 몇 번을 성공해도 화면은 영원히 '검증 보류' 로 남는다 — 사장님은
+        //   연동이 된 건지 아닌지 알 수 없고, 우리도 verified_at 을 근거로 쓸 수 없다.
+        // ★ processed > 0 을 조건으로 둔다. 매장이 하나도 매핑되지 않았다면 자격증명이 맞는지는
+        //   확인됐어도 '쓸 수 있는 연동' 은 아니다 — 사람이 매장을 매핑해야 한다.
+        if (!"FAILED".equals(req.status()) && processed > 0 && resolvedAccountId != null) {
+            platformAccountRepository.findById(resolvedAccountId)
+                    .ifPresent(PlatformAccount::markVerified);
         }
 
         updateCollectionJob(req, reviewsNew);
@@ -282,6 +296,48 @@ public class CollectResultService {
     }
 
     /** @return 새로 생성된 리뷰면 true, 기존 리뷰 갱신이면 false */
+    /**
+     * 첫 수집에서 발견한 플랫폼 매장을, 등록할 때 사장님이 지정한 매장에 연결한다.
+     *
+     * ★ 확실할 때만 연결한다. 틀리게 붙이면 남의 매장 리뷰가 내 매장에 쌓이고, 거기에 답글이 달린다.
+     * 되돌릴 수 없는 사고이므로 아래 조건을 모두 만족할 때만 만든다.
+     *   - 요청이 어느 계정에서 왔는지 확실할 것 (requestAccountId)
+     *   - 그 계정에 사장님이 지정한 매장이 있을 것 (intendedStoreId)
+     *   - 그 매장이 아직 이 플랫폼에 연결되지 않았을 것
+     *     → 1계정 N매장(F-7)에서 둘째 매장부터는 어느 매장인지 알 수 없다. 건너뛰고 사람이 매핑한다.
+     *   - 매장이 활성화(전자계약 완료)돼 있을 것
+     */
+    private StorePlatformLink autoLink(Long requestAccountId, String platform, StoreBlock storeBlock) {
+        if (requestAccountId == null || storeBlock.platformStoreId() == null) {
+            return null;
+        }
+        PlatformAccount account = platformAccountRepository.findById(requestAccountId).orElse(null);
+        if (account == null || account.getRevokedAt() != null || account.getIntendedStoreId() == null
+                || !platform.equals(account.getPlatform())) {
+            return null;
+        }
+        Store store = storeRepository.findById(account.getIntendedStoreId()).orElse(null);
+        if (store == null || store.getDeletedAt() != null || store.getActivatedAt() == null
+                || !store.getOwnerId().equals(account.getOwnerId())) {
+            return null;
+        }
+        boolean alreadyLinked = storePlatformLinkRepository.findByAccountIdOrderByCreatedAtAsc(requestAccountId)
+                .stream().anyMatch(existing -> existing.getStoreId().equals(store.getId()));
+        if (alreadyLinked) {
+            return null;
+        }
+        StorePlatformLink created = storePlatformLinkRepository.saveAndFlush(StorePlatformLink.builder()
+                .storeId(store.getId())
+                .accountId(requestAccountId)
+                .platform(platform)
+                .platformStoreId(storeBlock.platformStoreId())
+                .storeNameSnapshot(storeBlock.storeName())
+                .avgRating(storeBlock.avgRating())
+                .build());
+        log.info("플랫폼 매장 자동 연결 accountId={} storeId={} platform={}", requestAccountId, store.getId(), platform);
+        return created;
+    }
+
     private boolean ingestReview(Store store, StorePlatformLink link, String platform, ReviewBlock rb) {
         UnifiedReview review = unifiedReviewRepository
                 .findByPlatformAndPlatformReviewId(platform, rb.platformReviewId())

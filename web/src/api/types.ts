@@ -59,7 +59,7 @@ export interface PlatformAccountResponse {
   platform: DeliveryPlatform;
   maskedLoginId: string;
   linkStatus: string;
-  verificationStatus: "DATAAPI_VERIFY_DEFERRED";
+  verificationStatus: "DATAAPI_VERIFY_DEFERRED" | "DATAAPI_VERIFIED" | "DATAAPI_VERIFY_FAILED";
   statusMessage: string;
   lastErrorCode: string | null;
   verifiedAt: string | null;
