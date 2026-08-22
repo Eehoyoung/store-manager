@@ -3,7 +3,6 @@ import type { StoreResponse } from "./types";
 
 export interface CreateStorePayload {
   name: string;
-  brandName?: string;
   category?: string;
   address?: string;
 }

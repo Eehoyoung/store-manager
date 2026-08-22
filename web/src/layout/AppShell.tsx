@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom
 import { useAuth } from "../auth/AuthContext";
 import { storesApi } from "../api/stores";
 import { hqApi } from "../api/hq";
+import { adminApi } from "../api/admin";
 import { Button } from "../components/Button";
 
 const CURRENT_STORE_KEY = "sm.currentStoreId";
@@ -29,6 +30,7 @@ export function AppShell() {
   // ★ 빈 배열은 정상 응답이다 — 권한이 없는 일반 사장님이며 에러가 아니다.
   // 호출이 실패해도 앱이 깨지면 안 되므로 조용히 메뉴만 감춘다.
   const [isHq, setIsHq] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -43,6 +45,10 @@ export function AppShell() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    adminApi.me().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
   }, []);
 
   const setStoreId = (id: string) => {
@@ -108,6 +114,7 @@ export function AppShell() {
               가맹본부
             </NavLink>
           ) : null}
+          {isAdmin ? <NavLink to="/admin" className={navLinkClass}>관리자</NavLink> : null}
           <NavLink to="/settings" className={navLinkClass}>
             설정
           </NavLink>

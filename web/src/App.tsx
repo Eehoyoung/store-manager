@@ -18,6 +18,7 @@ import { HqReviewsPage } from "./pages/hq/HqReviewsPage";
 import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
 import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AdminPage } from "./pages/AdminPage";
 
 // 라우트 표 (F5). 결제·구독, 전자계약 화면은 Sprint 6+ 라 ComingSoon 으로 남겨둔다.
 function App() {
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/stores/:storeId/persona" element={<PersonaPage />} />
                 <Route path="/stores/:storeId/billing" element={<BillingPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin" element={<AdminPage />} />
 
                 {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}
                 <Route path="/hq/brands" element={<HqBrandsPage />} />

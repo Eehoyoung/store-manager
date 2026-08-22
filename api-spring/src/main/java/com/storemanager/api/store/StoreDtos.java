@@ -5,14 +5,12 @@ import jakarta.validation.constraints.Size;
 
 record CreateStoreRequest(
         @NotBlank @Size(max = 100) String name,
-        @Size(max = 100) String brandName,
         @Size(max = 50) String category,
         @Size(max = 300) String address) {
 }
 
 record UpdateStoreRequest(
         @Size(max = 100) String name,
-        @Size(max = 100) String brandName,
         @Size(max = 50) String category,
         @Size(max = 300) String address) {
 }

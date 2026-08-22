@@ -51,6 +51,9 @@ public class AppUser {
     @Column(name = "biz_reg_no")
     private String bizRegNo; // [PII]
 
+    @Column(name = "franchise_brand_name")
+    private String franchiseBrandName;
+
     @Builder.Default
     @Column(nullable = false)
     private String status = "ACTIVE";
@@ -84,6 +87,11 @@ public class AppUser {
 
     public void changePassword(String encodedPassword) {
         this.passwordHash = encodedPassword;
+        this.updatedAt = Instant.now();
+    }
+
+    public void assignFranchiseBrand(String brandName) {
+        this.franchiseBrandName = brandName;
         this.updatedAt = Instant.now();
     }
 }

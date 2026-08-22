@@ -12,6 +12,7 @@ interface FormState {
   password: string;
   passwordConfirm: string;
   phone: string;
+  franchiseCode: string;
   storeName: string;
   storeAddress: string;
 }
@@ -22,6 +23,7 @@ const INITIAL_FORM: FormState = {
   password: "",
   passwordConfirm: "",
   phone: "",
+  franchiseCode: "",
   storeName: "",
   storeAddress: "",
 };
@@ -66,6 +68,7 @@ export function SignupPage() {
         email: form.email,
         password: form.password,
         phone: form.phone || undefined,
+        franchiseCode: form.franchiseCode || undefined,
         storeName: form.storeName,
         storeAddress: form.storeAddress,
       });
@@ -75,6 +78,8 @@ export function SignupPage() {
         setFieldErrors(err.details.fields as Record<string, string>);
       } else if (err instanceof ApiError && err.code === "DUPLICATE_RESOURCE") {
         setError("이미 가입된 이메일입니다.");
+      } else if (err instanceof ApiError && err.code === "INVALID_FRANCHISE_CODE") {
+        setFieldErrors((current) => ({ ...current, franchiseCode: "가맹코드를 다시 확인해 주세요." }));
       } else {
         setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       }
@@ -117,6 +122,13 @@ export function SignupPage() {
             value={form.phone}
             onChange={update("phone")}
             error={fieldErrors.phone}
+          />
+          <Field
+            label="가맹코드 (선택)"
+            hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요."
+            value={form.franchiseCode}
+            onChange={update("franchiseCode")}
+            error={fieldErrors.franchiseCode}
           />
           <Field
             label="매장명"

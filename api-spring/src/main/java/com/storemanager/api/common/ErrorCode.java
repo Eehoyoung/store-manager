@@ -21,6 +21,7 @@ public enum ErrorCode {
     GUARDRAIL_BLOCKED(HttpStatus.UNPROCESSABLE_ENTITY, "생성된 답글이 안전 규칙에 걸렸습니다."),
     RISK_LEVEL_TOO_HIGH(HttpStatus.UNPROCESSABLE_ENTITY, "위험도가 높아 자동 게시할 수 없습니다."),
     PLATFORM_LINK_ERROR(HttpStatus.UNPROCESSABLE_ENTITY, "플랫폼 계정 연동에 실패했습니다."),
+    INVALID_FRANCHISE_CODE(HttpStatus.UNPROCESSABLE_ENTITY, "가맹코드가 올바르지 않거나 사용할 수 없습니다."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "외부 연동 처리 중 오류가 발생했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "서비스를 일시적으로 사용할 수 없습니다.");

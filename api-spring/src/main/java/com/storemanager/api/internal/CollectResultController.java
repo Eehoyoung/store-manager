@@ -1,11 +1,6 @@
 package com.storemanager.api.internal;
 
-import com.storemanager.api.common.ApiException;
-import com.storemanager.api.common.ErrorCode;
 import jakarta.validation.Valid;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,23 +18,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class CollectResultController {
 
     private final CollectResultService collectResultService;
-    private final String internalToken;
+    private final InternalTokenVerifier tokenVerifier;
 
     public CollectResultController(CollectResultService collectResultService,
-            @Value("${app.internal.token}") String internalToken) {
+            InternalTokenVerifier tokenVerifier) {
         this.collectResultService = collectResultService;
-        this.internalToken = internalToken;
+        this.tokenVerifier = tokenVerifier;
     }
 
     @PostMapping("/collect-result")
     public ResponseEntity<CollectResultService.CollectResultSummary> receive(
             @RequestHeader(value = "X-Internal-Token", required = false) String token,
             @Valid @RequestBody CollectResultRequest req) {
-        // 시크릿 비교는 상수시간으로 — 길이·일치 위치가 응답시간으로 새지 않게 한다.
-        if (token == null || !MessageDigest.isEqual(
-                token.getBytes(StandardCharsets.UTF_8), internalToken.getBytes(StandardCharsets.UTF_8))) {
-            throw new ApiException(ErrorCode.UNAUTHORIZED);
-        }
+        tokenVerifier.verify(token);
         return ResponseEntity.ok(collectResultService.ingest(req));
     }
 }

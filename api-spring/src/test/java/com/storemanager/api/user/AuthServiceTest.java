@@ -5,12 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.StoreService;
+import com.storemanager.api.store.Store;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,30 +40,37 @@ class AuthServiceTest {
     private ValueOperations<String, String> valueOperations;
     @Mock
     private StoreService storeService;
+    @Mock
+    private FranchiseService franchiseService;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(appUserRepository, passwordEncoder, jwtTokenProvider, redisTemplate, storeService);
+        authService = new AuthService(appUserRepository, passwordEncoder, jwtTokenProvider, redisTemplate, storeService,
+                franchiseService);
     }
 
     @Test
     void 회원가입후_로그인_해피패스() {
         SignupRequest signupReq = new SignupRequest("owner@store.com", "password1234", "홍사장", "010-1234-5678",
-                "판교점", "경기 성남시 분당구 판교역로 166");
+                "SODM-TEST-CODE", "판교점", "경기 성남시 분당구 판교역로 166");
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(signupReq.email()))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode(signupReq.password())).thenReturn("bcrypt-hash");
         when(appUserRepository.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        Store pendingStore = Store.builder().id(10L).ownerId(1L).name(signupReq.storeName()).build();
+        when(storeService.createStore(any(AppUser.class), anyString(), anyString())).thenReturn(pendingStore);
         stubTokenIssuance();
 
         AuthService.TokenPair signupResult = authService.signup(signupReq);
 
         assertThat(signupResult.accessToken()).isEqualTo("access-token");
         assertThat(signupResult.user().getEmail()).isEqualTo(signupReq.email());
+        assertThat(signupResult.user().getFranchiseBrandName()).isNull();
         verify(appUserRepository).save(any(AppUser.class));
         verify(storeService).createStore(signupResult.user(), signupReq.storeName(), signupReq.storeAddress());
+        verify(franchiseService).requestAffiliation(signupResult.user(), pendingStore, signupReq.franchiseCode());
 
         // 방금 가입한 사용자로 로그인
         AppUser saved = signupResult.user();
@@ -78,7 +88,7 @@ class AuthServiceTest {
     @Test
     void 이메일이_이미_존재하면_회원가입은_409_DUPLICATE_RESOURCE() {
         SignupRequest req = new SignupRequest("dup@store.com", "password1234", "김사장", null,
-                "강남점", "서울 강남구 테헤란로 1");
+                "SODM-TEST-CODE", "강남점", "서울 강남구 테헤란로 1");
         AppUser existing = AppUser.builder().email(req.email()).name("기존회원").passwordHash("hash").build();
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email()))
                 .thenReturn(Optional.of(existing));
@@ -87,6 +97,22 @@ class AuthServiceTest {
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RESOURCE);
         assertThat(ex.getErrorCode().getStatus().value()).isEqualTo(409);
+    }
+
+    @Test
+    void 일반사용자는_가맹코드없이_브랜드없는_매장으로_가입한다() {
+        SignupRequest req = new SignupRequest("solo@store.com", "password1234", "일반사장", null,
+                null, "개인매장", "서울 종로구 종로 1");
+        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email())).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(req.password())).thenReturn("bcrypt-hash");
+        when(appUserRepository.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubTokenIssuance();
+
+        AuthService.TokenPair result = authService.signup(req);
+
+        assertThat(result.user().getFranchiseBrandName()).isNull();
+        verify(storeService).createStore(result.user(), req.storeName(), req.storeAddress());
+        verifyNoInteractions(franchiseService);
     }
 
     @Test

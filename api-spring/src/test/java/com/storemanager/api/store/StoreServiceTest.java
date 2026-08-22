@@ -57,7 +57,7 @@ class StoreServiceTest {
 
         ApiException ex = assertThrows(ApiException.class,
                 () -> storeService.updateStore(ownerPublicId, storePublicId,
-                        new UpdateStoreRequest("새이름", null, null, null)));
+                        new UpdateStoreRequest("새이름", null, null)));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
     }

@@ -30,20 +30,20 @@ public class StoreService {
     @Transactional
     public Store createStore(UUID ownerPublicId, CreateStoreRequest req) {
         AppUser owner = resolveUser(ownerPublicId);
-        return createStore(owner, req.name(), req.brandName(), req.category(), req.address());
+        return createStore(owner, req.name(), req.category(), req.address());
     }
 
     /** 회원가입 트랜잭션에서 생성한 사용자와 첫 매장을 함께 저장한다. */
     @Transactional
     public Store createStore(AppUser owner, String name, String address) {
-        return createStore(owner, name, null, null, address);
+        return createStore(owner, name, null, address);
     }
 
-    private Store createStore(AppUser owner, String name, String brandName, String category, String address) {
+    private Store createStore(AppUser owner, String name, String category, String address) {
         Store store = Store.builder()
                 .ownerId(owner.getId())
                 .name(name)
-                .brandName(brandName)
+                .brandName(owner.getFranchiseBrandName())
                 .category(category)
                 .address(address)
                 .build();
@@ -71,7 +71,7 @@ public class StoreService {
     @Transactional
     public Store updateStore(UUID ownerPublicId, UUID storeId, UpdateStoreRequest req) {
         Store store = findOwnedStore(ownerPublicId, storeId);
-        store.applyUpdate(req.name(), req.brandName(), req.category(), req.address());
+        store.applyUpdate(req.name(), req.category(), req.address());
         return store;
     }
 

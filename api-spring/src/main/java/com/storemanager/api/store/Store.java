@@ -62,12 +62,9 @@ public class Store {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
-    public void applyUpdate(String name, String brandName, String category, String address) {
+    public void applyUpdate(String name, String category, String address) {
         if (name != null) {
             this.name = name;
-        }
-        if (brandName != null) {
-            this.brandName = brandName;
         }
         if (category != null) {
             this.category = category;
@@ -80,5 +77,10 @@ public class Store {
     public void softDelete() {
         this.status = "DELETED";
         this.deletedAt = Instant.now();
+    }
+
+    public void assignBrand(String brandName) {
+        this.brandName = brandName;
+        this.updatedAt = Instant.now();
     }
 }

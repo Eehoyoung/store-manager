@@ -10,6 +10,7 @@ record SignupRequest(
         @NotBlank @Size(min = 8, max = 100) String password,
         @NotBlank @Size(max = 50) String name,
         @Size(max = 20) String phone,
+        @Size(max = 32) String franchiseCode,
         @NotBlank @Size(max = 100) String storeName,
         @NotBlank @Size(max = 300) String storeAddress) {
 }

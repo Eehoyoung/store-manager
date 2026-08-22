@@ -8,6 +8,7 @@ export interface SignupPayload {
   password: string;
   name: string;
   phone?: string;
+  franchiseCode?: string;
   storeName: string;
   storeAddress: string;
 }

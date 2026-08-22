@@ -30,6 +30,9 @@ ai:
   base-url: ${AI_SERVICE_BASE_URL:http://localhost:8001}
 
 app:
+  admin:
+    # 관리자 계정 public UUID. 쉼표 구분 허용목록이며 기본값은 비어 있어 누구도 접근할 수 없다.
+    user-ids: ${APP_ADMIN_USER_IDS:}
   scheduler:
     publish:
       # 게시 스케줄러(S9) 활성화 여부. 테스트 프로파일은 이 값을 설정하지 않아 기본적으로 꺼진다.

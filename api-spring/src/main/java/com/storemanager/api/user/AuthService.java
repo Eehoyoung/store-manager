@@ -2,6 +2,7 @@ package com.storemanager.api.user;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.StoreService;
 import java.time.Duration;
@@ -26,14 +27,17 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final StringRedisTemplate redisTemplate;
     private final StoreService storeService;
+    private final FranchiseService franchiseService;
 
     public AuthService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate, StoreService storeService) {
+            JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate, StoreService storeService,
+            FranchiseService franchiseService) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
         this.storeService = storeService;
+        this.franchiseService = franchiseService;
     }
 
     @Transactional
@@ -44,13 +48,16 @@ public class AuthService {
                 });
 
         AppUser user = AppUser.builder()
-                .email(req.email())
+                .email(req.email().trim().toLowerCase(java.util.Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .name(req.name())
+                .name(req.name().trim())
                 .phone(req.phone())
                 .build();
         appUserRepository.save(user);
-        storeService.createStore(user, req.storeName(), req.storeAddress());
+        var store = storeService.createStore(user, req.storeName(), req.storeAddress());
+        if (req.franchiseCode() != null && !req.franchiseCode().isBlank()) {
+            franchiseService.requestAffiliation(user, store, req.franchiseCode());
+        }
         return issueTokens(user);
     }
 

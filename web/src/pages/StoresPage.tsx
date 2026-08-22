@@ -103,13 +103,12 @@ export function StoresPage() {
 
 interface StoreFormState {
   name: string;
-  brandName: string;
   category: string;
   address: string;
 }
 
 function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void }) {
-  const [form, setForm] = useState<StoreFormState>({ name: "", brandName: "", category: "", address: "" });
+  const [form, setForm] = useState<StoreFormState>({ name: "", category: "", address: "" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -127,7 +126,6 @@ function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void 
     try {
       const created = await storesApi.create({
         name: form.name,
-        brandName: form.brandName || undefined,
         category: form.category || undefined,
         address: form.address || undefined,
       });
@@ -143,7 +141,6 @@ function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void 
     <Card className="store-form">
       <form onSubmit={handleSubmit} noValidate>
         <Field label="매장명" required value={form.name} onChange={update("name")} />
-        <Field label="브랜드명 (선택)" value={form.brandName} onChange={update("brandName")} />
         <Field label="업종 (선택)" value={form.category} onChange={update("category")} />
         <Field label="주소 (선택)" value={form.address} onChange={update("address")} />
         {error ? (
