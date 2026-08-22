@@ -9,4 +9,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     Optional<AppUser> findByEmailIgnoreCaseAndDeletedAtIsNull(String email);
 
     Optional<AppUser> findByPublicId(UUID publicId);
+
+    Optional<AppUser> findByPublicIdAndDeletedAtIsNull(UUID publicId);
 }

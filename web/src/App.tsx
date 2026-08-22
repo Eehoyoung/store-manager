@@ -4,7 +4,6 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { PublicOnlyRoute } from "./auth/PublicOnlyRoute";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./layout/AppShell";
-import { ComingSoon } from "./layout/ComingSoon";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -17,6 +16,8 @@ import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
 import { HqStoresPage } from "./pages/hq/HqStoresPage";
 import { HqReviewsPage } from "./pages/hq/HqReviewsPage";
 import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
+import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 // 라우트 표 (F5). 결제·구독, 전자계약 화면은 Sprint 6+ 라 ComingSoon 으로 남겨둔다.
 function App() {
@@ -34,11 +35,12 @@ function App() {
               <Route element={<AppShell />}>
                 <Route path="/onboarding" element={<OnboardingPage />} />
                 <Route path="/stores" element={<StoresPage />} />
+                <Route path="/platform-accounts" element={<PlatformAccountsPage />} />
                 <Route path="/stores/:storeId/reviews" element={<ReviewsPage />} />
                 <Route path="/stores/:storeId/dashboard" element={<DashboardPage />} />
                 <Route path="/stores/:storeId/persona" element={<PersonaPage />} />
                 <Route path="/stores/:storeId/billing" element={<BillingPage />} />
-                <Route path="/settings" element={<ComingSoon title="설정" />} />
+                <Route path="/settings" element={<SettingsPage />} />
 
                 {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}
                 <Route path="/hq/brands" element={<HqBrandsPage />} />

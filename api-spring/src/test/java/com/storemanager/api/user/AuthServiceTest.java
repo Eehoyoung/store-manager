@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.security.JwtTokenProvider;
+import com.storemanager.api.store.StoreService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,17 +35,20 @@ class AuthServiceTest {
     private StringRedisTemplate redisTemplate;
     @Mock
     private ValueOperations<String, String> valueOperations;
+    @Mock
+    private StoreService storeService;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(appUserRepository, passwordEncoder, jwtTokenProvider, redisTemplate);
+        authService = new AuthService(appUserRepository, passwordEncoder, jwtTokenProvider, redisTemplate, storeService);
     }
 
     @Test
     void 회원가입후_로그인_해피패스() {
-        SignupRequest signupReq = new SignupRequest("owner@store.com", "password1234", "홍사장", "010-1234-5678");
+        SignupRequest signupReq = new SignupRequest("owner@store.com", "password1234", "홍사장", "010-1234-5678",
+                "판교점", "경기 성남시 분당구 판교역로 166");
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(signupReq.email()))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode(signupReq.password())).thenReturn("bcrypt-hash");
@@ -56,6 +60,7 @@ class AuthServiceTest {
         assertThat(signupResult.accessToken()).isEqualTo("access-token");
         assertThat(signupResult.user().getEmail()).isEqualTo(signupReq.email());
         verify(appUserRepository).save(any(AppUser.class));
+        verify(storeService).createStore(signupResult.user(), signupReq.storeName(), signupReq.storeAddress());
 
         // 방금 가입한 사용자로 로그인
         AppUser saved = signupResult.user();
@@ -72,7 +77,8 @@ class AuthServiceTest {
 
     @Test
     void 이메일이_이미_존재하면_회원가입은_409_DUPLICATE_RESOURCE() {
-        SignupRequest req = new SignupRequest("dup@store.com", "password1234", "김사장", null);
+        SignupRequest req = new SignupRequest("dup@store.com", "password1234", "김사장", null,
+                "강남점", "서울 강남구 테헤란로 1");
         AppUser existing = AppUser.builder().email(req.email()).name("기존회원").passwordHash("hash").build();
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email()))
                 .thenReturn(Optional.of(existing));

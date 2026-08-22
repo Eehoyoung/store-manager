@@ -52,6 +52,8 @@ app:
     # KMS 봉투암호화용 마스터키. LOGINPWD 등 자격증명은 이 키로 감싼 DEK로만 암호화한다.
     master-key: ${CREDENTIAL_MASTER_KEY}
     key-id: ${CREDENTIAL_KEY_ID:local-dev}
+    # 운영 배포에서는 true로 설정해야 하며, 실제 KMS 어댑터 도입 전에는 기동을 허용하지 않는다.
+    require-kms: ${CREDENTIAL_REQUIRE_KMS:false}
   internal:
     # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
     token: ${INTERNAL_TOKEN}

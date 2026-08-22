@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -45,6 +46,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ec.getStatus())
                 .body(new ErrorResponse(ec.name(), "요청 본문을 읽을 수 없습니다. JSON 형식과 UTF-8 인코딩을 확인해 주세요.",
                         traceId(), null));
+    }
+
+    /** 계정·매장 매핑의 DB 유니크 경합은 계약된 중복 응답으로 변환한다. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        String message = ex.getMostSpecificCause() == null ? "" : ex.getMostSpecificCause().getMessage();
+        if (message.contains("platform_account") || message.contains("platform_store_id")) {
+            ErrorCode ec = ErrorCode.DUPLICATE_RESOURCE;
+            return ResponseEntity.status(ec.getStatus())
+                    .body(new ErrorResponse(ec.name(), ec.getMessage(), traceId(), null));
+        }
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", traceId(), null));
     }
 
     @ExceptionHandler(Exception.class)

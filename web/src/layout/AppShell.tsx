@@ -100,6 +100,9 @@ export function AppShell() {
           <NavLink to={personaPath} className={navLinkClass}>
             페르소나
           </NavLink>
+          <NavLink to="/platform-accounts" className={navLinkClass}>
+            배달앱 연동
+          </NavLink>
           {isHq ? (
             <NavLink to="/hq/brands" className={navLinkClass}>
               가맹본부

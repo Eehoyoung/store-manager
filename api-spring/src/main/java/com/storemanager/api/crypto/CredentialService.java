@@ -6,6 +6,7 @@ import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.security.MessageDigest;
 
 /**
  * 플랫폼 계정 자격증명(LOGINPWD)을 다루는 유일한 통로.
@@ -36,23 +37,23 @@ public class CredentialService {
                 .encPassword(secret.ciphertext())
                 .encDek(secret.encDek())
                 .encNonce(secret.nonce())
+                .passwordFingerprint(envelopeCipher.fingerprint(rawPassword))
                 .kmsKeyId(secret.keyId())
                 .encAlgorithm(secret.algorithm())
                 .build();
-        return platformAccountRepository.save(account);
+        return platformAccountRepository.saveAndFlush(account);
     }
 
     /** 자격증명을 복호화해 반환한다. 호출할 때마다 audit_log 에 CREDENTIAL_READ 를 남긴다. */
     @Transactional
-    public String loadPassword(Long accountId) {
-        PlatformAccount account = platformAccountRepository.findById(accountId)
+    public String loadPasswordForOwner(Long accountId, Long ownerId) {
+        PlatformAccount account = platformAccountRepository.findByIdAndOwnerIdAndRevokedAtIsNull(accountId, ownerId)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
 
         EnvelopeCipher.EncryptedSecret secret = new EnvelopeCipher.EncryptedSecret(
                 account.getEncPassword(), account.getEncDek(), account.getEncNonce(),
                 account.getKmsKeyId(), account.getEncAlgorithm());
-        String password = envelopeCipher.decrypt(secret);
-
+        // 내부 워커 전용 경로다. accountId만으로 호출할 수 없고 소유자 경계를 함께 검증한다.
         auditLogRepository.save(AuditLog.builder()
                 .actorType("SYSTEM")
                 .action("CREDENTIAL_READ")
@@ -60,6 +61,24 @@ public class CredentialService {
                 .targetId(accountId)
                 .build());
 
+        String password = envelopeCipher.decrypt(secret);
+        if (!MessageDigest.isEqual(account.getPasswordFingerprint(), envelopeCipher.fingerprint(password))) {
+            throw new IllegalStateException("자격증명 무결성 검증 실패");
+        }
         return password;
+    }
+
+    /** 패키지 내부 테스트 호환용. 외부 서비스·HTTP에서 호출할 수 없도록 공개하지 않는다. */
+    @Transactional
+    String loadPassword(Long accountId) {
+        PlatformAccount account = platformAccountRepository.findById(accountId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        return loadPasswordForOwner(accountId, account.getOwnerId());
+    }
+
+    @Transactional
+    public void revoke(PlatformAccount account) {
+        account.revoke();
+        platformAccountRepository.save(account);
     }
 }

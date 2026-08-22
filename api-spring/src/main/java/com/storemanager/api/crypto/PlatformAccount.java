@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,10 @@ public class PlatformAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Builder.Default
+    @Column(name = "public_id", nullable = false, updatable = false)
+    private UUID publicId = UUID.randomUUID();
 
     @Column(name = "owner_id", nullable = false)
     private Long ownerId;
@@ -53,6 +58,9 @@ public class PlatformAccount {
 
     @Column(name = "enc_nonce", nullable = false)
     private byte[] encNonce;
+
+    @Column(name = "password_fingerprint", nullable = false)
+    private byte[] passwordFingerprint; // HMAC-SHA256 지문. 복호화·DataAPI 전송에 사용하지 않는다.
 
     @Builder.Default
     @Column(name = "link_status", nullable = false)
@@ -86,5 +94,24 @@ public class PlatformAccount {
         this.linkStatus = "ERROR";
         this.lastErrorCode = ecode;
         this.lastErrorAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    /** DataAPI 검증 전 상태. 외부 규격이 없을 때 성공으로 오판하지 않는다. */
+    public void markVerificationPending(String reason) {
+        this.linkStatus = "PENDING";
+        this.lastErrorCode = reason;
+        this.lastErrorAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    /** 연동 철회 시 암호문을 즉시 무효화하고 계정을 재사용하지 못하게 한다. */
+    public void revoke() {
+        this.linkStatus = "REVOKED";
+        this.revokedAt = Instant.now();
+        this.encPassword = new byte[0];
+        this.encDek = new byte[0];
+        this.encNonce = new byte[0];
+        this.updatedAt = Instant.now();
     }
 }

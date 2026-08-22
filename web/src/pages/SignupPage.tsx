@@ -12,9 +12,27 @@ interface FormState {
   password: string;
   passwordConfirm: string;
   phone: string;
+  storeName: string;
+  storeAddress: string;
 }
 
-const INITIAL_FORM: FormState = { name: "", email: "", password: "", passwordConfirm: "", phone: "" };
+const INITIAL_FORM: FormState = {
+  name: "",
+  email: "",
+  password: "",
+  passwordConfirm: "",
+  phone: "",
+  storeName: "",
+  storeAddress: "",
+};
+
+declare global {
+  interface Window {
+    kakao?: {
+      Postcode: new (options: { oncomplete: (data: { address: string }) => void }) => { open: () => void };
+    };
+  }
+}
 
 export function SignupPage() {
   const { signup } = useAuth();
@@ -29,6 +47,8 @@ export function SignupPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
+    if (!form.storeName.trim()) errs.storeName = "매장명을 입력해 주세요.";
+    if (!form.storeAddress.trim()) errs.storeAddress = "주소를 검색해 선택해 주세요.";
     if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
     if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
     setFieldErrors(errs);
@@ -41,7 +61,14 @@ export function SignupPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await signup({ name: form.name, email: form.email, password: form.password, phone: form.phone || undefined });
+      await signup({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        phone: form.phone || undefined,
+        storeName: form.storeName,
+        storeAddress: form.storeAddress,
+      });
       navigate("/onboarding", { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.fields) {
@@ -54,6 +81,19 @@ export function SignupPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const searchAddress = () => {
+    if (!window.kakao?.Postcode) {
+      setError("주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    new window.kakao.Postcode({
+      oncomplete: ({ address }) => {
+        setForm((current) => ({ ...current, storeAddress: address }));
+        setFieldErrors((current) => ({ ...current, storeAddress: "" }));
+      },
+    }).open();
   };
 
   return (
@@ -78,6 +118,26 @@ export function SignupPage() {
             onChange={update("phone")}
             error={fieldErrors.phone}
           />
+          <Field
+            label="매장명"
+            required
+            value={form.storeName}
+            onChange={update("storeName")}
+            error={fieldErrors.storeName}
+          />
+          <div className="auth-card__address">
+            <Field
+              label="매장 주소"
+              required
+              readOnly
+              value={form.storeAddress}
+              error={fieldErrors.storeAddress}
+              placeholder="주소 검색 버튼을 눌러 주세요."
+            />
+            <Button type="button" variant="secondary" onClick={searchAddress}>
+              주소 검색
+            </Button>
+          </div>
           <Field
             label="비밀번호"
             type="password"

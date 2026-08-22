@@ -14,6 +14,16 @@ export interface UserSummary {
   email: string;
 }
 
+export interface AccountProfile {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  status: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
 export interface AuthResponse {
   accessToken: string;
   expiresIn: number;
@@ -34,6 +44,26 @@ export interface StoreResponse {
    * 안전하게(보수적으로) 취급한다 — CLAUDE.md 의 "activated_at IS NULL → 전량 스킵" 철학과 같은 방향이다.
    */
   activatedAt?: string | null;
+}
+
+export type DeliveryPlatform = "BAEMIN" | "YOGIYO" | "COUPANGEATS";
+
+export interface PlatformStoreLinkResponse {
+  storeId: string;
+  platformStoreId: string;
+  storeNameSnapshot: string | null;
+}
+
+export interface PlatformAccountResponse {
+  id: string;
+  platform: DeliveryPlatform;
+  maskedLoginId: string;
+  linkStatus: string;
+  verificationStatus: "DATAAPI_VERIFY_DEFERRED";
+  statusMessage: string;
+  lastErrorCode: string | null;
+  verifiedAt: string | null;
+  links: PlatformStoreLinkResponse[];
 }
 
 export type DraftStatus =
@@ -86,6 +116,7 @@ export interface ReviewSummary extends ReviewResponse {
 
 export interface ReviewListResponse {
   items: ReviewSummary[];
+  nextCursor: string | null;
   hasMore: boolean;
 }
 
@@ -298,6 +329,36 @@ export interface HqReviewListResponse {
 export interface HqIssueTagItem {
   tag: string;
   count: number;
+  previousCount: number;
+  /** 분석 완료 리뷰 100건당 발생 건수. 분석 데이터가 없으면 null. */
+  ratePer100: number | null;
+  previousRatePer100: number | null;
+  deltaRatePoints: number | null;
+  affectedStoreCount: number;
+  avgRating: number | null;
+  signal: "NEW" | "RISING" | "STABLE" | "FALLING";
+}
+
+export interface HqRiskClusterItem {
+  reason: string;
+  count: number;
+  previousCount: number;
+  affectedStoreCount: number;
+}
+
+export interface HqMenuIssueItem {
+  menu: string;
+  tag: string;
+  count: number;
+  affectedStoreCount: number;
+  avgRating: number | null;
+}
+
+export interface HqDailyRiskItem {
+  date: string;
+  analyzedCount: number;
+  issueReviewCount: number;
+  highRiskCount: number;
 }
 
 export interface HqStoreComparisonItem {
@@ -312,10 +373,20 @@ export interface HqStoreComparisonItem {
 export interface HqAnalyticsResponse {
   from: string;
   to: string;
+  previousFrom: string;
+  previousTo: string;
+  dataAsOf: string | null;
   totalReviews: number;
+  analyzedReviews: number;
+  analysisCoverageRate: number;
   avgRating: number | null;
+  highRiskReviews: number;
+  highRiskAffectedStores: number;
   ratingDistribution: RatingBucket[];
   categoryDistribution: CategoryBucket[];
   issueTagRanking: HqIssueTagItem[];
+  riskClusters: HqRiskClusterItem[];
+  menuIssues: HqMenuIssueItem[];
+  dailyRiskTrend: HqDailyRiskItem[];
   storeComparison: HqStoreComparisonItem[];
 }

@@ -75,4 +75,15 @@ public class AppUser {
     public void recordLogin(Instant at) {
         this.lastLoginAt = at;
     }
+
+    public void updateProfile(String name, String phone) {
+        this.name = name.trim();
+        this.phone = phone == null || phone.isBlank() ? null : phone.trim();
+        this.updatedAt = Instant.now();
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.passwordHash = encodedPassword;
+        this.updatedAt = Instant.now();
+    }
 }

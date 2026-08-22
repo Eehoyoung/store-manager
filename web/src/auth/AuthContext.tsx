@@ -8,6 +8,8 @@ export interface SignupPayload {
   password: string;
   name: string;
   phone?: string;
+  storeName: string;
+  storeAddress: string;
 }
 
 interface AuthContextValue {
@@ -16,6 +18,7 @@ interface AuthContextValue {
   status: "checking" | "ready";
   login: (email: string, password: string) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
+  updateUser: (user: UserSummary) => void;
   logout: () => Promise<void>;
 }
 
@@ -61,6 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   };
 
+  const updateUser = (nextUser: UserSummary) => setUser(nextUser);
+
   const logout = async () => {
     try {
       await apiRequest<void>("/auth/logout", { method: "POST" });
@@ -71,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const value = useMemo(() => ({ user, status, login, signup, logout }), [user, status]);
+  const value = useMemo(() => ({ user, status, login, signup, updateUser, logout }), [user, status]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

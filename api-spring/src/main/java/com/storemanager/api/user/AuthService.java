@@ -3,6 +3,7 @@ package com.storemanager.api.user;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.security.JwtTokenProvider;
+import com.storemanager.api.store.StoreService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -24,13 +25,15 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final StringRedisTemplate redisTemplate;
+    private final StoreService storeService;
 
     public AuthService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
-            JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate) {
+            JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate, StoreService storeService) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
+        this.storeService = storeService;
     }
 
     @Transactional
@@ -47,6 +50,7 @@ public class AuthService {
                 .phone(req.phone())
                 .build();
         appUserRepository.save(user);
+        storeService.createStore(user, req.storeName(), req.storeAddress());
         return issueTokens(user);
     }
 
@@ -82,6 +86,31 @@ public class AuthService {
         if (refreshToken != null) {
             redisTemplate.delete(REFRESH_KEY_PREFIX + refreshToken);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public AppUser getCurrentUser(UUID publicId) {
+        return appUserRepository.findByPublicIdAndDeletedAtIsNull(publicId)
+                .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
+    }
+
+    @Transactional
+    public AppUser updateProfile(UUID publicId, UpdateProfileRequest req) {
+        AppUser user = getCurrentUser(publicId);
+        user.updateProfile(req.name(), req.phone());
+        return user;
+    }
+
+    @Transactional
+    public void changePassword(UUID publicId, ChangePasswordRequest req) {
+        AppUser user = getCurrentUser(publicId);
+        if (user.getPasswordHash() == null || !passwordEncoder.matches(req.currentPassword(), user.getPasswordHash())) {
+            throw new ApiException(ErrorCode.UNAUTHORIZED);
+        }
+        if (passwordEncoder.matches(req.newPassword(), user.getPasswordHash())) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED);
+        }
+        user.changePassword(passwordEncoder.encode(req.newPassword()));
     }
 
     private TokenPair issueTokens(AppUser user) {
