@@ -1,13 +1,17 @@
 package com.storemanager.api.billing;
 
+import com.storemanager.api.billing.BillingDtos.CancellationRequestResponse;
 import com.storemanager.api.billing.BillingDtos.PaymentListResponse;
 import com.storemanager.api.billing.BillingDtos.SubscriptionResponse;
 import com.storemanager.api.security.CurrentUser;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 레거시 자체 결제 조회 API. 신규 구독 시작은 Groble 결제창으로만 진행한다. */
@@ -24,6 +28,12 @@ public class BillingController {
     @GetMapping("/subscription")
     public SubscriptionResponse get(@PathVariable UUID storeId) {
         return billingService.getSubscription(CurrentUser.publicId(), storeId);
+    }
+
+    @DeleteMapping("/subscription")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public CancellationRequestResponse requestCancellation(@PathVariable UUID storeId) {
+        return billingService.requestCancellation(CurrentUser.publicId(), storeId);
     }
 
     @GetMapping("/payments")

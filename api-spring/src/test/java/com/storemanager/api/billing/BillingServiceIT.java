@@ -2,12 +2,18 @@ package com.storemanager.api.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.billing.BillingDtos.CancellationRequestResponse;
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentRequest;
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentResponse;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.notify.NotificationLogRepository;
+import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.user.AppUser;
@@ -19,9 +25,11 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -34,6 +42,7 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers
+@AutoConfigureMockMvc
 class BillingServiceIT {
 
     @Container
@@ -47,6 +56,9 @@ class BillingServiceIT {
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired NotificationLogRepository notificationLogRepository;
+    @Autowired AuditLogRepository auditLogRepository;
+    @Autowired MockMvc mockMvc;
+    @Autowired JwtTokenProvider jwtTokenProvider;
 
     private record 매장픽스처(UUID ownerPublicId, UUID storePublicId, Long storeId) {
     }
@@ -165,6 +177,42 @@ class BillingServiceIT {
         billingService.runDailyOverdueBatch(); // 3회째 — ★ 더 이상 늘어나면 안 된다(중복발송 방지)
         assertThat(notificationLogRepository.countByRefTypeAndRefIdAndTemplate("PAYMENT", payment.getId(),
                 "PAYMENT_OVERDUE")).isEqualTo(2);
+    }
+
+    @Test
+    void 해지요청은_소유자만_가능하고_반복해도_최초요청과_감사로그_한건만_남긴다() {
+        매장픽스처 f = 매장을_만든다("cancel-owner@example.com");
+        Subscription sub = 구독을_만든다(f.storeId(), "ACTIVE", Instant.now(), Instant.now().plus(Duration.ofDays(30)));
+
+        CancellationRequestResponse first = billingService.requestCancellation(f.ownerPublicId(), f.storePublicId());
+        CancellationRequestResponse second = billingService.requestCancellation(f.ownerPublicId(), f.storePublicId());
+
+        assertThat(first.status()).isEqualTo("REQUESTED");
+        assertThat(second.requestedAt()).isEqualTo(first.requestedAt());
+        Subscription reloaded = subscriptionRepository.findById(sub.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo("ACTIVE");
+        assertThat(reloaded.getCancellationRequestedAt()).isNotNull();
+        assertThat(auditLogRepository.findAll()).filteredOn(log ->
+                "SUBSCRIPTION_CANCELLATION_REQUESTED".equals(log.getAction())
+                        && sub.getId().equals(log.getTargetId()))
+                .hasSize(1);
+
+        매장픽스처 other = 매장을_만든다("cancel-other@example.com");
+        assertThatThrownBy(() -> billingService.requestCancellation(other.ownerPublicId(), f.storePublicId()))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    void deleteSubscription은_해지요청을_202로_접수한다() throws Exception {
+        매장픽스처 f = 매장을_만든다("cancel-api@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now(), Instant.now().plus(Duration.ofDays(30)));
+
+        mockMvc.perform(delete("/api/v1/stores/{storeId}/subscription", f.storePublicId())
+                        .header("Authorization", "Bearer " + jwtTokenProvider.createAccessToken(f.ownerPublicId().toString())))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("REQUESTED"))
+                .andExpect(jsonPath("$.requestedAt").isString());
     }
 
 }

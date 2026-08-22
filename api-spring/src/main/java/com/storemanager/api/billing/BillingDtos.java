@@ -16,7 +16,12 @@ final class BillingDtos {
 
     /** GET /stores/{storeId}/subscription 레거시 응답. */
     record SubscriptionResponse(String status, String planCode, long priceKrw, long vatKrw, long totalKrw,
-            String currentPeriodStart, String currentPeriodEnd, BillingMethod billingMethod) {
+            String currentPeriodStart, String currentPeriodEnd, String cancellationRequestedAt,
+            BillingMethod billingMethod) {
+    }
+
+    /** Groble 해지 완료 전 로컬 접수 결과. DELETE 재호출에도 같은 시각을 돌려준다. */
+    record CancellationRequestResponse(String status, String requestedAt) {
     }
 
     /** PENDING 청구에만 동봉하는 입금 안내. 계좌 정보는 app.billing.* (환경변수)에서 온다. */

@@ -54,6 +54,9 @@ public class Subscription {
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
+    @Column(name = "cancellation_requested_at")
+    private Instant cancellationRequestedAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -85,5 +88,15 @@ public class Subscription {
         if ("PAST_DUE".equals(this.status) || "SUSPENDED".equals(this.status)) {
             this.status = "ACTIVE";
         }
+    }
+
+    /** Groble 해지 완료가 아니라 우리 시스템에 접수된 요청만 기록한다. */
+    public boolean requestCancellation(Instant requestedAt) {
+        if (this.cancellationRequestedAt != null) {
+            return false;
+        }
+        this.cancellationRequestedAt = requestedAt;
+        this.updatedAt = requestedAt;
+        return true;
     }
 }

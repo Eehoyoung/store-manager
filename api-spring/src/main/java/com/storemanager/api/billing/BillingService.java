@@ -3,6 +3,7 @@ package com.storemanager.api.billing;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.billing.BillingDtos.BillingMethod;
+import com.storemanager.api.billing.BillingDtos.CancellationRequestResponse;
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentRequest;
 import com.storemanager.api.billing.BillingDtos.ConfirmPaymentResponse;
 import com.storemanager.api.billing.BillingDtos.PaymentItem;
@@ -23,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -117,6 +119,28 @@ public class BillingService {
         Store store = loadOwnedStore(owner, storePublicId);
         Subscription sub = findActiveish(store.getId());
         return toSubscriptionResponse(sub);
+    }
+
+    /**
+     * Groble 해지 API 규격 수령 전에는 실제 CANCELED 전이를 만들지 않는다. 요청만 접수해 운영자가
+     * 확인할 수 있게 남기며, 같은 요청을 반복해도 최초 시각과 감사로그 1건을 유지한다.
+     */
+    @Transactional
+    public CancellationRequestResponse requestCancellation(UUID ownerPublicId, UUID storePublicId) {
+        AppUser owner = resolveUser(ownerPublicId);
+        Store store = loadOwnedStore(owner, storePublicId);
+        Subscription sub = subscriptionRepository.findActiveishForUpdate(store.getId())
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        if (sub.requestCancellation(Instant.now().truncatedTo(ChronoUnit.MICROS))) {
+            auditLogRepository.save(AuditLog.builder()
+                    .actorId(owner.getId())
+                    .actorType("USER")
+                    .action("SUBSCRIPTION_CANCELLATION_REQUESTED")
+                    .targetType("SUBSCRIPTION")
+                    .targetId(sub.getId())
+                    .build());
+        }
+        return new CancellationRequestResponse("REQUESTED", sub.getCancellationRequestedAt().toString());
     }
 
     @Transactional(readOnly = true)
@@ -255,6 +279,7 @@ public class BillingService {
         return new SubscriptionResponse(sub.getStatus(), sub.getPlanCode(), price, vat, price + vat,
                 sub.getCurrentPeriodStart() == null ? null : sub.getCurrentPeriodStart().toString(),
                 sub.getCurrentPeriodEnd() == null ? null : sub.getCurrentPeriodEnd().toString(),
+                sub.getCancellationRequestedAt() == null ? null : sub.getCancellationRequestedAt().toString(),
                 new BillingMethod("BANK_TRANSFER"));
     }
 
