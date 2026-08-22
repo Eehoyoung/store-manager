@@ -55,12 +55,14 @@ class AccountInfo:
 
 
 def _load_account(account_id: str) -> AccountInfo:
-    """TODO(블로킹): platform_account 조회는 DB 연동이 필요하고, LOGINPWD 복호화(KMS) 방식도
-    미확정이라 아직 실구현할 수 없다 (CLAUDE.md '미확정 사항으로 블로킹되는 작업' 참고).
-    확정 전까지는 호출을 막는다. 테스트는 account_loader 인자로 이 함수를 대체한다."""
-    raise NotImplementedError(
-        "platform_account 조회 미구현 — DataAPI 토큰·LOGINPWD 암호화 방식 회신 후 구현"
-    )
+    """platform_account 를 읽어 DataAPI 전송용 자격증명으로 바꾼다 (T-2).
+
+    복호화·재암호화는 credentials 모듈에 격리했다 — 평문이 존재하는 코드 구간을
+    한곳으로 몰아 두려는 것이다(절대규칙 5). 테스트는 account_loader 인자로 이 함수를 대체한다."""
+    from credentials import load_account
+
+    platform, creds = load_account(account_id)
+    return AccountInfo(platform=platform, credentials=creds)
 
 
 def _redis_client():
@@ -123,6 +125,10 @@ def _fetch_and_report(
     start_s, end_s = start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
     t0 = time.perf_counter()
     status, ecode, action, stores = "SUCCESS", None, None, []
+    # ★ BudgetExhaustedError 는 아래 except DataApiError 에 걸리지 않고 그대로 전파된다 — 의도된 것이다.
+    #   예산 소진은 우리 과금 문제지 사장님의 자격증명 문제가 아니다. collect-result 로 실패를
+    #   보고하면 link_status=ERROR 가 되어 '재연동하세요' 알림이 엉뚱하게 나간다.
+    #   호출 자체를 하지 않았으므로 보고할 사실도 없다.
     try:
         data = call_with_retry(
             lambda: client.fetch_reviews(account.platform, account.credentials, start_s, end_s),
@@ -133,7 +139,13 @@ def _fetch_and_report(
         status = "FAILED"
         ecode = exc.ecode
         action = ecode_action(exc.ecode)  # 실제 link_status 전이는 Spring 책임 — 여기선 사실만 전달
-        log.warning("collect failed account=%s ecode=%s action=%s", account_id, ecode, action)
+        # ERRMSG 는 업체가 주는 실패 사유다. 이게 없으면 '로그인 실패' 가 비밀번호 문제인지
+        # 암호화 설정 문제인지 구분할 수 없어 확인용 호출을 더 쓰게 된다.
+        # ★ 자격증명은 요청에만 있고 응답 ERRMSG 에는 없다 — 그래서 남겨도 안전하다(절대규칙 5).
+        log.warning(
+            "collect failed account=%s ecode=%s action=%s errmsg=%s",
+            account_id, ecode, action, exc.errmsg,
+        )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
     found = sum(len(s["reviews"]) for s in stores)
