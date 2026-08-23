@@ -138,7 +138,12 @@ def parse_envelope(resp: dict) -> dict:
     떨어지지 않으면 '원인 불명 실패' 로만 남는다 — 호출 한도 소진을 로그인 실패로 오인하게 된다.
     """
     data = resp.get("data") or {}
-    if data.get("RESULT") != "SUCCESS":
+    # ★ RESULT 만으로는 부족하다. 댓글 중복(ERR_MDCOM_MSG00009)은 업체 스펙의 '실패 응답 예시'
+    #   인데도 data.RESULT 가 "SUCCESS" 로 온다(docs/댓글 생성.html §5). 이걸 성공으로 넘기면
+    #   댓글이 달리지 않았는데 PUBLISHED 로 기록되고, 사장님 화면에는 답글이 달린 것으로 보인다.
+    #   그래서 ECODE 가 채워져 있으면 RESULT 와 무관하게 실패로 다룬다.
+    #   (정상 응답의 ECODE 는 빈 문자열이라 _s() 가 None 으로 정규화한다)
+    if data.get("RESULT") != "SUCCESS" or _s(data.get("ECODE")) is not None:
         ecode = _s(data.get("ECODE"))
         # EMSG 는 스펙상 "데이터부 상세 오류 메시지" 다. ERRMSG 가 비어 있을 때 원인이 여기 있다.
         errmsg = _s(data.get("ERRMSG")) or _s(data.get("EMSG"))

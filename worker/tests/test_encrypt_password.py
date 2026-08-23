@@ -129,3 +129,35 @@ def test_실제_2002_응답에는_data_키가_아예_없다():
     assert ei.value.errmsg == "not found useable service"
     assert ecode_action("2002") == "CONFIG_ERROR"   # 사장님이 아니라 운영자·업체가 고칠 문제
     assert _is_retryable("2002") is False           # 서비스가 열리기 전엔 몇 번을 불러도 같다
+
+
+def test_댓글중복은_RESULT가_SUCCESS여도_실패다():
+    """업체 스펙(docs/댓글 생성.html §5)의 '실패 응답 예시' 원문 그대로.
+
+    ★ data.RESULT 가 "SUCCESS" 인데 ECODE 에 중복 오류가 담겨 온다. RESULT 만 보면
+      댓글이 안 달렸는데 PUBLISHED 로 기록되고, 사장님 화면에는 답글이 달린 것으로 보인다.
+    """
+    from dataapi import AlreadyRepliedError
+
+    resp = {
+        "errCode": "0000", "errMsg": "success", "result": "SUCCESS",
+        "data": {
+            "ETRACK": "null", "REVIEWCOMMENTID": "null",
+            "ERRMSG": "사장님 댓글은 1개만 등록하실 수 있습니다. 확인 후 다시 시도해 주세요.",
+            "ECODE": "ERR_MDCOM_MSG00009", "ERRDOC": "null", "RESULT": "SUCCESS",
+        },
+    }
+    with pytest.raises(AlreadyRepliedError) as ei:
+        parse_envelope(resp)
+    assert ei.value.ecode == "ERR_MDCOM_MSG00009"
+
+
+def test_정상_등록응답은_통과한다():
+    """ECODE 가 빈 문자열이면 성공이다 — 보강 때문에 정상 응답이 막히면 안 된다."""
+    resp = {
+        "errCode": "0000", "errMsg": "success", "result": "SUCCESS",
+        "data": {"ETRACK": "null", "REVIEWCOMMENTID": "37395110", "STOREID": "422574",
+                 "REVIEWID": "164538670", "CREATETIME": "", "ERRMSG": "", "ECODE": "",
+                 "RESULT": "SUCCESS"},
+    }
+    assert parse_envelope(resp)["REVIEWCOMMENTID"] == "37395110"
