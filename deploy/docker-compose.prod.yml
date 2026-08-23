@@ -1,0 +1,190 @@
+# 운영 배포 Compose.
+#
+# 루트의 docker-compose.yml 은 개발용이다. 그것과의 차이가 이 파일의 존재 이유다.
+#   - DB·Redis 포트를 호스트에 열지 않는다 (개발용은 5433/6380 을 연다)
+#   - Caddy 가 유일한 외부 노출 지점이다. 80/443 만 열린다
+#   - 모든 서비스에 재시작 정책과 로그 상한이 있다
+#   - 백업 컨테이너가 매일 돈다
+#   - 비밀값은 .env 가 아니라 배포 환경의 시크릿에서 주입한다
+#
+# 실행:  docker compose -f deploy/docker-compose.prod.yml --env-file /etc/storemanager/env up -d
+#
+# ★ 이 파일과 같은 디렉터리에 .env 를 두지 말 것. 비밀값은 저장소 밖에 둔다.
+
+name: storemanager-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: "${SITE_DOMAIN:?SITE_DOMAIN 을 설정하세요 - 예 app.example.com}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # 발급받은 인증서. 이걸 잃으면 재발급 한도에 걸릴 수 있다
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - api-spring
+      - web
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    logging: *default-logging
+    # ★ 포트를 열지 않는다. 개발용과의 가장 중요한 차이다 —
+    #   자격증명 암호문과 리뷰 원문이 들어 있는 DB 를 인터넷에 노출하지 않는다.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    # appendonly: 게시 큐·분산락·호출 예산 카운터가 여기 있다. 재시작으로 잃으면 안 된다.
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-spring:
+    build:
+      context: ../api-spring
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      ai-python: {condition: service_started}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_BASE_URL: http://ai-python:8001
+      # Caddy 가 같은 오리진으로 넘기므로 교차 오리진 요청이 없다.
+      APP_CORS_ALLOWED_ORIGINS: https://${SITE_DOMAIN}
+      JWT_SECRET: ${JWT_SECRET:?}
+      CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
+      CREDENTIAL_KEY_ID: ${CREDENTIAL_KEY_ID:-prod}
+      # ★ 운영에서는 true. KMS 어댑터가 준비되기 전에는 기동이 차단된다 — 의도된 것이다.
+      CREDENTIAL_REQUIRE_KMS: ${CREDENTIAL_REQUIRE_KMS:-false}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
+      APP_ADMIN_USER_IDS: ${APP_ADMIN_USER_IDS:-}
+      AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?}
+      PRIVACY_RETENTION_DAYS: ${PRIVACY_RETENTION_DAYS:-1095}
+      PUBLISH_SCHEDULER_ENABLED: ${PUBLISH_SCHEDULER_ENABLED:-true}
+      DRAFT_SCHEDULER_ENABLED: ${DRAFT_SCHEDULER_ENABLED:-true}
+      # ★ 개인정보 파기 배치. 운영에서 끄면 보유기간을 정해 두고 영구 보관하게 된다.
+      RETENTION_SCHEDULER_ENABLED: ${RETENTION_SCHEDULER_ENABLED:-true}
+      BILLING_SCHEDULER_ENABLED: ${BILLING_SCHEDULER_ENABLED:-false}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  ai-python:
+    build:
+      context: ../ai-python
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # 골든셋 평가는 운영에서 자동으로 돌지 않는다 (1회 약 1,500원).
+      GOLDENSET_EVAL_ENABLED: ${GOLDENSET_EVAL_ENABLED:-false}
+
+  worker:
+    build:
+      context: ../worker
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      redis: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+      api-spring: {condition: service_started}
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SPRING_INTERNAL_URL: http://api-spring:8080
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
+      DATAAPI_BASE_URL: ${DATAAPI_BASE_URL:?}
+      DATAAPI_TOKEN: ${DATAAPI_TOKEN:?}
+      # ★ 기본 false 를 유지한다. 댓글 등록은 되돌릴 수 없다(수정 API 스펙 미수령).
+      DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-false}
+      DATAAPI_ENC_SPEC: ${DATAAPI_ENC_SPEC:?}
+      DATAAPI_ENC_KEY: ${DATAAPI_ENC_KEY:?}
+      DATAAPI_ENC_IV: ${DATAAPI_ENC_IV:?}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
+      # 0 = 무제한. 테스트 토큰을 쓸 때만 잔여 횟수를 넣는다.
+      DATAAPI_CALL_BUDGET: ${DATAAPI_CALL_BUDGET:-0}
+
+  web:
+    build:
+      context: ../web
+      args:
+        # 같은 오리진이므로 상대 경로면 충분하다 — 도메인이 바뀌어도 다시 빌드할 필요가 없다.
+        VITE_API_BASE_URL: /api/v1
+        VITE_GROBLE_PAYMENT_URL: ${VITE_GROBLE_PAYMENT_URL:-}
+    restart: unless-stopped
+    logging: *default-logging
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backup
+    # ★ 매일 03:00(UTC 18:00 = KST 03:00) 백업. 청구·파기 배치보다 앞에 둔다 —
+    #   배치가 데이터를 바꾸기 전 상태를 남겨야 사고 시 되돌릴 수 있다.
+    entrypoint: >
+      sh -c 'while true; do
+        now=$$(date -u +%H%M);
+        if [ "$$now" = "1800" ]; then /backup.sh || echo "[backup] 실패"; sleep 3600; fi;
+        sleep 30;
+      done'
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

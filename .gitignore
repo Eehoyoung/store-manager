@@ -44,3 +44,6 @@ AGENTS.md
 
 # 실연동 점검(smoke_dataapi.py)이 남기는 실매장 리뷰 원문 — 가명처리 전 커밋 금지
 worker/fixture_*_review.json
+
+# 운영 백업 산출물 — 자격증명 암호문과 리뷰 원문이 들어 있다. 절대 커밋 금지.
+deploy/backups/

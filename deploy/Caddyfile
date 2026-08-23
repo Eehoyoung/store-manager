@@ -1,0 +1,48 @@
+# 리버스 프록시 + 자동 HTTPS.
+#
+# ★ Caddy 를 쓰는 이유: Let's Encrypt 인증서 발급·갱신을 알아서 한다. nginx + certbot 은
+#   갱신 크론이 조용히 죽으면 90일 뒤 사이트가 죽는데, 그때가 되어서야 안다.
+#
+# ★ API 와 웹을 같은 오리진에 둔다. 그러면 CORS 화이트리스트를 관리할 필요가 없고,
+#   refresh 쿠키가 SameSite=Strict 로 동작한다 — 교차 오리진일 때보다 안전하다.
+
+{$SITE_DOMAIN} {
+	encode gzip
+
+	# API 는 경로로 가른다. 브라우저 입장에서는 같은 오리진이다.
+	handle /api/* {
+		reverse_proxy api-spring:8080
+	}
+
+	# ★ /internal/* 는 절대 외부에 열지 않는다. 워커 전용 경로이며 X-Internal-Token 하나로
+	#   가맹본부 계정이 생성된다. 컨테이너 네트워크 안에서만 접근한다.
+	handle /internal/* {
+		respond 404
+	}
+
+	# actuator 도 막는다. 헬스체크는 컨테이너 내부에서 한다.
+	handle /actuator/* {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy web:5173
+	}
+
+	header {
+		# HSTS — 한 번 https 로 접속한 브라우저는 이후 http 를 시도하지 않는다.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# 서버 종류를 굳이 알릴 이유가 없다.
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 10
+		}
+	}
+}
