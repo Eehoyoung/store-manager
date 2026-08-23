@@ -104,7 +104,8 @@ public class BillingService {
         Subscription sub = Subscription.builder()
                 .storeId(store.getId())
                 .priceKrw(PRICE_KRW)
-                .status("ACTIVE") // ★ TRIAL 미사용(DDL 기본값은 TRIAL 이지만 이번 범위는 항상 즉시 ACTIVE)
+                // ★ 상태를 지정하지 않는다 = TRIAL(서비스 대기). 입금을 확인한 운영자만 ACTIVE 로 올린다.
+                //   여기서 ACTIVE 를 넣으면 돈을 받기 전에 서비스가 시작된다(2026-08-23 결정).
                 .currentPeriodStart(now)
                 .currentPeriodEnd(periodEnd)
                 .build();

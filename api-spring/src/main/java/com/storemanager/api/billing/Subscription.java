@@ -41,9 +41,16 @@ public class Subscription {
     @Column(name = "price_krw", nullable = false)
     private BigDecimal priceKrw;
 
+    /**
+     * TRIAL|ACTIVE|PAST_DUE|SUSPENDED|CANCELED
+     *
+     * ★ 기본값은 반드시 '서비스하지 않는' 상태여야 한다. 예전 기본값이 ACTIVE 라, 상태를 적지 않고
+     *   구독을 만들면 입금 없이 곧바로 서비스가 시작됐다. DDL 기본값(TRIAL)과도 어긋나 있었다.
+     * ★ ACTIVE 는 입금을 확인한 뒤에만 명시적으로 넣는다(2026-08-23 결정).
+     */
     @Builder.Default
     @Column(nullable = false)
-    private String status = "ACTIVE"; // TRIAL|ACTIVE|PAST_DUE|SUSPENDED|CANCELED — TRIAL 은 이번 범위에서 쓰지 않는다
+    private String status = "TRIAL";
 
     @Column(name = "current_period_start")
     private Instant currentPeriodStart;

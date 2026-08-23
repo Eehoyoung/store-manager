@@ -52,9 +52,19 @@ class StoreServiceGateTest {
     }
 
     @Test
-    void 체험중은_서비스한다() {
+    void 입금_전_TRIAL_은_서비스하지_않는다() {
+        // 2026-08-23 결정: 입금을 확인한 뒤에만 서비스한다.
+        // TRIAL 은 가입 직후 기본값이다 - 여기가 열려 있으면 아무나 가입만으로 서비스를 받는다.
         subscription("TRIAL");
-        assertThat(gate.isServiceable(store())).isTrue();
+        assertThat(gate.isServiceable(store())).isFalse();
+    }
+
+    @Test
+    void 구독을_상태_지정_없이_만들면_서비스되지_않는다() {
+        // 엔티티 기본값이 ACTIVE 이던 시절, 상태를 적지 않은 구독이 곧바로 서비스 가능이 됐다.
+        Subscription created = Subscription.builder().storeId(1L)
+                .priceKrw(new java.math.BigDecimal("30000")).build();
+        assertThat(StoreServiceGate.SERVICEABLE_SUBSCRIPTION_STATUSES).doesNotContain(created.getStatus());
     }
 
     @Test
