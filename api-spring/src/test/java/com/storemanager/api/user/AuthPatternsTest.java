@@ -38,15 +38,20 @@ class AuthPatternsTest {
     }
 
     @Test
-    void 가맹코드는_혼동문자를_받지_않는다() {
-        // CODE_ALPHABET 에서 I, O, 0, 1 을 뺐다 - 전화로 불러줄 때 혼동을 막기 위함이다.
-        assertThat(CODE.matcher("ABCD2345").matches()).isTrue();
+    void 가맹코드는_전달되는_형태_그대로_받는다() {
+        // 코드는 9R75-KLZQ-S97E 처럼 하이픈이 붙어 전달된다. 사장님이 소문자로 치거나 공백을
+        // 넣어도 받아야 한다 - 실제 대조는 FranchiseService 가 정규화 후 해시로 한다.
+        assertThat(CODE.matcher("9R75-KLZQ-S97E").matches()).isTrue();
+        assertThat(CODE.matcher("9r75 klzq s97e").matches()).isTrue();
         assertThat(CODE.matcher("").matches()).isTrue();
-        assertThat(CODE.matcher("ABCI2345").matches()).isFalse();
-        assertThat(CODE.matcher("ABCO2345").matches()).isFalse();
-        assertThat(CODE.matcher("ABC02345").matches()).isFalse();
-        assertThat(CODE.matcher("ABC12345").matches()).isFalse();
-        assertThat(CODE.matcher("abcd2345").matches()).isFalse();       // 정규화는 화면 책임
         assertThat(CODE.matcher("ABC").matches()).isFalse();            // 너무 짧음
+    }
+
+    @Test
+    void 가맹코드에_주입_문자열을_받지_않는다() {
+        // 이 패턴의 일은 코드가 맞는지 판정하는 게 아니라 제어문자·주입 문자열을 거르는 것이다.
+        assertThat(CODE.matcher("9R75<script>").matches()).isFalse();
+        assertThat(CODE.matcher("9R75\nKLZQ").matches()).isFalse();
+        assertThat(CODE.matcher("9R75'--").matches()).isFalse();
     }
 }

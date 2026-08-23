@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { Field } from "../components/Field";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { AddressField } from "../components/AddressField";
 import { formatPhone, normalizeFranchiseCode } from "../lib/format";
 import { AuthAside } from "../components/AuthAside";
 
@@ -90,19 +91,6 @@ export function SignupPage() {
     }
   };
 
-  const searchAddress = () => {
-    if (!window.kakao?.Postcode) {
-      setError("주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
-      return;
-    }
-    new window.kakao.Postcode({
-      oncomplete: ({ address }) => {
-        setForm((current) => ({ ...current, storeAddress: address }));
-        setFieldErrors((current) => ({ ...current, storeAddress: "" }));
-      },
-    }).open();
-  };
-
   return (
     <div className="auth-page">
       <AuthAside />
@@ -146,19 +134,16 @@ export function SignupPage() {
             onChange={update("storeName")}
             error={fieldErrors.storeName}
           />
-          <div className="auth-card__address">
-            <Field
-              label="매장 주소"
-              required
-              readOnly
-              value={form.storeAddress}
-              error={fieldErrors.storeAddress}
-              placeholder="주소 검색 버튼을 눌러 주세요."
-            />
-            <Button type="button" variant="secondary" onClick={searchAddress}>
-              주소 검색
-            </Button>
-          </div>
+          <AddressField
+            label="매장 주소"
+            required
+            value={form.storeAddress}
+            error={fieldErrors.storeAddress}
+            onChange={(next) => {
+              setForm((c) => ({ ...c, storeAddress: next }));
+              setFieldErrors((c) => ({ ...c, storeAddress: "" }));
+            }}
+          />
           <Field
             label="비밀번호"
             type="password"

@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
  */
 record SignupRequest(
         @NotBlank @Email @Size(max = 255) String email,
-        @NotBlank @Size(min = 8, max = 100) String password,
+        @NotBlank @Size(min = 10, max = 100) String password,
         @NotBlank @Size(max = 50) String name,
         @Pattern(regexp = AuthPatterns.PHONE, message = "휴대폰 번호 형식이 올바르지 않습니다.")
         @Size(max = 20) String phone,
@@ -42,7 +42,7 @@ record UpdateProfileRequest(
 
 record ChangePasswordRequest(
         @NotBlank String currentPassword,
-        @NotBlank @Size(min = 8, max = 100) String newPassword) {
+        @NotBlank @Size(min = 10, max = 100) String newPassword) {
 }
 
 /**
@@ -52,7 +52,11 @@ record ChangePasswordRequest(
  */
 final class AuthPatterns {
     static final String PHONE = "^$|^0[0-9]{1,2}-[0-9]{3,4}-[0-9]{4}$";
-    static final String FRANCHISE_CODE = "^$|^[A-HJ-NP-Z2-9]{4,32}$";
+    // 코드는 9R75-KLZQ-S97E 처럼 하이픈이 붙은 형태로 사장님에게 전달된다. 대소문자·공백·하이픈을
+    // 그대로 받고, 실제 대조는 FranchiseService 가 정규화 후 해시로 한다.
+    // ★ 여기서 알파벳까지 좁히면 정상 코드가 막힌다 - 이 패턴의 일은 제어문자·주입 문자열을
+    //   거르는 것이지 코드가 맞는지 판정하는 게 아니다.
+    static final String FRANCHISE_CODE = "^$|^[A-Za-z0-9 -]{4,32}$";
 
     private AuthPatterns() {
     }

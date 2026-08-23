@@ -6,6 +6,7 @@ import { ApiError } from "../api/client";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Field } from "../components/Field";
+import { AddressField } from "../components/AddressField";
 import { Badge } from "../components/Badge";
 import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
@@ -142,7 +143,7 @@ function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void 
       <form onSubmit={handleSubmit} noValidate>
         <Field label="매장명" required value={form.name} onChange={update("name")} />
         <Field label="업종 (선택)" value={form.category} onChange={update("category")} />
-        <Field label="주소 (선택)" value={form.address} onChange={update("address")} />
+        <AddressField label="주소 (선택)" value={form.address} onChange={(next) => setForm((c) => ({ ...c, address: next }))} />
         {error ? (
           <p className="auth-card__error" role="alert">
             {error}

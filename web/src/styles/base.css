@@ -10,6 +10,41 @@ body,
   height: 100%;
 }
 
+/*
+ * 모바일 웹 기반. 앱이 아니라 브라우저에서 도는 것을 전제로 한다.
+ *
+ * ★ 100vh 를 쓰지 않는다. 모바일 브라우저는 주소창이 접힐 때 vh 를 바꾸지 않아,
+ *   화면 아래가 주소창에 잘리거나 스크롤이 튄다. dvh 는 실제 보이는 높이를 따라간다.
+ * ★ 하단 탭은 아이폰 홈 인디케이터 위에 겹친다. safe-area 만큼 띄운다.
+ */
+:root {
+  --app-height: 100dvh;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+@supports not (height: 100dvh) {
+  :root {
+    --app-height: 100vh;
+  }
+}
+
+body {
+  /* 가로 스크롤은 어떤 화면에서도 나오면 안 된다 — 좁은 화면에서 표·긴 문자열이 밀어낸다. */
+  overflow-x: hidden;
+  /* 탭할 때 파란 사각형이 번쩍이지 않게. 포커스 링은 그대로 둔다(접근성). */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 긴 이메일·URL 이 레이아웃을 밀어내지 않게 한다. 한국어는 어절 단위로 끊는다. */
+p,
+h1,
+h2,
+h3,
+td,
+li {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
 body {
   margin: 0;
   font-family: var(--font-family);

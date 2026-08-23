@@ -175,11 +175,11 @@ export function DashboardPage() {
             <tbody>
               {issues.items.map((it, i) => (
                 <tr key={it.tag}>
-                  <td>{i + 1}</td>
-                  <td>{it.tag}</td>
-                  <td>{it.count}건</td>
-                  <td>{it.avgRating != null ? it.avgRating.toFixed(1) : "-"}</td>
-                  <td>{formatDateOnly(it.lastOccurredAt)}</td>
+                  <td data-label="순위">{i + 1}</td>
+                  <td data-label="태그">{it.tag}</td>
+                  <td data-label="건수">{it.count}건</td>
+                  <td data-label="평균 별점">{it.avgRating != null ? it.avgRating.toFixed(1) : "-"}</td>
+                  <td data-label="최근 발생">{formatDateOnly(it.lastOccurredAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -203,9 +203,9 @@ export function DashboardPage() {
             <tbody>
               {menus.items.map((m) => (
                 <tr key={m.menu}>
-                  <td>{m.menu}</td>
-                  <td>{m.count}건</td>
-                  <td>{m.avgRating != null ? m.avgRating.toFixed(1) : "-"}</td>
+                  <td data-label="메뉴">{m.menu}</td>
+                  <td data-label="언급 건수">{m.count}건</td>
+                  <td data-label="평균 별점">{m.avgRating != null ? m.avgRating.toFixed(1) : "-"}</td>
                 </tr>
               ))}
             </tbody>

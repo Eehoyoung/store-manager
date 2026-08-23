@@ -47,6 +47,8 @@ public class AuthService {
                     throw new ApiException(ErrorCode.DUPLICATE_RESOURCE);
                 });
 
+        PasswordPolicy.validate(req.password(), req.email(), req.name());
+
         AppUser user = AppUser.builder()
                 .email(req.email().trim().toLowerCase(java.util.Locale.ROOT))
                 .passwordHash(passwordEncoder.encode(req.password()))
@@ -117,6 +119,7 @@ public class AuthService {
         if (passwordEncoder.matches(req.newPassword(), user.getPasswordHash())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED);
         }
+        PasswordPolicy.validate(req.newPassword(), user.getEmail(), user.getName());
         user.changePassword(passwordEncoder.encode(req.newPassword()));
     }
 
