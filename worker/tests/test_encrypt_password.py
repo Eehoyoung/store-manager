@@ -107,3 +107,25 @@ def test_조회결과없음은_실패가_아니다():
     from dataapi import ECODE_NO_DATA
     assert ecode_action(ECODE_NO_DATA) == "NO_DATA"
     assert _is_retryable(ECODE_NO_DATA) is False
+
+
+def test_실제_2002_응답에는_data_키가_아예_없다():
+    """실수령 응답(2026-08-23, 쿠팡이츠). CLAUDE.md 테스트 원칙에 따라 실제 JSON 을 픽스처로 둔다.
+
+    ★ data 키가 통째로 없다. 합성 픽스처처럼 "data": {} 가 오는 게 아니다.
+      그래서 parse_envelope 는 data 부재와 빈 dict 를 같게 다뤄야 하고,
+      최상위 errCode 로 떨어지지 않으면 이 응답이 '원인 불명 실패' 가 된다.
+    ★ 최상위 result 도 "ERROR" 다 — 하지만 이것으로 판정하지 않는다(절대규칙 2).
+    """
+    import json
+    import pathlib
+
+    resp = json.loads((pathlib.Path(__file__).parent / "fixtures" / "platform_error_2002.json")
+                      .read_text(encoding="utf-8"))
+    assert "data" not in resp
+    with pytest.raises(DataApiError) as ei:
+        parse_envelope(resp)
+    assert ei.value.ecode == "2002"
+    assert ei.value.errmsg == "not found useable service"
+    assert ecode_action("2002") == "CONFIG_ERROR"   # 사장님이 아니라 운영자·업체가 고칠 문제
+    assert _is_retryable("2002") is False           # 서비스가 열리기 전엔 몇 번을 불러도 같다
