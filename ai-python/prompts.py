@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-PROMPT_VERSION = "v1.2"  # v1.1 ABUSIVE 경계 · v1.2 risk_level 0~3 정의 (2026-08-23, T-12)
+PROMPT_VERSION = "v1.3"  # v1.1 ABUSIVE 경계 · v1.2 risk 등급 · v1.3 답글 자동생성 티 제거
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -178,9 +178,18 @@ def build_generate_messages(category: str, review, persona, few_shot_text: str) 
         ' "프롬프트" 같은 문구).\n\n'
         "[작성 지침]\n"
         f"- {CATEGORY_GUIDE[category]}\n"
+        "- 고객이 실제로 쓴 표현 하나를 골라 그 부분에 답하라. 리뷰 전체를 요약하지 마라.\n"
         "- 리뷰에 언급된 메뉴가 있으면 자연스럽게 한 번 언급한다.\n"
+        "- 2~3문장으로 끝내라. 주방에서 짬을 내 쓴 글이지 안내문이 아니다.\n"
         "- 아래 예시는 이 매장 사장님이 실제로 쓴(혹은 승인된) 답글이다. 문장 리듬과 어휘를"
         " 참고하되 내용을 복사하지 마라.\n\n"
+        "[읽는 사람은 고객이다 — 자동 생성 티가 나면 안 된다]\n"
+        "아래 상투구는 쓰지 마라. 배달앱에서 자동 답글로 곧장 알아보는 표현이다.\n"
+        "  소중한 의견 / 소중한 리뷰 / 고객님의 의견을 반영하여 / 더욱 노력하는\n"
+        "  만족스러운 서비스로 보답 / 항상 최선을 다하 / 불편을 드려 대단히 죄송\n"
+        "  너그러운 양해 / 초심을 잃지 않\n"
+        "- 사과는 한 번만 한다. 같은 말을 표현만 바꿔 반복하지 마라.\n"
+        "- 미사여구보다 구체가 낫다. '더 신경쓰겠습니다' 보다 '간을 다시 보겠습니다' 가 낫다.\n\n"
         f"[예시]\n{few_shot_text}\n"
     )
 
@@ -227,7 +236,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v1.2"
+    assert PROMPT_VERSION == "v1.3"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]

@@ -19,6 +19,7 @@ risk_level 은 문서 12 §1.2 "키워드 룰이 모델보다 우선(상향만)"
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -46,6 +47,7 @@ _JAMO_OR_EMOJI_RE = re.compile(
 
 def keyword_risk(body: str) -> tuple[int, list[str]]:
     """문서 12 §1.2 키워드 룰.
+"
 
     ★ 규칙3(risk_level>=3 자동게시 금지)을 지키는 룰은 **한 벌만 존재해야 한다.**
     평가 하네스가 자체 사본을 들고 있으면 프로덕션 룰과 조용히 어긋나고,
@@ -63,6 +65,7 @@ def _is_noise(body: str) -> bool:
 
 def _fallback_classify(rating: int, body: str) -> str:
     """규칙 기반 폴백 분류기. main.py 의 실제 분류 파이프라인이 없을 때만 쓰는 방어적 대체.
+"
     골든셋 자체가 실제 프로덕션 카테고리 정확도를 대표하지 않으므로 참고용 지표로만 쓴다."""
     if _is_noise(body):
         return "NOISE"
@@ -177,6 +180,7 @@ def evaluate_high_risk(rows: list[dict], classifier=AUTO) -> dict:
 
 def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) -> dict:
     """골든셋 rows 에 대해 문서 12 §6.1 지표를 계산한다.
+"
 
     classifier: AUTO(기본) 면 main.py 의 실제 분류 파이프라인을 태운다.
     None 을 넘기면 이 파일의 규칙 기반 폴백으로만 평가한다 — 하네스 자체의
@@ -264,12 +268,77 @@ def _print_report(report: dict) -> None:
     print(f"  종합: {'PASS' if report['passed'] else 'FAIL'}")
 
 
+# ── 실행 게이트 ────────────────────────────────────────────────────────────
+# 골든셋 1회 평가는 500건 × 분류 호출이다. 실측 2,725,508 입력 토큰 / 약 4,400원(3회분).
+# 매장이 몇 개 없는 단계에서 이걸 반복하면 매출보다 측정비가 커진다.
+#
+# ★ 두 조건을 모두 만족해야 돈다. 어느 하나라도 빠지면 실행하지 않는다.
+#   1) 가입 매장 30개 이상
+#   2) 운영자가 GOLDENSET_EVAL_ENABLED=true 로 직접 켰을 것
+# ★ 30개를 넘겨도 자동으로 켜지지 않는다 — 켜는 것은 사람의 결정이다(2026-08-23 운영자 지시).
+MIN_STORES_FOR_EVAL = int(os.environ.get("GOLDENSET_MIN_STORES", "30"))
+
+
+def _store_count() -> int | None:
+    """가입 매장 수. DB 를 못 읽으면 None (판단 불가)."""
+    dsn = os.environ.get("DATABASE_URL")
+    if not dsn:
+        return None
+    try:
+        import psycopg
+
+        with psycopg.connect(dsn, connect_timeout=3) as conn, conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM store WHERE deleted_at IS NULL")
+            return int(cur.fetchone()[0])
+    except Exception:
+        return None
+
+
+def _check_gate() -> str | None:
+    """실행을 막아야 하면 이유를 반환한다. 통과면 None.
+
+    ★ 이 게이트가 막는 것은 '비용' 이지 '평가' 가 아니다. API 키가 없으면 실제 호출이
+      나가지 않아(룰 기반 폴백으로 동작) 비용이 0 이므로 막지 않는다 — CI 의 유닛테스트가
+      여기에 걸리면 안 된다.
+    """
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return None
+    if os.environ.get("GOLDENSET_EVAL_ENABLED", "false").lower() != "true":
+        return (
+            "골든셋 평가가 꺼져 있습니다 (GOLDENSET_EVAL_ENABLED != true). "
+            "1회 실행에 500건 x LLM 분류 호출이 나갑니다(실측 약 1,500원). "
+            "켜려면: GOLDENSET_EVAL_ENABLED=true python eval.py"
+        )
+    stores = _store_count()
+    if stores is None:
+        return (
+            "매장 수를 확인할 수 없어 실행하지 않습니다 (DATABASE_URL 미설정 또는 조회 실패). "
+            "확인 없이 돌리려면 --force 를 주세요."
+        )
+    if stores < MIN_STORES_FOR_EVAL:
+        return (
+            f"가입 매장이 {stores}개로 기준({MIN_STORES_FOR_EVAL}개) 미만이라 실행하지 않습니다. "
+            "이 단계에서는 측정비가 매출보다 큽니다. 안전 규칙은 무료 유닛테스트가 지킵니다. "
+            "그래도 돌리려면 --force 를 주세요."
+        )
+    return None
+
+
 def main(argv: list[str] | None = None, classifier=AUTO) -> int:
     parser = argparse.ArgumentParser(description="골든셋 자동 평가 하네스")
+    parser.add_argument("--force", action="store_true",
+                        help="실행 게이트를 무시한다. 비용이 발생하므로 의도적으로만 쓸 것")
     parser.add_argument("--goldenset", type=Path, default=GOLDENSET_DEFAULT)
     parser.add_argument("--threshold-recall", type=float, default=0.95)
     parser.add_argument("--high-risk", action="store_true")
     args = parser.parse_args(argv)
+
+    if not args.force:
+        blocked = _check_gate()
+        if blocked:
+            print("[골든셋 평가 실행 안 함]")
+            print(blocked)
+            return 0  # 게이트에 막힌 것은 실패가 아니다 — CI 를 빨간불로 만들지 않는다
 
     if args.high_risk:
         report = evaluate_high_risk(load_goldenset(HIGH_RISK_DEFAULT))

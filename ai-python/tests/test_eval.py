@@ -7,21 +7,33 @@ import eval as eval_mod
 
 # ── 골든셋 파일 자체의 무결성 (T2 산출물 검증) ───────────────────────────
 
-def test_goldenset_category_ratio_matches_spec():
+def test_goldenset_has_no_duplicate_bodies():
+    """★ 같은 본문이 여러 번 들어가면 안 된다.
+
+    예전 이 테스트는 카테고리별·업종별 '정확한 개수' 를 요구했다. 그 할당량을 채우려고
+    같은 문장을 최대 5회까지 복사해 넣었고(2026-08-23 발견), 그 결과
+      - 측정 비용만 늘고 신호는 늘지 않았다
+      - 한 표현을 놓치면 5건이 한꺼번에 틀려 재현율이 실제보다 나쁘게 보였다
+    개수를 맞추는 것보다 중복이 없는 것이 중요하다.
+    """
     rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
-    assert len(rows) == 500
+    bodies = [r["body"].strip() for r in rows if r["body"].strip()]
+    dupes = {b for b in bodies if bodies.count(b) > 1}
+    assert not dupes, f"중복 본문 {len(dupes)}종: {list(dupes)[:3]}"
+    assert len({r["id"] for r in rows}) == len(rows), "id 중복"
+
+
+def test_goldenset_covers_every_category_and_industry():
+    """분포는 고정하지 않되, 어느 카테고리도 비어 있으면 안 된다.
+
+    ABUSIVE 가 8건뿐이라 재현율 1건이 12%p 를 움직인다 — 이 지표는 아직 불안정하다.
+    실매장 리뷰가 쌓이면 합성 문장 대신 실제 사례로 채운다(goldenset/CHANGELOG.md).
+    """
+    rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
     counts = Counter(r["category"] for r in rows)
-    assert counts == {
-        "PRAISE": 150, "POSITIVE": 125, "IMPROVEMENT": 100,
-        "COMPLAINT": 75, "ABUSIVE": 25, "NOISE": 25,
-    }
-    expected_per_industry = {
-        "PRAISE": 30, "POSITIVE": 25, "IMPROVEMENT": 20,
-        "COMPLAINT": 15, "ABUSIVE": 5, "NOISE": 5,
-    }
-    for industry in {r["industry"] for r in rows}:
-        assert Counter(r["category"] for r in rows if r["industry"] == industry) == expected_per_industry
-    assert len({r["id"] for r in rows}) == 500
+    for category in ("PRAISE", "POSITIVE", "IMPROVEMENT", "COMPLAINT", "ABUSIVE", "NOISE"):
+        assert counts[category] >= 5, f"{category} 표본이 너무 적다: {counts[category]}건"
+    assert len({r["industry"] for r in rows}) >= 3
 
 
 def test_high_risk_set_matches_spec():
