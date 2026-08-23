@@ -140,7 +140,8 @@ def parse_envelope(resp: dict) -> dict:
     data = resp.get("data") or {}
     if data.get("RESULT") != "SUCCESS":
         ecode = _s(data.get("ECODE"))
-        errmsg = _s(data.get("ERRMSG"))
+        # EMSG 는 스펙상 "데이터부 상세 오류 메시지" 다. ERRMSG 가 비어 있을 때 원인이 여기 있다.
+        errmsg = _s(data.get("ERRMSG")) or _s(data.get("EMSG"))
         if ecode is None:
             # 표기가 문서마다 다르다(errCode/ERRCODE, errMsg/ERRMSG). 있는 것을 집는다.
             ecode = _s(resp.get("errCode")) or _s(resp.get("ERRCODE"))

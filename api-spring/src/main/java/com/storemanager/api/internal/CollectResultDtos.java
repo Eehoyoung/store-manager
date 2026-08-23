@@ -38,12 +38,17 @@ record CollectResultRequest(
             Integer rating,
             String body,
             String authorRaw, // [PII] 원본 닉네임 — Pseudonymizer 를 거치기 전에는 어디에도 저장·로깅 금지
-            List<String> orderedMenus,
+            List<String> orderedMenus, // 리뷰 표시·AI 프롬프트용 이름 목록
+            List<MenuItem> menus, // menuId 포함 — store_menu 적재용. 구버전 워커는 보내지 않는다.
             List<String> imageUrls,
             Map<String, Object> platformExtra, // 값이 없는 키는 null 일 수 있다
             String reviewStatus,
             String writtenDate, // yyyy-MM-dd
             ExistingReply existingReply) { // RC_LIST 가 없으면 null
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record MenuItem(String menuId, String menuName) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

@@ -9,7 +9,7 @@ from normalize import normalize_stores
 FIXTURES = Path(__file__).parent / "fixtures"
 
 REQUIRED_REVIEW_KEYS = {
-    "platformReviewId", "rating", "body", "authorRaw", "orderedMenus",
+    "platformReviewId", "rating", "body", "authorRaw", "orderedMenus", "menus",
     "imageUrls", "platformExtra", "reviewStatus", "writtenDate", "existingReply",
 }
 REQUIRED_STORE_KEYS = {"platformStoreId", "storeName", "avgRating", "reviews"}
@@ -35,6 +35,12 @@ def test_baemin_schema_keys_and_unmasked_nickname_passthrough():
     assert review["rating"] == 5
     assert review["authorRaw"] == "히리릴"  # 배민은 가공하지 않고 원문 그대로(F-5, Spring이 가명처리)
     assert review["orderedMenus"] == ["돌솥김치알밥", "잔치국수"]
+    # ★ MENUID 는 3사 모두 제공한다(리뷰관리 스펙 §4). 이름만 쓰면 메뉴명이 바뀌는 순간
+    #   같은 메뉴가 둘로 갈라져 메뉴별 통계가 어긋난다(T-8).
+    assert review["menus"] == [
+        {"menuId": "1001", "menuName": "돌솥김치알밥"},
+        {"menuId": "1002", "menuName": "잔치국수"},
+    ]
     assert review["imageUrls"] == ["https://cdn.example.com/review1.jpg"]
     assert review["platformExtra"] == {}  # 배민은 전용 필드 없음
 

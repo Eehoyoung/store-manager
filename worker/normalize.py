@@ -53,15 +53,19 @@ def _image_urls(review: dict) -> list[str]:
     return urls
 
 
-def _ordered_menus(review: dict) -> list[str]:
-    """review['ORDER_LIST'][].LIST[].MENUNM 을 평탄화."""
-    menus = []
+def _menu_items(review: dict) -> list[dict]:
+    """review['ORDER_LIST'][].LIST[] 를 {menuId, menuName} 으로 평탄화한다.
+
+    ★ MENUID 는 3사 모두 제공한다(리뷰관리 스펙 §4). 이름만 쓰면 사장님이 메뉴명을
+      바꾸는 순간 같은 메뉴가 둘로 갈라져 메뉴별 통계가 어긋난다.
+      store_menu 의 (store_id, platform, menu_id) 유니크 제약이 이 값을 전제로 만들어져 있다."""
+    items = []
     for order in review.get("ORDER_LIST") or []:
         for item in order.get("LIST") or []:
             name = _s(item.get("MENUNM"))
             if name:
-                menus.append(name)
-    return menus
+                items.append({"menuId": _s(item.get("MENUID")), "menuName": name})
+    return items
 
 
 def _existing_reply(review: dict) -> dict | None:
@@ -89,12 +93,14 @@ def _platform_extra(review: dict, platform: Platform) -> dict:
 
 def _normalize_review(review: dict, platform: Platform) -> dict:
     body = _s(review.get("REVIEWCONTENTS"))
+    menus = _menu_items(review)
     return {
         "platformReviewId": _s(review.get("REVIEWID")),
         "rating": _to_int(review.get("EVALUE")),
         "body": body.strip() if body else "",  # trim, 빈값 허용(사진만 리뷰)
         "authorRaw": _s(review.get("NICKNAME")),
-        "orderedMenus": _ordered_menus(review),
+        "orderedMenus": [m["menuName"] for m in menus],
+        "menus": menus,  # menuId 포함 — store_menu 적재용(T-8)
         "imageUrls": _image_urls(review),
         "platformExtra": _platform_extra(review, platform),
         "reviewStatus": _s(review.get("REVIEWSTATUS")),  # 의미 미확인 — 원본 그대로 보관(CLAUDE.md #10)

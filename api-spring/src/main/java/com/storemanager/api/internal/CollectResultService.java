@@ -16,6 +16,7 @@ import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.internal.CollectResultRequest.ExistingReply;
+import com.storemanager.api.internal.CollectResultRequest.MenuItem;
 import com.storemanager.api.internal.CollectResultRequest.Publish;
 import com.storemanager.api.internal.CollectResultRequest.ReviewBlock;
 import com.storemanager.api.internal.CollectResultRequest.StoreBlock;
@@ -373,7 +374,7 @@ public class CollectResultService {
             saveStyleSample(store.getId(), rb.body(), existingReply.contents(), rating);
         }
 
-        upsertMenus(store.getId(), platform, rb.orderedMenus());
+        upsertMenus(store.getId(), platform, rb.menus(), rb.orderedMenus());
 
         // S11 저별점 알림 — 새로 들어온 리뷰에 대해서만 보낸다.
         // 수집은 매 폴링마다 최근 2일을 재조회하므로(CLAUDE.md 데이터처리 2번), isNew 로 막지 않으면
@@ -407,20 +408,34 @@ public class CollectResultService {
      * menu_id 가 계약에 없어 항상 null 로 온다 — menu_name 기준으로 중복을 막는다.
      * ponytail: menu_id 가 있는 케이스는 현재 계약에 없어 분기하지 않는다. 계약이 menu_id 를 보내기 시작하면 추가.
      */
-    private void upsertMenus(Long storeId, String platform, List<String> menuNames) {
-        if (menuNames == null) {
-            return;
-        }
-        for (String name : menuNames) {
+    /**
+     * 주문 메뉴를 store_menu 에 적재한다 (T-8).
+     *
+     * ★ MENUID 가 있으면 그것으로 동일성을 판단한다. 이름만 쓰면 사장님이 메뉴명을 바꾸는 순간
+     *   같은 메뉴가 둘로 갈라져 메뉴별 만족도·이슈 교차 통계가 어긋난다.
+     *   (store_id, platform, menu_id) 유니크 제약은 이 값을 전제로 만들어져 있다.
+     * ★ menus 가 없는 요청(MENUID 를 보내지 않는 워커)은 이름 기준으로 되돌아간다.
+     */
+    private void upsertMenus(Long storeId, String platform, List<MenuItem> menus, List<String> menuNames) {
+        List<MenuItem> items = menus != null && !menus.isEmpty()
+                ? menus
+                : (menuNames == null ? List.of() : menuNames.stream().map(n -> new MenuItem(null, n)).toList());
+        for (MenuItem item : items) {
+            String name = item.menuName();
             if (name == null || name.isBlank()) {
                 continue;
             }
-            if (storeMenuRepository.existsByStoreIdAndPlatformAndMenuIdIsNullAndMenuName(storeId, platform, name)) {
+            String menuId = item.menuId() == null || item.menuId().isBlank() ? null : item.menuId();
+            boolean exists = menuId != null
+                    ? storeMenuRepository.existsByStoreIdAndPlatformAndMenuId(storeId, platform, menuId)
+                    : storeMenuRepository.existsByStoreIdAndPlatformAndMenuIdIsNullAndMenuName(storeId, platform, name);
+            if (exists) {
                 continue;
             }
             storeMenuRepository.save(StoreMenu.builder()
                     .storeId(storeId)
                     .platform(platform)
+                    .menuId(menuId)
                     .menuName(name)
                     .build());
         }
