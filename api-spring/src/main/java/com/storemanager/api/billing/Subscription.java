@@ -86,6 +86,20 @@ public class Subscription {
     }
 
     /** 미납 D+21(B4). 서비스 중단 — 이미 SUSPENDED 면 멱등하게 무시한다(감사로그는 호출부에서 남긴다). */
+    /**
+     * 운영자가 입금을 확인하고 서비스를 연다 (Groble 연동 전까지의 수동 경로).
+     *
+     * <p>★ 이 메서드가 유일하게 ACTIVE 를 만드는 정상 경로다. 가입·구독생성은 TRIAL 로 남으며
+     * 서비스되지 않는다(2026-08-23 결정). 자동 활성화를 다시 만들지 말 것.
+     */
+    public void activateByOperator(Instant periodStart, Instant periodEnd) {
+        this.status = "ACTIVE";
+        this.currentPeriodStart = periodStart;
+        this.currentPeriodEnd = periodEnd;
+        this.canceledAt = null;
+        this.updatedAt = Instant.now();
+    }
+
     public void suspend() {
         this.status = "SUSPENDED";
     }

@@ -19,6 +19,7 @@ import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
 import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AdminPage } from "./pages/AdminPage";
+import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 
 // 라우트 표 (문서 14 §2). 전자계약은 보류이므로 온보딩 안에서 '준비 중' 으로만 표시한다.
 // /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
@@ -45,6 +46,7 @@ function App() {
                 <Route path="/stores/:storeId/billing" element={<BillingPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/subscriptions" element={<AdminSubscriptions />} />
 
                 {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}
                 <Route path="/hq/brands" element={<HqBrandsPage />} />

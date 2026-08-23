@@ -119,6 +119,7 @@ def _fetch_and_report(
     job_id: str,
     client: DataApiClient,
     sleep: Callable[[float], None],
+    job_type: str = "POLL",
 ) -> dict:
     """한 구간(start~end)을 조회 → 정규화 → collect-result 전송. 요약 통계만 반환하고
     실제 요청/응답 본문은 절대 로깅하지 않는다."""
@@ -158,6 +159,11 @@ def _fetch_and_report(
         "accountId": account_id,
         "platform": _PLATFORM_UPPER[account.platform],
         "status": status,
+        # ★ 조회 기간과 작업 유형을 함께 보낸다. 이게 없으면 Spring 이 collection_job 을 만들 수
+        #   없어(start_date/end_date 가 NOT NULL) 수집 이력이 하나도 남지 않는다 — T-5 측정 불가.
+        "jobType": job_type,
+        "startDate": start.isoformat(),
+        "endDate": end.isoformat(),
         "stores": stores,
         # ponytail: new 는 워커가 dedupe 정보를 모르므로 found 로 대체 신고한다.
         # 실제 신규 건수는 Spring 의 (platform, REVIEWID) UPSERT 결과가 정답이며,
@@ -211,7 +217,7 @@ def poll_reviews(
         start = today - timedelta(days=COLLECT_LOOKBACK_DAYS)
         client = client_factory()
         return _fetch_and_report(
-            account_id, account, start, today, job_id or uuid.uuid4().hex, client, sleep
+            account_id, account, start, today, job_id or uuid.uuid4().hex, client, sleep, "POLL"
         )
     finally:
         _release_lock(rc, account_id, lock_token)
@@ -329,7 +335,8 @@ def backfill(
         for start, end in _backfill_windows(today, BACKFILL_DAYS, BACKFILL_CHUNK_DAYS):
             results.append(
                 _fetch_and_report(
-                    account_id, account, start, end, job_id or uuid.uuid4().hex, client, sleep
+                    account_id, account, start, end, job_id or uuid.uuid4().hex, client, sleep,
+                    "BACKFILL",
                 )
             )
             sleep(random.uniform(0.2, 0.6))  # 구간 사이 지터 — 레이트리밋/탐지 회피

@@ -20,6 +20,9 @@ record CollectResultRequest(
         @NotBlank String status,
         String ecode, // status=FAILED 일 때만 옴 (DataAPI 원본 ECODE)
         String action, // status=FAILED 일 때만 옴: LINK_ERROR | ALREADY_REPLIED | FAIL
+        String jobType, // POLL | BACKFILL. 없으면 POLL 로 본다(구버전 워커 호환)
+        String startDate, // yyyy-MM-dd 조회 시작일. 없으면 collection_job 을 만들지 않는다
+        String endDate, // yyyy-MM-dd 조회 종료일
         List<StoreBlock> stores, // LINK_ERROR 등 실패 시 비어 있거나 없을 수 있다
         Stats stats,
         Publish publish) { // null 이 아니면 수집 결과가 아니라 게시 결과다(S10, 오케스트레이터 고정계약)

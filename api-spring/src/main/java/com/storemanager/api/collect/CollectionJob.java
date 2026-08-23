@@ -22,10 +22,17 @@ import lombok.NoArgsConstructor;
 public class CollectionJob {
 
     @Id
-    private Long id; // 워커가 채번(BIGSERIAL). Spring 은 생성하지 않고 갱신만 한다
+    private Long id;
 
     @Column(name = "account_id", nullable = false)
     private Long accountId;
+
+    /**
+     * 워커가 생성한 작업 식별자(uuid4). 우리 id 와는 무관하다.
+     * 백필 한 번이 13개 구간으로 쪼개지므로 같은 값을 가진 여러 행이 한 번의 백필을 이룬다.
+     */
+    @Column(name = "job_key")
+    private String jobKey;
 
     @Column(name = "job_type", nullable = false)
     private String jobType; // POLL | BACKFILL

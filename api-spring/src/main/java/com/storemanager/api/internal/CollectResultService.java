@@ -2,6 +2,7 @@ package com.storemanager.api.internal;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.storemanager.api.collect.CollectionJob;
 import com.storemanager.api.collect.CollectionJobRepository;
 import com.storemanager.api.collect.DataApiCallLog;
 import com.storemanager.api.collect.DataApiCallLogRepository;
@@ -180,7 +181,7 @@ public class CollectResultService {
                     .ifPresent(PlatformAccount::markVerified);
         }
 
-        updateCollectionJob(req, reviewsNew);
+        recordCollectionJob(req, resolvedAccountId, reviewsNew);
         logDataApiCall(req, resolvedAccountId);
 
         return new CollectResultSummary(processed, skipped, reviewsNew);
@@ -471,17 +472,36 @@ public class CollectResultService {
     }
 
     /** 워커가 이미 채번해 둔 collection_job 을 결과로 갱신한다. Spring 은 새 job 을 만들지 않는다. */
-    private void updateCollectionJob(CollectResultRequest req, int reviewsNew) {
-        Long jobId = parseLongOrNull(req.jobId());
-        if (jobId == null) {
-            // 워커가 uuid4().hex 로 자체 생성한 jobId — 우리 BIGSERIAL collection_job.id 와 대응되지 않는다.
-            log.warn("jobId 를 정수로 해석할 수 없어 collection_job 갱신을 건너뜁니다.");
+    /**
+     * 수집 이력을 남긴다 (T-5 성공률 측정의 근거).
+     *
+     * <p>★ 예전에는 워커의 jobId(uuid4)를 BIGSERIAL collection_job.id 로 해석하려다 실패해
+     * 갱신을 통째로 건너뛰었다. 그래서 이 표에 단 한 행도 쌓이지 않았고 성공률을 잴 수 없었다.
+     *
+     * <p>★ 방향을 바꿔 <b>결과를 받을 때 행을 만든다.</b> 워커가 우리 id 를 미리 알려면 새 엔드포인트가
+     * 필요한데 서비스 간 경계상 만들 수 없다. 워커의 jobId 는 상관관계 식별자(job_key)로 저장한다 —
+     * 백필 한 번이 13개 구간으로 쪼개지므로 같은 job_key 를 가진 여러 행이 한 번의 백필을 이룬다.
+     */
+    private void recordCollectionJob(CollectResultRequest req, Long accountId, int reviewsNew) {
+        if (accountId == null || req.startDate() == null || req.endDate() == null) {
+            // 기간을 모르면 이력을 만들 수 없다(start_date/end_date 는 NOT NULL).
+            // 구버전 워커가 보낸 요청이다 — 적재 자체는 이미 끝났으므로 실패로 만들지 않는다.
+            log.warn("수집 이력 생략: accountId/기간 누락 (구버전 워커일 수 있음)");
             return;
         }
         Integer reviewsFound = req.stats() == null ? null : req.stats().found();
-        collectionJobRepository.findById(jobId).ifPresentOrElse(
-                job -> job.applyResult(req.status(), reviewsFound, reviewsNew, req.ecode()),
-                () -> log.warn("collection_job(id={}) 을 찾을 수 없어 상태 갱신을 건너뜁니다.", jobId));
+        collectionJobRepository.save(CollectionJob.builder()
+                .accountId(accountId)
+                .jobKey(req.jobId())
+                .jobType("BACKFILL".equals(req.jobType()) ? "BACKFILL" : "POLL")
+                .startDate(LocalDate.parse(req.startDate()))
+                .endDate(LocalDate.parse(req.endDate()))
+                .status("FAILED".equals(req.status()) ? "FAILED" : "SUCCESS")
+                .reviewsFound(reviewsFound == null ? 0 : reviewsFound)
+                .reviewsNew(reviewsNew)
+                .ecode(req.ecode())
+                .finishedAt(Instant.now())
+                .build());
     }
 
     private void logDataApiCall(CollectResultRequest req, Long resolvedAccountId) {

@@ -1517,3 +1517,13 @@
     height: 60vh;
   }
 }
+
+/* 서비스 중인 매장은 좌측 눈금을 초록으로 — 비용이 나가고 있다는 신호다. */
+.admin-request--live {
+  border-left-color: var(--color-engaged);
+}
+.admin-request__blocked {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}

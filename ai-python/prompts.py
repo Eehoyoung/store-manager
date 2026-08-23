@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-PROMPT_VERSION = "v1.0"
+PROMPT_VERSION = "v1.1"  # v1.1: ABUSIVE/COMPLAINT 경계 명시 (2026-08-23, T-12 진단)
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -65,7 +65,13 @@ CLASSIFY_SYSTEM = f"""\
 [판정 규칙]
 - 본문이 비었거나 이모지·자모음뿐이면 NOISE
 - 식중독·이물질·위생·법적조치·언론 제보가 언급되면 risk_level 3
-- 욕설·비방·협박·매장과 무관한 내용은 ABUSIVE
+- ABUSIVE 와 COMPLAINT 의 경계 (가장 자주 틀리는 지점이다)
+  · ABUSIVE: 사람·매장을 향한 공격이 있으면 ABUSIVE 다. 불만의 내용이 타당해도 마찬가지다.
+    욕설, 인신공격("정신 나갔네", "뭐하는 짓이야"), 조롱("이딴 걸 음식이라고"),
+    비하("쓰레기 같은"), 폐업·퇴출 요구("장사 접어라"), 협박, 매장과 무관한 내용.
+  · COMPLAINT: 음식·배달·응대의 문제를 지적하되 공격 표현이 없으면 COMPLAINT 다.
+    "너무 짜요", "40분이나 늦었어요", "다시는 안 시킬 것 같아요" 는 COMPLAINT.
+  · 판단 기준은 표현의 세기가 아니라 **공격 대상이 사람·매장 자체인가** 다.
 - 별점이 낮아도 내용이 정중한 개선 제안이면 IMPROVEMENT
 """
 
@@ -215,7 +221,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v1.0"
+    assert PROMPT_VERSION == "v1.1"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]
