@@ -79,6 +79,19 @@ public class Store {
         this.deletedAt = Instant.now();
     }
 
+    /**
+     * 회원 탈퇴에 따른 매장 정지.
+     *
+     * <p>★ activated_at 을 반드시 비운다. 이 값이 남아 있으면 수집·생성·게시가 계속 돌아
+     * 탈퇴한 사람의 매장에 답글이 달리고 우리 비용이 나간다(StoreServiceGate 참고).
+     */
+    public void softDeleteForWithdrawal(Instant at) {
+        this.status = "DELETED";
+        this.deletedAt = at;
+        this.activatedAt = null;
+        this.updatedAt = at;
+    }
+
     public void assignBrand(String brandName) {
         this.brandName = brandName;
         this.updatedAt = Instant.now();

@@ -100,6 +100,18 @@ public class Subscription {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * 회원 탈퇴에 따른 즉시 해지. 해지 접수(cancellation_requested_at)와 다르다 —
+     * 그건 '다음 주기부터' 지만 이건 지금 끊는 것이다.
+     *
+     * <p>★ 이걸 빠뜨리면 탈퇴한 사람에게 요금이 청구된다.
+     */
+    public void cancelImmediately() {
+        this.status = "CANCELED";
+        this.canceledAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
     public void suspend() {
         this.status = "SUSPENDED";
     }

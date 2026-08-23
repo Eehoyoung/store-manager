@@ -85,6 +85,20 @@ public class AppUser {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * 회원 탈퇴 (개인정보보호법 제37조).
+     *
+     * <p>★ deleted_at 을 세워야 uq_user_email(WHERE deleted_at IS NULL) 이 풀려
+     * 같은 주소로 다시 가입할 수 있다. status 만 바꾸면 그 이메일이 영구히 잠긴다.
+     * <p>★ 비밀번호 해시를 지운다. 남겨 둘 이유가 없고, 유출 시 탈퇴자까지 피해를 본다.
+     */
+    public void withdraw(Instant at) {
+        this.status = "WITHDRAWN";
+        this.deletedAt = at;
+        this.passwordHash = null;
+        this.updatedAt = at;
+    }
+
     public void changePassword(String encodedPassword) {
         this.passwordHash = encodedPassword;
         this.updatedAt = Instant.now();

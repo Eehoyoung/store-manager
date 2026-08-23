@@ -5,7 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Long> {
 
@@ -45,4 +47,41 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
              ORDER BY r.collectedAt ASC
             """)
     List<UnifiedReview> findNeedingDraft(Pageable pageable);
+
+    /** 파기 예정일이 없는 행에 collected_at + 보유기간을 채운다 (DataRetentionScheduler). */
+    @Modifying(clearAutomatically = true)
+    @Query(value = """
+            UPDATE unified_review
+               SET purge_after = collected_at + make_interval(days => :retentionDays)
+             WHERE purge_after IS NULL
+            """, nativeQuery = true)
+    int stampMissingPurgeAfter(@Param("retentionDays") int retentionDays);
+
+    /**
+     * 보유기간이 지난 행의 개인정보 항목만 비운다 (개인정보보호법 제21조).
+     *
+     * ★ 행을 지우지 않는다. reply_draft·review_analysis 가 FK 로 참조하므로 삭제하면
+     *   게시 이력과 감사 근거가 함께 사라진다. 법이 요구하는 것은 '식별 불가' 이지 행 제거가 아니다.
+     * ★ 별점·작성일·이슈태그는 남긴다. 통계가 소급해서 바뀌면 사장님이 보던 숫자가 달라진다.
+     * ★ purge_after 를 NULL 로 되돌려 같은 행을 다시 집지 않게 한다 — 안 그러면 매일 같은
+     *   행을 갱신하며 배치가 헛돈다.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(value = """
+            UPDATE unified_review
+               SET body = NULL,
+                   author_masked = NULL,
+                   author_hash = NULL,
+                   existing_reply = NULL,
+                   image_urls = '[]'::jsonb,
+                   purge_after = NULL,
+                   updated_at = now()
+             WHERE id IN (
+                 SELECT id FROM unified_review
+                  WHERE purge_after IS NOT NULL AND purge_after <= :now
+                  ORDER BY purge_after
+                  LIMIT :batchSize
+             )
+            """, nativeQuery = true)
+    int anonymizeExpired(@Param("now") java.time.Instant now, @Param("batchSize") int batchSize);
 }
