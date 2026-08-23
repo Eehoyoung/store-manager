@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { Field } from "../components/Field";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { formatPhone, normalizeFranchiseCode } from "../lib/format";
 import { AuthAside } from "../components/AuthAside";
 
 interface FormState {
@@ -121,15 +122,21 @@ export function SignupPage() {
           <Field
             label="휴대폰 번호 (선택)"
             type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            hint="숫자만 입력하세요. 하이픈은 자동으로 들어갑니다."
             value={form.phone}
-            onChange={update("phone")}
+            onChange={(e) => setForm((c) => ({ ...c, phone: formatPhone(e.target.value) }))}
             error={fieldErrors.phone}
           />
           <Field
             label="가맹코드 (선택)"
-            hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요."
+            hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요. 대소문자는 구분하지 않습니다."
+            autoCapitalize="characters"
             value={form.franchiseCode}
-            onChange={update("franchiseCode")}
+            onChange={(e) =>
+              setForm((c) => ({ ...c, franchiseCode: normalizeFranchiseCode(e.target.value) }))
+            }
             error={fieldErrors.franchiseCode}
           />
           <Field

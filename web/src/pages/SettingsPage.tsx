@@ -6,6 +6,7 @@ import type { AccountProfile } from "../api/types";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { formatPhone } from "../lib/format";
 import { Field } from "../components/Field";
 import { Skeleton } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
@@ -72,7 +73,9 @@ function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdate
       <form onSubmit={submit} noValidate>
         <Field label="이메일" type="email" value={profile.email} readOnly hint="로그인 이메일은 설정 화면에서 변경할 수 없습니다." />
         <Field label="이름" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
-        <Field label="휴대폰 번호 (선택)" value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} autoComplete="tel" />
+        <Field label="휴대폰 번호 (선택)" value={phone} type="tel" inputMode="numeric" autoComplete="tel"
+               hint="숫자만 입력하세요. 하이픈은 자동으로 들어갑니다."
+               onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(formatPhone(e.target.value))} />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
         <Button type="submit" loading={loading}>저장</Button>
       </form>
