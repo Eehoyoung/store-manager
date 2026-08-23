@@ -136,15 +136,18 @@ def _fetch_and_report(
         )
         stores = normalize_stores(data, account.platform)
     except DataApiError as exc:
-        status = "FAILED"
         ecode = exc.ecode
         action = ecode_action(exc.ecode)  # 실제 link_status 전이는 Spring 책임 — 여기선 사실만 전달
+        # 조회 결과 없음은 실패가 아니다. 로그인은 성공했고 그 기간에 리뷰가 없었을 뿐이다.
+        # FAILED 로 보고하면 리뷰 없는 날마다 수집 실패로 집계되고 재시도·알림이 헛돈다.
+        status = "SUCCESS" if action == "NO_DATA" else "FAILED"
         # ERRMSG 는 업체가 주는 실패 사유다. 이게 없으면 '로그인 실패' 가 비밀번호 문제인지
         # 암호화 설정 문제인지 구분할 수 없어 확인용 호출을 더 쓰게 된다.
         # ★ 자격증명은 요청에만 있고 응답 ERRMSG 에는 없다 — 그래서 남겨도 안전하다(절대규칙 5).
-        log.warning(
-            "collect failed account=%s ecode=%s action=%s errmsg=%s",
-            account_id, ecode, action, exc.errmsg,
+        log.log(
+            logging.INFO if status == "SUCCESS" else logging.WARNING,
+            "collect %s account=%s ecode=%s action=%s errmsg=%s",
+            "결과없음" if status == "SUCCESS" else "failed", account_id, ecode, action, exc.errmsg,
         )
 
     latency_ms = int((time.perf_counter() - t0) * 1000)

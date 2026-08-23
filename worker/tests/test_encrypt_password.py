@@ -99,3 +99,11 @@ def test_설정오류는_사장님이_아니라_운영자_문제로_분류한다
 def test_일시장애는_재시도한다():
     for code in ("2020", "8004", "3031", "3070"):
         assert _is_retryable(code) is True, code
+
+
+def test_조회결과없음은_실패가_아니다():
+    """ERR_MLCOM_MSG50079 는 로그인 성공 + 해당 기간 리뷰 없음이다.
+    실패로 세면 리뷰 없는 날마다 수집 성공률이 떨어지고 재시도·알림이 헛돈다."""
+    from dataapi import ECODE_NO_DATA
+    assert ecode_action(ECODE_NO_DATA) == "NO_DATA"
+    assert _is_retryable(ECODE_NO_DATA) is False

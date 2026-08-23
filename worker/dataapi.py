@@ -38,6 +38,10 @@ MAX_COMMENT_LENGTH = 280
 # 알려진 ECODE (CLAUDE.md 표 그대로). 전체 목록은 업체 회신 대기 중(문서 09).
 ECODE_LOGIN_FAIL = "ERR_MLCOM_MSG50059"  # 로그인 실패 — 재시도 금지, link_status=ERROR
 ECODE_DUPLICATE_COMMENT = "ERR_MDCOM_MSG00009"  # 댓글 중복 — 실패가 아님, ALREADY_REPLIED
+# 조회 결과 없음 — 실패가 아니다. 로그인은 성공했고 해당 기간에 리뷰가 없다는 뜻이다.
+# 실기동에서 확인(2026-08-23, 요기요). ERRMSG="조회된 내역이 없습니다."
+# ★ 이걸 실패로 세면 수집 성공률(T-5)이 리뷰 없는 날마다 떨어진다.
+ECODE_NO_DATA = "ERR_MLCOM_MSG50079"
 
 PLATFORM_OK_CODE = "0000"  # 최상위 errCode 성공값. 업무 성공을 뜻하지 않는다(절대규칙 2).
 
@@ -61,6 +65,7 @@ ECODE_POLICY: dict[str, tuple[bool, str]] = {
     # ── 스크래핑 모듈 (배달앱 로그인·조회) ──
     ECODE_LOGIN_FAIL: (False, "LINK_ERROR"),
     ECODE_DUPLICATE_COMMENT: (False, "ALREADY_REPLIED"),
+    ECODE_NO_DATA: (False, "NO_DATA"),
     # ── 플랫폼 (DataAPI 자체) ──
     ECODE_NO_POINT: (False, "QUOTA_EXHAUSTED"),
     ECODE_AUTH_FAIL: (False, "CONFIG_ERROR"),
