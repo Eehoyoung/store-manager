@@ -60,8 +60,13 @@ public class CollectResultService {
     private static final String DISPATCH_KEY_PREFIX = "dispatch:draft:"; // PublishScheduler 와 동일 키(고정계약)
     private static final short MAX_PUBLISH_RETRY = 3;
     private static final String RISK_LEVEL_TOO_HIGH_REASON = "RISK_LEVEL_TOO_HIGH";
+    private static final String WRITE_DISABLED_REASON = "DATAAPI_WRITE_DISABLED";
+    private static final Set<String> PUBLISH_ACTIONS = Set.of("PUBLISHED", "ALREADY_REPLIED", "FAIL", "LINK_ERROR");
+    // 재시도해도 결과가 같은 실패. 재시도 횟수를 태우지 않고 바로 종결한다.
+    // ★ DATAAPI_WRITE_DISABLED 는 여기 없다 — 그건 리뷰나 답글 문제가 아니라 우리 운영 스위치다.
+    //   BLOCKED 로 종결하면 재생성 대상에서도 빠져 초안이 영구 사망한다. 스위치를 켜면 다시 나가야 한다.
     private static final Set<String> NON_RETRYABLE_PUBLISH_GUARDS = Set.of(
-            RISK_LEVEL_TOO_HIGH_REASON, "STORE_INACTIVE", "DATAAPI_WRITE_DISABLED");
+            RISK_LEVEL_TOO_HIGH_REASON, "STORE_INACTIVE");
 
     private final StorePlatformLinkRepository storePlatformLinkRepository;
     private final StoreRepository storeRepository;
@@ -197,8 +202,12 @@ public class CollectResultService {
         }
 
         String action = req.action();
-        if (!Set.of("PUBLISHED", "ALREADY_REPLIED", "FAIL", "LINK_ERROR").contains(action)) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED);
+        // ★ 워커가 ECODE 정책에 따라 보내는 조치 라벨은 네 가지보다 많다(CONFIG_ERROR·QUOTA_EXHAUSTED 등).
+        //   모르는 라벨을 400 으로 거절하면 결과가 유실되고, 초안이 SCHEDULED 로 남아 스케줄러가
+        //   60초마다 영원히 재디스패치한다(실기동에서 확인). 게시 결과는 반드시 받아 기록한다.
+        if (!PUBLISH_ACTIONS.contains(action)) {
+            log.warn("게시 결과 수신: 알 수 없는 action={} — 실패로 기록한다.", action);
+            action = "FAIL";
         }
         verifyPublishCallback(req, draft);
         stringRedisTemplate.delete(DISPATCH_KEY_PREFIX + draftId);
@@ -225,6 +234,11 @@ public class CollectResultService {
      * 그 외 실패는 retry_count<3 이면 지수 백오프로 재예약, 3회 소진 시 FAILED 로 확정한다.
      */
     private void handlePublishFail(ReplyDraft draft, String ecode, String failReason) {
+        if (WRITE_DISABLED_REASON.equals(failReason)) {
+            // 시도조차 하지 않았다. 재시도를 태우지 않고 뒤로 미룬다 — 스위치를 켜면 그대로 나간다.
+            draft.deferWithoutRetry(Instant.now().plus(Duration.ofMinutes(10)), failReason);
+            return;
+        }
         if (NON_RETRYABLE_PUBLISH_GUARDS.contains(failReason)) {
             draft.blockAtPublishGuard(failReason, failReason);
             auditLogRepository.save(AuditLog.builder()

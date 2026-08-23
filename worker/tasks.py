@@ -291,7 +291,10 @@ def publish_drafts(
                     payload, account.platform, account.credentials, client.create_comment
                 )
         except Exception as exc:
-            log.warning("publish job 처리 실패 error=%s", type(exc).__name__)
+            # ★ 예외 종류만 남기면 원인을 못 찾는다(ModuleNotFoundError 하나로 30분을 썼다).
+            #   메시지까지 남긴다 — 자격증명은 payload 에만 있고 예외 메시지에는 없다.
+            log.warning("publish job 처리 실패 draftId=%s error=%s: %s",
+                        (payload or {}).get("draftId"), type(exc).__name__, exc)
             result = _publish_error_result(payload if isinstance(payload, dict) else {}, "INTERNAL_ERROR")
 
         try:

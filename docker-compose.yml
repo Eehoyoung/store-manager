@@ -111,7 +111,10 @@ services:
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?CREDENTIAL_MASTER_KEY를 .env에 설정하세요}
       # 호출 예산 하드 게이트. 0 이면 무제한(운영 기본), 테스트 토큰을 쓸 때만 잔여 횟수를 넣는다.
       DATAAPI_CALL_BUDGET: ${DATAAPI_CALL_BUDGET:-0}
-    command: ["celery", "-A", "celery_app", "worker", "--beat", "--loglevel=INFO"]
+    # ★ -Q 로 publish 큐를 명시해야 한다. celery_app.task_routes 가 publish_drafts 를 publish 큐로
+    #   보내는데, -Q 없이 뜨면 워커는 기본 celery 큐만 듣는다. 그 결과 게시 태스크가 한 번도
+    #   실행되지 않고 큐에만 쌓인다(실기동에서 4,723건 적체 확인).
+    command: ["celery", "-A", "celery_app", "worker", "--beat", "-Q", "celery,publish", "--loglevel=INFO"]
 
   web:
     build:

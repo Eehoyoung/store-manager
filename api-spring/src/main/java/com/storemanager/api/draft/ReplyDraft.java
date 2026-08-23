@@ -186,6 +186,19 @@ public class ReplyDraft {
         this.failReason = failReason;
     }
 
+    /**
+     * 시도조차 하지 않은 실패 — 재시도 횟수를 태우지 않고 다시 예약만 한다.
+     *
+     * <p>★ DataAPI 쓰기 스위치가 꺼져 있어 반려된 경우가 이것이다. 리뷰나 답글의 문제가 아니라
+     * 우리 운영 상태이므로, 재시도를 소진시키면 스위치를 켜기도 전에 초안이 죽는다.
+     */
+    public void deferWithoutRetry(Instant nextScheduledAt, String reason) {
+        requireStatus("SCHEDULED");
+        this.status = "SCHEDULED";
+        this.scheduledAt = nextScheduledAt;
+        this.failReason = reason;
+    }
+
     /** 재시도 소진(FAIL) 또는 연동끊김(LINK_ERROR) — 최종 실패로 확정한다. */
     public void markFailed(String failCode, String failReason) {
         if ("FAILED".equals(this.status)) {
