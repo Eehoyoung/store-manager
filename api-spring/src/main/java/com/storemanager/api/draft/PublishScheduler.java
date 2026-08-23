@@ -10,6 +10,7 @@ import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -48,12 +49,14 @@ public class PublishScheduler {
     private final AuditLogRepository auditLogRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final StoreServiceGate serviceGate;
 
     public PublishScheduler(ReplyDraftRepository replyDraftRepository,
             ReviewAnalysisRepository reviewAnalysisRepository, UnifiedReviewRepository unifiedReviewRepository,
             StorePlatformLinkRepository storePlatformLinkRepository, StoreRepository storeRepository,
             AuditLogRepository auditLogRepository,
-            StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper) {
+            StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper,
+            StoreServiceGate serviceGate) {
         this.replyDraftRepository = replyDraftRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -62,6 +65,7 @@ public class PublishScheduler {
         this.auditLogRepository = auditLogRepository;
         this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = objectMapper;
+        this.serviceGate = serviceGate;
     }
 
     @Scheduled(fixedDelay = 60_000)
@@ -99,9 +103,9 @@ public class PublishScheduler {
             return;
         }
         Store store = storeRepository.findById(draft.getStoreId()).orElse(null);
-        boolean storeActive = store != null && store.getActivatedAt() != null
-                && "ACTIVE".equals(store.getStatus()) && store.getDeletedAt() == null;
-        if (!storeActive) {
+        // ★ 계약(activated_at)뿐 아니라 구독까지 본다. 게시 1건은 DataAPI 호출 1회 = 과금이다.
+        //   미납 매장의 답글을 계속 올리면 못 받을 돈을 우리가 대신 내는 셈이다.
+        if (!serviceGate.isServiceable(store)) {
             draft.blockForScheduling("STORE_INACTIVE");
             auditBlocked(draft, "DRAFT_BLOCKED_STORE_INACTIVE");
             return;

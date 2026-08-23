@@ -32,6 +32,7 @@ import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -77,6 +78,7 @@ public class CollectResultService {
     private final Notifier notifier;
     private final StringRedisTemplate stringRedisTemplate;
     private final AuditLogRepository auditLogRepository;
+    private final StoreServiceGate serviceGate;
 
     public CollectResultService(StorePlatformLinkRepository storePlatformLinkRepository,
             StoreRepository storeRepository, UnifiedReviewRepository unifiedReviewRepository,
@@ -85,7 +87,7 @@ public class CollectResultService {
             PlatformAccountRepository platformAccountRepository, Pseudonymizer pseudonymizer,
             ObjectMapper objectMapper, ReplyDraftRepository replyDraftRepository, Notifier notifier,
             ReviewAnalysisRepository reviewAnalysisRepository, StringRedisTemplate stringRedisTemplate,
-            AuditLogRepository auditLogRepository) {
+            AuditLogRepository auditLogRepository, StoreServiceGate serviceGate) {
         this.storePlatformLinkRepository = storePlatformLinkRepository;
         this.storeRepository = storeRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -101,6 +103,7 @@ public class CollectResultService {
         this.notifier = notifier;
         this.stringRedisTemplate = stringRedisTemplate;
         this.auditLogRepository = auditLogRepository;
+        this.serviceGate = serviceGate;
     }
 
     @Transactional
@@ -141,8 +144,10 @@ public class CollectResultService {
             }
 
             Store store = storeRepository.findById(link.getStoreId()).orElse(null);
-            if (store == null || store.getActivatedAt() == null) {
-                // 전자계약 미서명 매장(docs/11 §2.7 주석) — 워커/Spring 모두 처리하지 않는다.
+            if (!serviceGate.isServiceable(store)) {
+                // 전자계약 미서명(docs/11 §2.7) 또는 구독 미활성 매장.
+                // ★ 여기서 막지 않으면 미납·해지 매장의 리뷰를 계속 적재하고, 그 뒤 생성 스케줄러가
+                //   LLM 비용까지 태운다. 이미 호출은 나갔으므로 적재만 건너뛴다.
                 skipped++;
                 continue;
             }
@@ -318,8 +323,7 @@ public class CollectResultService {
             return null;
         }
         Store store = storeRepository.findById(account.getIntendedStoreId()).orElse(null);
-        if (store == null || store.getDeletedAt() != null || store.getActivatedAt() == null
-                || !store.getOwnerId().equals(account.getOwnerId())) {
+        if (!serviceGate.isServiceable(store) || !store.getOwnerId().equals(account.getOwnerId())) {
             return null;
         }
         boolean alreadyLinked = storePlatformLinkRepository.findByAccountIdOrderByCreatedAtAsc(requestAccountId)

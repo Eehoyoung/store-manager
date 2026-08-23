@@ -17,6 +17,7 @@ import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -48,13 +49,17 @@ class PublishSchedulerTest {
     @Mock private ValueOperations<String, String> valueOperations;
     @Mock private ListOperations<String, String> listOperations;
 
+    @Mock private StoreServiceGate serviceGate;
+
     private PublishScheduler scheduler;
 
     @BeforeEach
     void setUp() {
         scheduler = new PublishScheduler(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
                 storePlatformLinkRepository, storeRepository, auditLogRepository, stringRedisTemplate,
-                new ObjectMapper());
+                new ObjectMapper(), serviceGate);
+        // 일부 테스트는 게이트 이전에 반환하므로 lenient 로 둔다.
+        org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
     }
 
     private ReplyDraft dueDraft(long id, long reviewId) {

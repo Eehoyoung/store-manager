@@ -78,6 +78,9 @@ class CollectResultIT {
     StoreRepository storeRepository;
 
     @Autowired
+    com.storemanager.api.billing.SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     StorePlatformLinkRepository storePlatformLinkRepository;
 
     @Autowired
@@ -101,7 +104,15 @@ class CollectResultIT {
                 .name(name)
                 .activatedAt(Instant.now()) // 전자계약 서명 완료 상태여야 워커 결과를 처리한다(docs/11 §2.7)
                 .build();
-        return storeRepository.save(store).getId();
+        Long storeId = storeRepository.save(store).getId();
+        // ★ 구독도 있어야 수집 결과를 적재한다(StoreServiceGate). 계약만으로는 비용 드는 작업을
+        //   하지 않는다 — 무료로 DataAPI 호출과 LLM 토큰을 태우지 않기 위한 게이트다.
+        subscriptionRepository.save(com.storemanager.api.billing.Subscription.builder()
+                .storeId(storeId)
+                .status("ACTIVE")
+                .priceKrw(new java.math.BigDecimal("30000"))
+                .build());
+        return storeId;
     }
 
     private StorePlatformLink 매장을_연동한다(Long storeId, Long accountId, String platform, String platformStoreId) {

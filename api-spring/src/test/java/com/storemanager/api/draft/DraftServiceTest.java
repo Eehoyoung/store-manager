@@ -26,6 +26,7 @@ import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.time.Instant;
@@ -58,6 +59,8 @@ class DraftServiceTest {
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private Notifier notifier;
 
+    @Mock private StoreServiceGate serviceGate;
+
     private DraftService draftService;
 
     private final UUID ownerPublicId = UUID.randomUUID();
@@ -69,7 +72,9 @@ class DraftServiceTest {
     void setUp() {
         draftService = new DraftService(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
                 storeRepository, storePersonaRepository, appUserRepository, aiClient, bannedWordQueryRepository,
-                llmUsageLogRepository, auditLogRepository, notifier, new ObjectMapper());
+                llmUsageLogRepository, auditLogRepository, notifier, new ObjectMapper(), serviceGate);
+        // 기본은 서비스 가능. 게이트 자체는 아래 전용 테스트에서 확인한다.
+        org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 

@@ -24,6 +24,7 @@ import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.time.Instant;
@@ -64,12 +65,14 @@ public class DraftService {
     private final AuditLogRepository auditLogRepository;
     private final Notifier notifier;
     private final ObjectMapper objectMapper;
+    private final StoreServiceGate serviceGate;
 
     public DraftService(ReplyDraftRepository replyDraftRepository, ReviewAnalysisRepository reviewAnalysisRepository,
             UnifiedReviewRepository unifiedReviewRepository, StoreRepository storeRepository,
             StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient,
             BannedWordQueryRepository bannedWordQueryRepository, LlmUsageLogRepository llmUsageLogRepository,
-            AuditLogRepository auditLogRepository, Notifier notifier, ObjectMapper objectMapper) {
+            AuditLogRepository auditLogRepository, Notifier notifier, ObjectMapper objectMapper,
+            StoreServiceGate serviceGate) {
         this.replyDraftRepository = replyDraftRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -81,6 +84,7 @@ public class DraftService {
         this.llmUsageLogRepository = llmUsageLogRepository;
         this.auditLogRepository = auditLogRepository;
         this.notifier = notifier;
+        this.serviceGate = serviceGate;
         this.objectMapper = objectMapper;
     }
 
@@ -103,6 +107,10 @@ public class DraftService {
         Store store = loadOwnedStore(owner, review.getStoreId());
         StorePersona persona = storePersonaRepository.findById(store.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        // ★ 구독이 끊긴 매장에서 생성을 부르면 LLM 비용이 그대로 나간다. AI 호출 전에 막는다.
+        if (!serviceGate.isServiceable(store)) {
+            throw new ApiException(ErrorCode.SUBSCRIPTION_INACTIVE);
+        }
         if (replyDraftRepository.existsByReviewIdAndStatusIn(reviewId, ACTIVE_REPLY_STATUSES)) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
                     Map.of("reviewId", reviewId, "reason", "ACTIVE_OR_COMPLETED_REPLY_EXISTS"));
