@@ -10,7 +10,6 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,29 +30,17 @@ public class EnvelopeCipher {
     private static final int DEK_BYTES = 32;
     private static final String FINGERPRINT_ALGORITHM = "HmacSHA256";
 
-    private final SecretKeySpec masterKey;
-    private final String keyId;
+    private final MasterKeyProvider keyProvider;
     private final SecureRandom random = new SecureRandom();
 
-    /** 기존 단위 테스트·로컬 호출 호환용. 운영 설정은 require-kms 플래그가 있는 생성자를 사용한다. */
+    /** 기존 단위 테스트·로컬 호출 호환용. Base64 마스터키 하나로 만든다. */
     public EnvelopeCipher(String masterKeyBase64, String keyId) {
-        this(masterKeyBase64, keyId, false);
+        this(new MasterKeyProvider(masterKeyBase64, keyId, "", false));
     }
 
     @Autowired
-    public EnvelopeCipher(
-            @Value("${app.crypto.master-key}") String masterKeyBase64,
-            @Value("${app.crypto.key-id}") String keyId,
-            @Value("${app.crypto.require-kms:false}") boolean requireKms) {
-        if (requireKms) {
-            throw new IllegalStateException("운영 KMS 어댑터가 아직 없어 자격증명 저장을 시작할 수 없습니다.");
-        }
-        byte[] keyBytes = Base64.getDecoder().decode(masterKeyBase64);
-        if (keyBytes.length != DEK_BYTES) {
-            throw new IllegalStateException("app.crypto.master-key 는 Base64 인코딩된 32바이트여야 합니다.");
-        }
-        this.masterKey = new SecretKeySpec(keyBytes, "AES");
-        this.keyId = keyId;
+    public EnvelopeCipher(MasterKeyProvider keyProvider) {
+        this.keyProvider = keyProvider;
     }
 
     /** 평문을 봉투암호화한다. DEK 는 매 호출마다 새로 생성되며 결과 재사용에도 매번 다른 암호문이 나온다. */
@@ -68,10 +55,10 @@ public class EnvelopeCipher {
                     plaintext.getBytes(StandardCharsets.UTF_8));
 
             byte[] dekNonce = randomNonce();
-            byte[] dekCiphertext = doFinal(Cipher.ENCRYPT_MODE, masterKey, dekNonce, dek);
+            byte[] dekCiphertext = doFinal(Cipher.ENCRYPT_MODE, keyProvider.currentKey(), dekNonce, dek);
             byte[] encDek = concat(dekNonce, dekCiphertext);
 
-            return new EncryptedSecret(ciphertext, encDek, dataNonce, keyId, ALGO_NAME);
+            return new EncryptedSecret(ciphertext, encDek, dataNonce, keyProvider.currentKeyId(), ALGO_NAME);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("암호화 실패", e);
         } finally {
@@ -85,7 +72,8 @@ public class EnvelopeCipher {
         try {
             byte[] dekNonce = Arrays.copyOfRange(secret.encDek(), 0, NONCE_BYTES);
             byte[] dekCiphertext = Arrays.copyOfRange(secret.encDek(), NONCE_BYTES, secret.encDek().length);
-            dek = doFinal(Cipher.DECRYPT_MODE, masterKey, dekNonce, dekCiphertext);
+            // ★ 행에 적힌 keyId 로 키를 고른다. 현재 키로만 풀면 교체 즉시 옛 행을 못 읽는다.
+            dek = doFinal(Cipher.DECRYPT_MODE, keyProvider.keyFor(secret.keyId()), dekNonce, dekCiphertext);
 
             SecretKeySpec dekKey = new SecretKeySpec(dek, "AES");
             byte[] plaintext = doFinal(Cipher.DECRYPT_MODE, dekKey, secret.nonce(), secret.ciphertext());
@@ -103,7 +91,9 @@ public class EnvelopeCipher {
     public byte[] fingerprint(String plaintext) {
         try {
             Mac mac = Mac.getInstance(FINGERPRINT_ALGORITHM);
-            mac.init(masterKey);
+            // 지문은 현재 키로 만든다. 키를 바꾸면 지문도 달라지지만 중복·유출 탐지용이라
+            // 과거 값과 비교할 일이 없다. 복호화에는 쓰지 않는다.
+            mac.init(keyProvider.currentKey());
             mac.update("LOGINPWD-FINGERPRINT\0".getBytes(StandardCharsets.UTF_8));
             return mac.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException e) {

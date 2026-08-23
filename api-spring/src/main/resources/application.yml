@@ -41,6 +41,10 @@ app:
       # 답글 생성 스케줄러. 끄면 수집만 되고 답글은 하나도 생성되지 않는다.
       # ★ 켜면 LLM 비용이 발생한다. 프롬프트를 바꾼 직후에는 잠시 내려두고 확인하는 편이 안전하다.
       enabled: ${DRAFT_SCHEDULER_ENABLED:true}
+    retention:
+      # 개인정보 보유기간 경과분 파기(개인정보보호법 제21조). 운영에서는 반드시 켠다.
+      # ★ 끄면 보유기간을 정해 두고 실제로는 영구 보관하게 된다.
+      enabled: ${RETENTION_SCHEDULER_ENABLED:true}
     billing:
       # 청구·미납 배치(B3/B4) 활성화 여부. 테스트 프로파일은 false 로 재정의한다.
       # 자체 계좌이체 청구는 폐기됐다. Groble 상태 동기화 구현 전까지 절대 실행하지 않는다.
@@ -59,6 +63,10 @@ app:
     # KMS 봉투암호화용 마스터키. LOGINPWD 등 자격증명은 이 키로 감싼 DEK로만 암호화한다.
     master-key: ${CREDENTIAL_MASTER_KEY}
     key-id: ${CREDENTIAL_KEY_ID:local-dev}
+    # 교체 이전 마스터키들. "id:base64키" 를 쉼표로 나열한다. 복호화에만 쓴다.
+    # ★ 키를 교체할 때 옛 키를 여기 남기지 않으면 기존 자격증명을 전부 못 읽는다.
+    #   순서: 새 키를 현재 키로 올리고 옛 키를 여기 남긴다 → 전 행이 재암호화된 뒤 옛 키 제거.
+    previous-keys: ${CREDENTIAL_PREVIOUS_KEYS:}
     # 운영 배포에서는 true로 설정해야 하며, 실제 KMS 어댑터 도입 전에는 기동을 허용하지 않는다.
     require-kms: ${CREDENTIAL_REQUIRE_KMS:false}
   internal:
@@ -67,6 +75,9 @@ app:
   privacy:
     # 리뷰 작성자 닉네임 가명처리(author_hash) salt. 미설정 시 부팅 실패가 안전하다 — 기본값을 두지 않는다.
     salt: ${AUTHOR_HASH_SALT}
+    # 리뷰 개인정보 보유기간(일). 기본 3년 — docs/17 개인정보처리방침과 반드시 같아야 한다.
+    # ★ 방침에 적은 기간보다 길게 두면 그 자체가 위반이다. 한쪽만 고치지 말 것.
+    retention-days: ${PRIVACY_RETENTION_DAYS:1095}
 
 management:
   endpoints:
