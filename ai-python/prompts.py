@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-PROMPT_VERSION = "v1.3"  # v1.1 ABUSIVE 경계 · v1.2 risk 등급 · v1.3 답글 자동생성 티 제거
+PROMPT_VERSION = "v1.4"  # v1.3 자동생성 티 제거 · v1.4 issue_tags 상황별 지침 (사장/소비자 관점 검토 반영)
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -34,6 +34,11 @@ ISSUE_TAG_DICT = [
     "배달지연", "배달빠름", "기사응대", "오배송",
     "포장상태", "누락", "새어나옴", "용기",
     "사장님응대", "서비스증정", "요청사항반영",
+    # 사장/소비자 관점 검토(2026-08-23)에서 실제로 자주 나온다고 지목된 것들.
+    # ★ 태그를 늘리면 분류 프롬프트가 길어져 매 리뷰 비용이 오른다. 답글 지침이 달라지는 것만 넣는다.
+    "일회용품누락",  # 수저·빨대·소스 — '누락' 과 답글 강도가 다르다
+    "결제오류",      # 이중결제·금액상이 — 답글에서 금액을 말할 수 없어 안내 문구가 특히 중요
+
     "가성비", "비쌈", "최소주문금액",
     "청결", "이물질",
 ]
@@ -112,10 +117,57 @@ def upgrade_risk_level(text: str, base_level: int) -> tuple[int, list[str]]:
 CATEGORY_GUIDE: dict[str, str] = {
     "PRAISE": "감사를 표하고, 칭찬받은 메뉴나 부분을 구체적으로 호응한 뒤 재방문을 자연스럽게 권한다.",
     "POSITIVE": "짧고 담백하게 감사만 전한다. 길게 늘이지 마라.",
-    "IMPROVEMENT": "먼저 감사, 지적을 있는 그대로 인정, 개선하겠다는 의지를 밝힌다. 구체적 조치를 약속하지는 마라.",
-    "COMPLAINT": "변명하지 말고 먼저 사과한다. 불편을 구체적으로 언급하고, 재발 방지 의지를 밝힌다. 원인 설명은 짧게.",
+    "IMPROVEMENT": "먼저 감사, 지적을 있는 그대로 인정하고 어떻게 반영할지 한 가지를 말한다. 비용이 드는 약속은 하지 않는다.",
+    "COMPLAINT": "변명하지 말고 먼저 사과한다. 무엇이 문제였는지 그대로 짚고, 다시 그러지 않도록 무엇을 할 것인지 한 가지를 구체적으로 말한다. 재방문 권유로 끝내지 않는다.",
     # ABUSIVE·NOISE 는 이 함수를 거치지 않는다(main.py 에서 각각 사람 검수 직행 / T0 템플릿 처리).
 }
+
+# ── 상황별 지침 (issue_tags 기반) ──────────────────────────────────────────
+# ★ 왜 필요한가: CATEGORY_GUIDE 만으로는 "국물이 샜다" 와 "배달이 좀 늦었다" 가 같은
+#   COMPLAINT 한 줄로 뭉뚱그려진다. 사장님이 실제로 쓰는 답글은 그 둘이 완전히 다르다.
+#   태그 사전에 '누락'·'새어나옴' 이 이미 있는데도 생성 프롬프트로 흘러가지 않고 있었다.
+# ★ 해당 태그가 있을 때만 주입한다. 전부 넣으면 프롬프트가 길어져 매 호출 비용이 오른다.
+# ★ 어떤 지침도 금전 보상을 약속하지 않는다(절대규칙 4). 돈이 들지 않는 조치만 말한다.
+SITUATION_GUIDE: dict[str, str] = {
+    "새어나옴": (
+        "국물·소스가 샌 상황이다. 그 사실을 그대로 짚어 사과하고, 포장 마감(밀봉·별도 용기)을"
+        " 다시 보겠다고 구체적으로 말하라. 원인을 대더라도 주어는 매장이다 —"
+        " '배달 특성상' 처럼 남 탓으로 들리는 표현은 쓰지 마라."
+    ),
+    "누락": (
+        "주문한 것이 빠진 상황이다. 빠진 것을 구체적으로 짚어 사과하고, 출고 전 확인을"
+        " 다시 챙기겠다고 말하라. 주문하신 앱으로 문의해 달라는 안내까지는 해도 된다"
+        " — 그 이상은 [절대 규칙] 1번을 따른다."
+    ),
+    "오배송": (
+        "다른 메뉴가 간 상황이다. 잘못 나간 사실을 인정하고 포장·출고 확인을 짚어라."
+        " 어느 쪽 잘못인지 단정하지 말고 확인해 보겠다고 끝맺어라."
+    ),
+    "포장상태": "포장·용기 문제다. 어떻게 바꾸겠다는 것인지 한 가지만 구체적으로 말하라.",
+    "요청사항반영": "요청이 반영되지 않은 상황이다. 주문서 확인 절차를 다시 보겠다고 말하라.",
+    "일회용품누락": (
+        "수저·빨대·소스 같은 것이 빠진 상황이다. 메뉴 누락보다 가볍게, 다만 대충 넘기지 말고"
+        " 챙기겠다고 한 문장으로 말하라."
+    ),
+    "결제오류": (
+        "결제가 잘못된 상황이다. 답글에서 금액을 다루지 마라. 사과하고 주문하신 앱으로"
+        " 문의해 달라고 안내하는 선에서 끝내라."
+    ),
+    "배달지연": (
+        "배달이 늦은 상황이다. 매장 조리가 늦었는지 배차가 늦었는지 단정하지 마라."
+        " 기다리게 한 점을 사과하고, 조리·포장 시간을 다시 보겠다는 선에서 끝내라."
+    ),
+    "이물질": "사람이 검수하는 건이다. 여기까지 오지 않는다.",
+}
+
+
+def situation_lines(issue_tags: list[str] | None) -> str:
+    """리뷰에 붙은 태그 중 상황별 지침이 있는 것만 모아 준다. 없으면 빈 문자열."""
+    if not issue_tags:
+        return ""
+    lines = [f"- {SITUATION_GUIDE[tag]}" for tag in issue_tags if tag in SITUATION_GUIDE]
+    return "\n".join(lines)
+
 
 _TONE_LABELS = {"POLITE": "정중한 존댓말", "FRIENDLY": "친근한 존댓말", "CHEERFUL": "밝고 경쾌", "CONCISE": "간결"}
 _EMOJI_LABELS = {0: "사용 안 함", 1: "1개 이하", 2: "2개 이하", 3: "자유"}
@@ -135,7 +187,9 @@ def persona_seed_hint(persona_seed: int | None) -> str:
     return f"'{opening}'와 비슷한 인사로 시작하라."
 
 
-def build_generate_messages(category: str, review, persona, few_shot_text: str) -> tuple[str, str]:
+def build_generate_messages(
+    category: str, review, persona, few_shot_text: str, issue_tags: list[str] | None = None
+) -> tuple[str, str]:
     """(system, user) 프롬프트 쌍을 만든다. category 는 PRAISE/POSITIVE/IMPROVEMENT/COMPLAINT
     중 하나여야 한다(ABUSIVE·NOISE 는 main.py 가 이 함수를 호출하지 않는다).
 
@@ -150,6 +204,7 @@ def build_generate_messages(category: str, review, persona, few_shot_text: str) 
     # ★ 사장님이 '답글 시작 스타일' 을 직접 적었으면 그것을 쓴다.
     #   시드 기반 인사말은 아무 것도 안 적었을 때 답글이 매번 똑같아 보이지 않게 하는 장치일 뿐이다.
     #   사람이 적은 값을 무작위 문구로 덮으면, 설정 화면이 동작하지 않는 것처럼 보인다.
+    situation_text = situation_lines(issue_tags)
     opening_style = (getattr(persona, "opening_style", None) or "").strip()
     if opening_style:
         seed_hint = f"'{opening_style}' 스타일로 시작하라."
@@ -183,13 +238,20 @@ def build_generate_messages(category: str, review, persona, few_shot_text: str) 
         "- 2~3문장으로 끝내라. 주방에서 짬을 내 쓴 글이지 안내문이 아니다.\n"
         "- 아래 예시는 이 매장 사장님이 실제로 쓴(혹은 승인된) 답글이다. 문장 리듬과 어휘를"
         " 참고하되 내용을 복사하지 마라.\n\n"
-        "[읽는 사람은 고객이다 — 자동 생성 티가 나면 안 된다]\n"
+        + (f"\n[이 리뷰의 상황]\n{situation_text}\n" if situation_text else "")
+        + "\n[읽는 사람은 고객이다 — 자동 생성 티가 나면 안 된다]\n"
+        "이 답글은 다른 잠재 고객도 읽는다. 리뷰 페이지는 공개다.\n"
         "아래 상투구는 쓰지 마라. 배달앱에서 자동 답글로 곧장 알아보는 표현이다.\n"
         "  소중한 의견 / 소중한 리뷰 / 고객님의 의견을 반영하여 / 더욱 노력하는\n"
         "  만족스러운 서비스로 보답 / 항상 최선을 다하 / 불편을 드려 대단히 죄송\n"
-        "  너그러운 양해 / 초심을 잃지 않\n"
+        "  너그러운 양해 / 초심을 잃지 않 / 빠른 시일 내에 / 각별히 신경 / 적극 반영\n"
+        "  다시 한번 죄송 / 앞으로 더 나은 모습으로\n"
         "- 사과는 한 번만 한다. 같은 말을 표현만 바꿔 반복하지 마라.\n"
-        "- 미사여구보다 구체가 낫다. '더 신경쓰겠습니다' 보다 '간을 다시 보겠습니다' 가 낫다.\n\n"
+        "- 미사여구보다 구체가 낫다. '더 신경쓰겠습니다' 보다 '간을 다시 보겠습니다' 가 낫다.\n"
+        "- 돈이 들지 않는 조치를 하나는 말하라. 추상적인 다짐 하나로 끝내지 마라.\n"
+        "- '배달 특성상', '포장 특성상' 처럼 정황을 앞세워 책임을 흐리지 마라. 주어는 매장이다.\n"
+        "- 사과한 뒤에 재방문 권유나 칭찬조 문장을 붙이지 마라. 문제를 가볍게 여기는 것처럼 읽힌다.\n"
+        "- 문제를 지적한 리뷰에 '맛있게', '만족스럽게', '다행입니다' 같은 표현을 쓰지 마라.\n\n"
         f"[예시]\n{few_shot_text}\n"
     )
 
@@ -236,7 +298,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v1.3"
+    assert PROMPT_VERSION == "v1.4"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]

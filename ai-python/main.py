@@ -176,7 +176,8 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
 
 # ── 생성 ────────────────────────────────────────────────────────────────
 def _generate_draft(
-    provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int
+    provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
+    issue_tags: list[str] | None = None,
 ) -> tuple[str | None, str, str, int, int, float]:
     """(content, 사용모델, 사용티어, token_in, token_out, cost_krw) 를 반환한다.
     content 가 None 이면 두 티어(원래 티어 + 폴백 1회) 모두 실패한 것이다."""
@@ -195,7 +196,11 @@ def _generate_draft(
 
         examples = rag.fetch_examples(req.store_id, req.review.body, k=4)
         few_shot_text = prompts.format_few_shot([(e.review_text, e.reply_text) for e in examples])
-        system, user = prompts.build_generate_messages(category, req.review, persona, few_shot_text)
+        # ★ issue_tags 를 넘긴다. 이게 없으면 '국물이 샜다' 와 '배달이 늦었다' 가 같은
+        #   COMPLAINT 지침 한 줄로 뭉뚱그려진다(사장/소비자 관점 검토에서 공통 지적).
+        system, user = prompts.build_generate_messages(
+            category, req.review, persona, few_shot_text, issue_tags
+        )
         model_id = router.TIER_MODELS[attempt_tier]
         try:
             result = provider.complete(system, user, model_id, max_tokens=400)
@@ -209,7 +214,8 @@ def _generate_draft(
 
 
 def _produce_variant(
-    provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int, risk_level: int
+    provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
+    risk_level: int, issue_tags: list[str] | None = None,
 ) -> tuple[DraftOut | None, list[str]]:
     """초안 1건을 생성하고 가드레일을 통과시킨다. (draft, 최종 실패 플래그) 를 반환한다.
 
@@ -221,7 +227,9 @@ def _produce_variant(
     """
     last_flags: list[str] = []
     for _regen in range(2):  # 최초 생성 1회 + RETRY 시 재생성 1회
-        content, gen_model, used_tier, tok_in, tok_out, cost = _generate_draft(provider, tier, category, req, variant_idx)
+        content, gen_model, used_tier, tok_in, tok_out, cost = _generate_draft(
+            provider, tier, category, req, variant_idx, issue_tags
+        )
         if content is None:
             return None, ["GENERATION_FAILED"]
 
@@ -292,7 +300,9 @@ def analyze_and_draft(
     n_variants = max(1, req.options.variants)
 
     for variant_idx in range(n_variants):
-        draft, flags = _produce_variant(provider, tier, classified.category, req, variant_idx, risk_level)
+        draft, flags = _produce_variant(
+            provider, tier, classified.category, req, variant_idx, risk_level, classified.issue_tags
+        )
         if draft is None:
             for f in flags:
                 if f not in block_reasons:
