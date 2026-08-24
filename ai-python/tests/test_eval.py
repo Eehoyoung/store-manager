@@ -26,13 +26,15 @@ def test_goldenset_has_no_duplicate_bodies():
 def test_goldenset_covers_every_category_and_industry():
     """분포는 고정하지 않되, 어느 카테고리도 비어 있으면 안 된다.
 
-    ABUSIVE 가 8건뿐이라 재현율 1건이 12%p 를 움직인다 — 이 지표는 아직 불안정하다.
-    실매장 리뷰가 쌓이면 합성 문장 대신 실제 사례로 채운다(goldenset/CHANGELOG.md).
+    ABUSIVE 는 2026-08-25 에 8 → 32종으로 늘렸다(욕설·인신공격·조롱·협박·폐업요구·매장무관).
+    8종일 때는 재현율 1건이 12.5%p 를 움직여 95% 게이트가 통계적으로 무의미했다.
+    여전히 전부 합성 문장이므로, 실매장 리뷰가 쌓이면 실제 사례로 교체한다.
     """
     rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
     counts = Counter(r["category"] for r in rows)
     for category in ("PRAISE", "POSITIVE", "IMPROVEMENT", "COMPLAINT", "ABUSIVE", "NOISE"):
         assert counts[category] >= 5, f"{category} 표본이 너무 적다: {counts[category]}건"
+    assert counts["ABUSIVE"] >= 30, "ABUSIVE 표본을 30종 밑으로 줄이지 말 것 — 재현율이 불안정해진다"
     assert len({r["industry"] for r in rows}) >= 3
 
 
@@ -46,11 +48,24 @@ def test_high_risk_set_matches_spec():
 
 
 def test_high_risk_evaluation_exposes_context_false_positives():
+    """맥락 오탐이 남아 있음을 드러내는 테스트.
+
+    ★ 2026-08-25 갱신 — 키워드 룰을 좁히면서 재현율 0.978 → 1.000,
+      정밀도 0.60 하한 → 0.957 이 됐다. H-030("깨 토핑을 플라스틱으로 착각했지만
+      확인해 보니 깨였어요")은 근접 조건이 생기면서 더 이상 오탐이 아니다.
+      이 테스트는 옛 버그를 정답으로 고정하고 있었으므로 함께 고친다.
+
+    ★ 남은 2건은 의미 이해가 필요해 키워드로는 못 고친다. 방향은 안전측이다.
+      H-015 "예전에 배탈 났었는데 이번에는 괜찮고" — 과거·부정 문맥
+      H-029 "서비스로 받은 장난감 벌레가 귀엽고"   — 비유·사물 지칭
+      이걸 고치겠다고 '배탈'·'벌레' 를 빼지 말 것. 진짜 사고를 놓친다.
+    """
     report = eval_mod.evaluate_high_risk(eval_mod.load_goldenset(eval_mod.HIGH_RISK_DEFAULT))
     assert report["recall"] >= 0.95
     assert report["precision"] >= 0.60
     assert report["passed"] is True
-    assert {"H-015", "H-030"} <= set(report["false_positives"])
+    assert not report["misses"], f"고위험을 놓쳤다: {report['misses']}"
+    assert {"H-015", "H-029"} <= set(report["false_positives"])
 
 
 def test_goldenset_risk3_rows_all_marked_must_block():
@@ -154,3 +169,41 @@ def test_cli_exit_0_when_all_gates_pass(tmp_path):
     path = _write_jsonl(tmp_path, rows)
     code = eval_mod.main(["--goldenset", str(path), "--threshold-recall", "0.9"], classifier=None)
     assert code == 0
+
+
+def test_골든셋_차단_기대값이_코드와_일치한다():
+    """`mustBlockAutoPublish` 는 실제 차단 조건과 같아야 한다.
+
+    ★ 코드상 차단 조건은 두 가지뿐이다.
+        main.py               : category == "ABUSIVE"      → blocked
+        guardrails.py G8      : risk_level >= 2            → blocked
+      골든셋이 이와 다르면 채점 기준이 제품과 어긋나, 통과해도 의미가 없고
+      떨어져도 원인을 알 수 없다.
+
+    ★ 2026-08-25 실측에서 5건이 어긋나 있었다(같은 risk 2 인데 기대값이 갈렸다).
+    """
+    from guardrails import RISK_BLOCK_THRESHOLD
+
+    rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
+    mismatched = [
+        r["id"] for r in rows
+        if r["expected"]["mustBlockAutoPublish"]
+        != (r["category"] == "ABUSIVE" or r["expected"]["riskLevel"] >= RISK_BLOCK_THRESHOLD)
+    ]
+    assert not mismatched, f"차단 기대값이 코드와 다르다: {mismatched}"
+
+
+def test_골든셋_risk3은_키워드_룰이_전부_잡는다():
+    """★ 절대규칙 3 의 최종 확인. 하나라도 놓치면 그 리뷰는 자동 게시된다.
+
+    모델이 아니라 키워드 룰만으로(base_level=0) 3 이 나와야 한다 —
+    모델은 믿을 수 없다는 것이 이 룰의 존재 이유다.
+    """
+    from prompts import upgrade_risk_level
+
+    rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
+    missed = [
+        r["id"] for r in rows
+        if r["expected"]["riskLevel"] >= 3 and upgrade_risk_level(r["body"], 0)[0] < 3
+    ]
+    assert not missed, f"고위험인데 키워드 룰이 못 잡는다: {missed}"
