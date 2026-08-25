@@ -177,9 +177,15 @@ def is_retryable_exception(exc: BaseException) -> bool:
 _T = TypeVar("_T")
 
 
+# ★ 재시도는 2회까지다(2026-08-25 운영자 결정). 호출당 과금이므로 3회는 실패 1건에
+#   3회분을 태우는 셈이다. 2회로 안 되면 일시 장애가 아니라 구조적 문제일 가능성이 높다.
+#   그 이상은 재시도하지 않고 실패로 기록해 운영자 화면(/admin/failures)에 올린다.
+MAX_ATTEMPTS = int(os.environ.get("DATAAPI_MAX_ATTEMPTS", "2"))
+
+
 def call_with_retry(
     fn: Callable[[], _T],
-    max_attempts: int = 3,
+    max_attempts: int = MAX_ATTEMPTS,
     base_delay: float = 1.0,
     sleep: Callable[[float], None] = time.sleep,
 ) -> _T:

@@ -108,3 +108,37 @@ def check_account(account_id: str) -> dict:
         "decrypted": True,
         "dataapiPayloadChars": len(creds.login_pwd_encrypted),
     }
+
+
+def active_account_ids() -> list[int]:
+    """정기 수집 대상 platform_account.id 목록.
+
+    ★ 호출 1건이 곧 돈이다. 대상 선별을 SQL 한 번에 끝내고, 여기서 걸러진 계정에는
+      DataAPI 호출을 아예 만들지 않는다. 조건은 Spring 의 StoreServiceGate 와 같아야 한다.
+        - 해지된 계정 제외          (revoked_at)
+        - 연동 오류 계정 제외        (link_status='ERROR' — 로그인 실패는 재시도해도 실패다)
+        - 삭제·미활성 매장 제외      (deleted_at, activated_at — 전자계약 게이트)
+        - 구독이 살아 있는 매장만     (subscription.status='ACTIVE')
+      ★ 이 조건을 느슨하게 바꾸면 못 받을 돈에 호출료를 우리가 대신 낸다.
+    """
+    import psycopg
+
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL 이 없습니다 (수집 대상 조회 불가).")
+
+    with psycopg.connect(DATABASE_URL) as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT DISTINCT pa.id
+              FROM platform_account pa
+              JOIN store s ON s.owner_id = pa.owner_id
+             WHERE pa.revoked_at IS NULL
+               AND COALESCE(pa.link_status, '') <> 'ERROR'
+               AND s.deleted_at IS NULL
+               AND s.activated_at IS NOT NULL
+               AND EXISTS (SELECT 1 FROM subscription sub
+                            WHERE sub.store_id = s.id AND sub.status = 'ACTIVE')
+             ORDER BY pa.id
+            """
+        )
+        return [int(r[0]) for r in cur.fetchall()]

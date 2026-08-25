@@ -33,4 +33,36 @@ export const adminApi = {
     apiRequest<void>(`/admin/stores/${storeId}/subscription/activate`, { method: "POST", body: { note } }),
   suspend: (storeId: string, note: string) =>
     apiRequest<void>(`/admin/stores/${storeId}/subscription/suspend`, { method: "POST", body: { note } }),
+
+  /** 재시도를 소진하고 실패한 건. 조회 전용 — 재시도 API 는 두지 않는다. */
+  failures: (limit = 100) => apiRequest<FailureReport>(`/admin/failures?limit=${limit}`),
+};
+export type PublishFailureRow = {
+  storeName: string;
+  reviewId: string | null;
+  platform: string;
+  platformReviewId: string | null;
+  rating: number | null;
+  reviewExcerpt: string | null;
+  draftId: string | null;
+  failCode: string | null;
+  failReason: string | null;
+  retryCount: number;
+  failedAt: string | null;
+};
+
+export type CollectFailureRow = {
+  storeName: string | null;
+  platform: string;
+  loginIdMasked: string | null;
+  jobType: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  ecode: string | null;
+  failedAt: string | null;
+};
+
+export type FailureReport = {
+  publishFailures: PublishFailureRow[];
+  collectFailures: CollectFailureRow[];
 };

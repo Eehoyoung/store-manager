@@ -22,6 +22,7 @@ import httpx
 
 import publish
 from celery_app import app
+import credentials
 from dataapi import Credentials, DataApiClient, DataApiError, Platform, WRITE_ENABLED_ENV, call_with_retry, ecode_action
 from normalize import normalize_stores
 
@@ -241,6 +242,29 @@ def _publish_error_result(payload: dict, reason: str) -> dict:
             "dispatchToken": payload.get("dispatchToken") if isinstance(payload, dict) else None,
         },
     }
+
+
+@app.task(name="tasks.dispatch_polls")
+def dispatch_polls(account_lister=None) -> dict:
+    """정기 수집 팬아웃 — beat 가 하루 3회(10·16·20시 KST) 부른다.
+
+    ★ beat 는 이 태스크 하나만 건다. 계정별 스케줄을 beat 에 넣으면 매장이 늘 때마다
+      스케줄을 고쳐야 하고, 스케줄 파일이 곧 과금 대상 목록이 된다.
+
+    ★ 호출 단가가 곧 원가다(2026-08-25 산정). 대상 선별은 credentials.active_account_ids
+      가 SQL 한 번으로 끝낸다 — 구독이 끊긴 매장에 호출을 만들지 않는다.
+    """
+    lister = account_lister or credentials.active_account_ids
+    try:
+        ids = lister()
+    except Exception as exc:  # DB 접근 실패 — 호출을 만들지 않고 조용히 끝낸다
+        log.error("dispatch_polls 대상 조회 실패: %s", exc)
+        return {"status": "ERROR", "dispatched": 0}
+
+    for account_id in ids:
+        poll_reviews.delay(str(account_id))
+    log.info("dispatch_polls 팬아웃 %d건", len(ids))
+    return {"status": "OK", "dispatched": len(ids)}
 
 
 @app.task(name="tasks.publish_drafts")

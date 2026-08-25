@@ -119,6 +119,7 @@ export function AppShell() {
           ) : null}
           {isAdmin ? <NavLink to="/admin" className={navLinkClass}>소속 승인</NavLink> : null}
           {isAdmin ? <NavLink to="/admin/subscriptions" className={navLinkClass}>서비스 상태</NavLink> : null}
+          {isAdmin ? <NavLink to="/admin/failures" className={navLinkClass}>실패 건</NavLink> : null}
           <NavLink to="/settings" className={navLinkClass}>
             설정
           </NavLink>

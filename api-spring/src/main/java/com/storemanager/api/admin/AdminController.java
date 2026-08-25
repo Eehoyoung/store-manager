@@ -15,12 +15,14 @@ public class AdminController {
     private final AdminAccessGuard guard;
     private final FranchiseService franchises;
     private final AdminSubscriptionService subscriptions;
+    private final AdminFailureService failures;
 
     public AdminController(AdminAccessGuard guard, FranchiseService franchises,
-            AdminSubscriptionService subscriptions) {
+            AdminSubscriptionService subscriptions, AdminFailureService failures) {
         this.guard = guard;
         this.franchises = franchises;
         this.subscriptions = subscriptions;
+        this.failures = failures;
     }
 
     @GetMapping("/me")
@@ -72,4 +74,24 @@ public class AdminController {
     /** note 는 입금자명·입금일 같은 판단 근거다. 요금 분쟁 시 유일한 기록이므로 필수로 받는다. */
     public record ServiceDecisionRequest(@NotBlank @jakarta.validation.constraints.Size(max = 200) String note) {}
     public record DecisionRequest(@NotBlank String decision) {}
+
+    /**
+     * 재시도를 소진하고 실패한 건 목록.
+     *
+     * <p>★ DataAPI 재시도는 2회까지다. 그 이상은 재시도하지 않고 여기 쌓인다 —
+     * 이 화면을 아무도 안 보면 실패한 답글은 그대로 사라진다.
+     * <p>★ 조회 전용이다. 재시도 버튼을 붙이지 말 것(댓글 등록은 되돌릴 수 없다).
+     */
+    @GetMapping("/failures")
+    public FailureReport failures(@RequestParam(defaultValue = "100") int limit) {
+        guard.requireAdmin(CurrentUser.publicId());
+        return new FailureReport(
+                failures.publishFailures(limit),
+                failures.collectFailures(limit));
+    }
+
+    public record FailureReport(
+            List<AdminFailureService.PublishFailureRow> publishFailures,
+            List<AdminFailureService.CollectFailureRow> collectFailures) {
+    }
 }
