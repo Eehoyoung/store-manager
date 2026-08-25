@@ -293,7 +293,10 @@ def analyze_and_draft(
             analysis=analysis, drafts=[], blocked=True, blockReasons=["ABUSIVE_MANUAL_REVIEW"]
         )
 
-    tier = router.route(req.review.rating, req.review.body, classified.category, risk_level, req.options.force_tier)
+    tier = router.route(
+        req.review.rating, req.review.body, classified.category, risk_level,
+        req.options.force_tier, issue_tag_count=len(classified.issue_tags),
+    )
 
     drafts: list[DraftOut] = []
     block_reasons: list[str] = []
