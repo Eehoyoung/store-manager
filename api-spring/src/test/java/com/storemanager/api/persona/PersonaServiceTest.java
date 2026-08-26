@@ -87,7 +87,12 @@ class PersonaServiceTest {
     }
 
     private PersonaRequest personaRequest(short lengthMin, short lengthMax, List<WindowDto> windows) {
-        return new PersonaRequest("POLITE", true, (short) 1, "고객님", "감사합니다", null, List.of(), lengthMin,
+        return personaRequest(lengthMin, lengthMax, windows, List.of());
+    }
+
+    private PersonaRequest personaRequest(short lengthMin, short lengthMax, List<WindowDto> windows,
+            List<String> bannedWords) {
+        return new PersonaRequest("POLITE", true, (short) 1, "고객님", "감사합니다", null, bannedWords, lengthMin,
                 lengthMax, (short) 6, windows);
     }
 
@@ -116,6 +121,60 @@ class PersonaServiceTest {
             Set<String> invalidFields = violations.stream().map(v -> v.getPropertyPath().toString())
                     .collect(Collectors.toSet());
             assertThat(invalidFields).contains("lengthMax");
+        }
+    }
+
+    /**
+     * ★ 금칙어는 매 답글 생성 프롬프트에 통째로 실린다(prompts.build_generate_messages
+     * "5. 다음 단어를 쓰지 마라: {banned}"). 즉 <b>개수가 곧 입력 토큰이고 곧 원가다.</b>
+     *
+     * <p>원소 {@code @Size(max=50)} 만 있던 시절에는 배열 길이가 무제한이라 1,000개를
+     * 등록하면 프롬프트에 5만 자가 붙어 답글 1건 원가가 4.56원 → 55원(12배)이 됐다.
+     * 청구서에만 드러나고 어디에도 로그가 남지 않는다.
+     *
+     * <p>이 테스트가 깨지면 상한을 올리기 전에 원가 영향부터 계산하라.
+     */
+    @Test
+    void 금칙어_개수가_상한을_넘으면_거부된다() {
+        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+            Validator validator = factory.getValidator();
+            List<String> tooMany = java.util.stream.IntStream.rangeClosed(0, PersonaDtos.MAX_BANNED_WORDS)
+                    .mapToObj(i -> "금칙어" + i)
+                    .toList();
+
+            Set<ConstraintViolation<PersonaRequest>> violations =
+                    validator.validate(personaRequest((short) 60, (short) 150, List.of(), tooMany));
+
+            assertThat(violations).extracting(v -> v.getPropertyPath().toString()).contains("bannedWords");
+        }
+    }
+
+    @Test
+    void 금칙어_개수가_상한_이내면_통과한다() {
+        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+            Validator validator = factory.getValidator();
+            List<String> justEnough = java.util.stream.IntStream.range(0, PersonaDtos.MAX_BANNED_WORDS)
+                    .mapToObj(i -> "금칙어" + i)
+                    .toList();
+
+            Set<ConstraintViolation<PersonaRequest>> violations =
+                    validator.validate(personaRequest((short) 60, (short) 150, List.of(), justEnough));
+
+            assertThat(violations).extracting(v -> v.getPropertyPath().toString()).doesNotContain("bannedWords");
+        }
+    }
+
+    /** 단어 하나가 50자를 넘는 경우도 계속 막혀야 한다 — 개수 제한이 이걸 대체하지 않는다. */
+    @Test
+    void 금칙어_한_단어가_50자를_넘으면_거부된다() {
+        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+            Validator validator = factory.getValidator();
+
+            Set<ConstraintViolation<PersonaRequest>> violations = validator.validate(
+                    personaRequest((short) 60, (short) 150, List.of(), List.of("가".repeat(51))));
+
+            assertThat(violations).extracting(v -> v.getPropertyPath().toString())
+                    .anyMatch(p -> p.startsWith("bannedWords"));
         }
     }
 

@@ -15,6 +15,15 @@ import java.util.List;
  */
 final class PersonaDtos {
 
+    /**
+     * 매장 금칙어 최대 개수.
+     *
+     * <p>★ 이 값은 UX 취향이 아니라 <b>원가 상한</b>이다. 금칙어는 매 답글 생성 프롬프트에
+     * 통째로 실려 나가므로 개수가 곧 입력 토큰이다. 30개 × 50자 = 1,500자로, 프롬프트
+     * 본문(약 1,500자)과 같은 수준까지만 허용한다. 늘리기 전에 원가 영향을 계산할 것.
+     */
+    static final int MAX_BANNED_WORDS = 30;
+
     private PersonaDtos() {
     }
 
@@ -32,6 +41,12 @@ final class PersonaDtos {
             @Size(max = 20) String customerTitle,
             @Size(max = 100) String signature,
             @Size(max = 100) String openingStyle,
+            // ★ 배열 '길이' 제한이 반드시 필요하다. 원소 @Size 는 단어 하나의 길이만 막는다.
+            //   금칙어는 프롬프트에 그대로 들어간다(prompts.build_generate_messages
+            //   "5. 다음 단어를 쓰지 마라: {banned}"). 개수를 안 막으면 1,000개 등록 시
+            //   프롬프트에 5만 자가 붙어 답글 1건 원가가 4.56원 → 55원(12배)이 된다.
+            //   악의가 없어도 발생한다 — 엑셀 목록을 복사해 붙여넣는 것만으로 충분하다.
+            @Size(max = MAX_BANNED_WORDS, message = "금칙어는 최대 " + MAX_BANNED_WORDS + "개까지 등록할 수 있습니다.")
             List<@Size(max = 50) String> bannedWords,
             @NotNull @Min(1) Short lengthMin,
             @NotNull @Min(1) @Max(280) Short lengthMax,
