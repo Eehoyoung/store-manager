@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "solapi": {
+      "command": "npx",
+      "args": ["--yes", "@solapi/mcp-server"],
+      "env": {
+        "SOLAPI_MCP_MAX_RECIPIENTS": "1"
+      }
+    }
+  }
+}
