@@ -184,7 +184,12 @@ public class ReplyDraft {
         this.riskAckAt = ackAt;
     }
 
-    /** 사람이 게시하지 않기로 했다. BLOCKED 로 남되 누가 판단했는지 남긴다. */
+    /**
+     * 사람이 게시하지 않기로 했다. BLOCKED 로 남되 누가 판단했는지 남긴다.
+     *
+     * @param userId 판단한 사용자. 알림톡 링크로 들어온 경우 <b>누가 눌렀는지 모르므로 null</b> 이다
+     *        — 그때는 감사로그의 actorType='LINK' 가 경로를 말해 준다.
+     */
     public void rejectByHuman(Long userId) {
         requireStatus("BLOCKED");
         this.approvedBy = userId;
