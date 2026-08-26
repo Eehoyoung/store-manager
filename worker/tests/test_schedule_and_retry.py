@@ -8,13 +8,15 @@ import dataapi
 import tasks
 
 
-def test_수집은_하루_3회_10시_16시_20시다():
-    """★ 1회 늘리면 3플랫폼 매장당 월 90회(약 21%)가 늘어난다.
+def test_수집은_하루_1회_10시다():
+    """★ 단가가 정액 팩(월 50만원 / 10,000건)이라 조회 횟수 = 팩당 수용 매장 수다.
 
-    바꾸려면 CLAUDE.md 의 호출 단가 손익표를 함께 고쳐야 한다.
+    조회 3회면 1팩에 26매장, 1회면 45매장이 들어간다. 늘리는 순간 팩 경계를
+    넘고, 경계를 넘으면 50만원이 통째로 더 붙는다.
+    바꾸려면 CLAUDE.md 'DataAPI 원가' 절과 docs/DataAPI_손익계산기.html 을 함께 고칠 것.
     """
     cron = celery_app.app.conf.beat_schedule["dispatch-polls"]["schedule"]
-    assert cron.hour == {10, 16, 20}
+    assert cron.hour == {10}
     assert cron.minute == {0}
 
 
