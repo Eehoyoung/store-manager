@@ -22,8 +22,24 @@ RISK_BLOCK_THRESHOLD = 3
 
 
 def is_risk_blocked(payload: dict[str, Any]) -> bool:
-    # riskLevel 은 고정계약상 항상 포함되지만, 누락 시에도 안전측(차단)으로 기본값을 둔다.
-    return payload.get("riskLevel", RISK_BLOCK_THRESHOLD) >= RISK_BLOCK_THRESHOLD
+    """위험도 때문에 게시를 막아야 하는가.
+
+    ★ 방어선을 없앤 게 아니라 조건을 좁혔다(2026-08-27).
+      이전: riskLevel >= 3 이면 무조건 차단.
+      지금: riskLevel >= 3 이고 **사람 승인이 없으면** 차단.
+
+    ★ humanApproved 기본값은 False 다. 필드가 없는 구버전·위조 payload 가 위험 게시를
+      열어서는 안 된다. riskLevel 기본값이 '차단' 인 것과 같은 이유다.
+      이 두 기본값을 바꾸지 말 것 — 여기가 마지막 방어선이다.
+    """
+    risk = payload.get("riskLevel")
+    if not isinstance(risk, int) or isinstance(risk, bool):
+        # 위험도를 모르는 것은 안전하다는 뜻이 아니다. 승인 여부와 무관하게 막는다.
+        # ★ 이 검사를 지우면 riskLevel 을 뺀 payload 에 humanApproved 만 실어 뚫을 수 있다.
+        return True
+    if risk < RISK_BLOCK_THRESHOLD:
+        return False
+    return payload.get("humanApproved") is not True
 
 
 def is_store_inactive(payload: dict[str, Any]) -> bool:

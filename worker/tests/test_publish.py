@@ -111,6 +111,37 @@ def test_process_publish_job_login_fail_is_link_error():
     assert len(client.calls) == 1
 
 
+# ── 사람 승인 경로 (2026-08-27) ────────────────────────────────────────
+#
+# ★ 위험 리뷰도 권장 답글을 만들어 두고 사람이 승인하면 게시한다.
+#   방어선을 없앤 게 아니라 조건을 좁혔다 — humanApproved 가 명시적으로 True 일 때만 통과한다.
+
+
+def test_사람이_승인한_고위험_초안은_게시된다():
+    """risk 3 이어도 humanApproved=True 면 통과한다. 절대규칙 3 의 '사람 검수' 가 이것이다."""
+    assert publish.is_risk_blocked({"riskLevel": 3, "humanApproved": True}) is False
+
+
+def test_사람_승인이_없으면_고위험은_여전히_막힌다():
+    assert publish.is_risk_blocked({"riskLevel": 3}) is True
+    assert publish.is_risk_blocked({"riskLevel": 3, "humanApproved": False}) is True
+
+
+def test_humanApproved_가_참이_아닌_값이면_막는다():
+    """★ 마지막 방어선이다. 문자열·숫자·None 을 참으로 해석하면 위조 payload 가 뚫린다."""
+    for bogus in ("true", 1, "1", [], {}, None, "yes"):
+        assert publish.is_risk_blocked({"riskLevel": 3, "humanApproved": bogus}) is True, bogus
+
+
+def test_riskLevel_이_없으면_승인_여부와_무관하게_막는다():
+    """위험도를 모르는 것은 안전하다는 뜻이 아니다. 기본값 '차단' 을 바꾸지 말 것."""
+    assert publish.is_risk_blocked({"humanApproved": True}) is True
+
+
+def test_저위험은_승인_없이도_통과한다():
+    assert publish.is_risk_blocked({"riskLevel": 1}) is False
+
+
 # (d) riskLevel=3 → DataAPI 호출자가 단 한 번도 호출되지 않음
 def test_process_publish_job_blocks_high_risk_without_calling_dataapi():
     def _boom(*args):

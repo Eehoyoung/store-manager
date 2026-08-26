@@ -21,6 +21,37 @@ public final class PublishScheduleCalculator {
     }
 
     /** HH:mm 기준 하루짜리 구간. start <= end 를 가정한다(자정을 넘는 윈도우는 지원하지 않는다). */
+    /**
+     * persona.publish_windows(JSON)을 파싱한다.
+     *
+     * <p>★ DraftService 와 RiskApprovalService 가 같은 계산을 해야 한다 — 자동 예약과 사람
+     * 승인이 서로 다른 시각을 계산하면 사장님 화면과 실제 게시가 어긋난다. 그래서 사본을
+     * 만들지 않고 여기 한 벌만 둔다.
+     *
+     * <p>파싱에 실패하면 빈 목록을 준다. 게시를 막는 게 아니라 시간대 제약만 사라지므로
+     * fail-open 이 맞다 — 여기서 fail-closed 하면 설정 오타 하나로 답글이 통째로 멈춘다.
+     */
+    public static List<Window> parseWindows(String publishWindowsJson) {
+        if (publishWindowsJson == null || publishWindowsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<java.util.Map<String, String>> raw = MAPPER.readValue(publishWindowsJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<java.util.Map<String, String>>>() {
+                    });
+            List<Window> windows = new java.util.ArrayList<>();
+            for (java.util.Map<String, String> w : raw) {
+                windows.add(new Window(LocalTime.parse(w.get("start")), LocalTime.parse(w.get("end"))));
+            }
+            return windows;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     public record Window(LocalTime start, LocalTime end) {
     }
 

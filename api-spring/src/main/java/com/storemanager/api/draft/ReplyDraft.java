@@ -110,6 +110,26 @@ public class ReplyDraft {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    /** 위험 초안을 승인한 사용자. NULL 이면 자동 경로로 예약된 건이다. */
+    @Column(name = "approved_by")
+    private Long approvedBy;
+
+    @Column(name = "approved_at")
+    private Instant approvedAt;
+
+    /**
+     * 차단 사유를 읽었다는 확인 시각.
+     *
+     * <p>★ {@code approvedAt} 과 합치지 말 것. 합치면 화면이 체크박스를 건너뛰어도 서버가
+     * 알 수 없다. '읽지 않고 승인' 을 막는 유일한 증거가 이 컬럼이다.
+     */
+    @Column(name = "risk_ack_at")
+    private Instant riskAckAt;
+
+    /** 사람이 고치기 전 AI 원문. 무엇을 고쳤는지가 품질 개선의 근거다. */
+    @Column(name = "original_content")
+    private String originalContent;
+
     /** DRAFT → SCHEDULED. 안전 검사를 통과한 풀자동 예약에서만 호출한다. */
     public void scheduleAutomatically(Instant scheduledAt) {
         requireStatus("DRAFT");
@@ -133,6 +153,59 @@ public class ReplyDraft {
         if (riskReasons != null && !riskReasons.isEmpty()) {
             this.guardrailFlags = riskReasons.toArray(new String[0]);
         }
+    }
+
+    /**
+     * BLOCKED → SCHEDULED. 사람이 차단 사유를 확인하고 승인했을 때만 호출한다.
+     *
+     * <p>★ 절대규칙 3 은 "자동 게시 금지"이지 "게시 금지"가 아니다. 사람이 사유를 읽고
+     * 판단하는 것이 곧 검수다. 다만 그 판단이 실제로 있었다는 증거를 남겨야 하므로
+     * {@code approvedBy} 와 {@code riskAckAt} 을 함께 기록한다. 게시 직전 재검증
+     * (PublishScheduler·워커)은 이 두 값으로 자동 경로와 사람 승인 경로를 구분한다.
+     *
+     * @param editedContent 사람이 고친 본문. null 이면 AI 초안을 그대로 쓴다.
+     */
+    public void approveByHuman(Long userId, Instant ackAt, String editedContent, Instant scheduledAt) {
+        requireStatus("BLOCKED");
+        if (userId == null || ackAt == null) {
+            // 방어적 — 서비스에서 이미 막지만, 엔티티가 스스로도 거부해야 한다.
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    Map.of("reason", "승인자와 사유 확인 시각이 모두 있어야 게시할 수 있습니다."));
+        }
+        if (editedContent != null && !editedContent.equals(this.content)) {
+            this.originalContent = this.content;
+            this.content = editedContent;
+            this.generatedBy = "AI_EDITED";
+        }
+        this.status = "SCHEDULED";
+        this.scheduledAt = scheduledAt;
+        this.approvedBy = userId;
+        this.approvedAt = Instant.now();
+        this.riskAckAt = ackAt;
+    }
+
+    /** 사람이 게시하지 않기로 했다. BLOCKED 로 남되 누가 판단했는지 남긴다. */
+    public void rejectByHuman(Long userId) {
+        requireStatus("BLOCKED");
+        this.approvedBy = userId;
+        this.approvedAt = Instant.now();
+        this.guardrailFlags = appendFlag(this.guardrailFlags, "HUMAN_REJECTED");
+    }
+
+    private static String[] appendFlag(String[] flags, String flag) {
+        for (String f : flags) {
+            if (f.equals(flag)) {
+                return flags;
+            }
+        }
+        String[] out = java.util.Arrays.copyOf(flags, flags.length + 1);
+        out[flags.length] = flag;
+        return out;
+    }
+
+    /** 사람이 승인해 예약된 건인가. 게시 직전 재검증이 자동 경로와 구분하는 기준이다. */
+    public boolean isHumanApproved() {
+        return approvedBy != null && riskAckAt != null;
     }
 
     /** 예약 이후 필수 참조나 매장 활성 조건이 사라지면 fail-closed로 종결한다. */

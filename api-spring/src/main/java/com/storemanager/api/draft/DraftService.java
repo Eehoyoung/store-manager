@@ -260,24 +260,9 @@ public class DraftService {
         reviewAnalysisRepository.save(analysis);
     }
 
+    /** ★ 사본을 만들지 말 것 — 사람 승인 경로와 같은 계산을 써야 한다. */
     private List<PublishScheduleCalculator.Window> parseWindows(String publishWindowsJson) {
-        if (publishWindowsJson == null || publishWindowsJson.isBlank()) {
-            return List.of();
-        }
-        try {
-            List<Map<String, String>> raw = objectMapper.readValue(publishWindowsJson,
-                    new TypeReference<List<Map<String, String>>>() {
-                    });
-            List<PublishScheduleCalculator.Window> windows = new ArrayList<>();
-            for (Map<String, String> w : raw) {
-                windows.add(new PublishScheduleCalculator.Window(
-                        java.time.LocalTime.parse(w.get("start")), java.time.LocalTime.parse(w.get("end"))));
-            }
-            return windows;
-        } catch (JsonProcessingException e) {
-            log.warn("persona.publish_windows 파싱 실패, 윈도우 없음으로 처리합니다: {}", e.getMessage());
-            return List.of();
-        }
+        return PublishScheduleCalculator.parseWindows(publishWindowsJson);
     }
 
     private List<String> parseStringList(String json) {

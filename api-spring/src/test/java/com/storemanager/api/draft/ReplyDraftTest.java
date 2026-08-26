@@ -87,4 +87,96 @@ class ReplyDraftTest {
         assertThat(d.getRetryCount()).isEqualTo((short) 0);
         assertThat(d.getFailReason()).isEqualTo("RISK_LEVEL_TOO_HIGH");
     }
+
+    // ── 사람 승인 (2026-08-27) ───────────────────────────────────────────
+    //
+    // ★ 절대규칙 3 은 "자동 게시 금지 / 사람 검수 큐로 보낸다" 다. 사람이 사유를 읽고
+    //   판단하는 것이 곧 검수이므로, 승인 경로 자체는 규칙 위반이 아니다.
+    //   다만 '판단이 실제로 있었다' 는 증거가 남아야 하고, 게시 직전 재검증
+    //   (PublishScheduler·워커)이 그 증거로 자동 경로와 사람 경로를 가른다.
+
+    @Test
+    void BLOCKED는_사람이_승인하면_SCHEDULED가_된다() {
+        ReplyDraft d = draft("BLOCKED");
+        Instant ack = Instant.parse("2026-08-27T01:00:00Z");
+        Instant scheduledAt = Instant.parse("2026-08-27T02:00:00Z");
+
+        d.approveByHuman(7L, ack, null, scheduledAt);
+
+        assertThat(d.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(d.getScheduledAt()).isEqualTo(scheduledAt);
+        assertThat(d.getApprovedBy()).isEqualTo(7L);
+        assertThat(d.getRiskAckAt()).isEqualTo(ack);
+        assertThat(d.isHumanApproved()).isTrue();
+        assertThat(d.getContent()).isEqualTo("초안 내용");
+        assertThat(d.getOriginalContent()).isNull();
+    }
+
+    @Test
+    void 사람이_고쳐서_승인하면_원문을_남기고_AI_EDITED가_된다() {
+        ReplyDraft d = draft("BLOCKED");
+
+        d.approveByHuman(7L, Instant.now(), "직접 고친 답글", Instant.now());
+
+        assertThat(d.getContent()).isEqualTo("직접 고친 답글");
+        assertThat(d.getOriginalContent()).isEqualTo("초안 내용");
+        assertThat(d.getGeneratedBy()).isEqualTo("AI_EDITED");
+    }
+
+    /**
+     * ★ 사유 확인 시각이 없으면 엔티티가 스스로 거부해야 한다.
+     * 서비스에서도 막지만, 방어선이 하나뿐이면 그 하나가 뚫릴 때 끝난다.
+     */
+    @Test
+    void 사유_확인_시각이_없으면_승인되지_않는다() {
+        ReplyDraft d = draft("BLOCKED");
+
+        ApiException e = assertThrows(ApiException.class,
+                () -> d.approveByHuman(7L, null, null, Instant.now()));
+
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void 승인자가_없으면_승인되지_않는다() {
+        ReplyDraft d = draft("BLOCKED");
+
+        assertThrows(ApiException.class, () -> d.approveByHuman(null, Instant.now(), null, Instant.now()));
+
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void BLOCKED가_아닌_상태는_승인할_수_없다() {
+        for (String status : List.of("DRAFT", "SCHEDULED", "PUBLISHED", "FAILED", "ALREADY_REPLIED")) {
+            ReplyDraft d = draft(status);
+            assertThrows(ApiException.class, () -> d.approveByHuman(7L, Instant.now(), null, Instant.now()),
+                    status + " 상태에서 승인이 허용되면 안 된다");
+        }
+    }
+
+    /** 자동 예약된 초안은 사람 승인 표시가 없어야 한다 — 워커가 이걸로 두 경로를 가른다. */
+    @Test
+    void 자동_예약은_사람_승인으로_보이지_않는다() {
+        ReplyDraft d = draft("DRAFT");
+
+        d.scheduleAutomatically(Instant.now());
+
+        assertThat(d.isHumanApproved()).isFalse();
+        assertThat(d.getApprovedBy()).isNull();
+        assertThat(d.getRiskAckAt()).isNull();
+    }
+
+    @Test
+    void 거절하면_BLOCKED로_남고_판단자가_기록된다() {
+        ReplyDraft d = draft("BLOCKED");
+
+        d.rejectByHuman(7L);
+
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+        assertThat(d.getApprovedBy()).isEqualTo(7L);
+        assertThat(d.isHumanApproved()).isFalse();   // risk_ack_at 이 없으므로 게시되지 않는다
+        assertThat(d.getGuardrailFlags()).contains("HUMAN_REJECTED");
+    }
 }

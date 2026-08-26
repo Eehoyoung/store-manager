@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface ReplyDraftRepository extends JpaRepository<ReplyDraft, Long> {
 
+    java.util.Optional<ReplyDraft> findByPublicId(java.util.UUID publicId);
+
     boolean existsByReviewIdAndStatusIn(Long reviewId, Collection<String> statuses);
 
     /** 게시 스케줄러(S9) — SCHEDULED 이고 예약 시각이 지난 것을 오래된 순으로 최대 100건. */

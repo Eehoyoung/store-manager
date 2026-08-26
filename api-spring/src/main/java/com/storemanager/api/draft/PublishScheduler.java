@@ -90,7 +90,14 @@ public class PublishScheduler {
         }
         int riskLevel = analysis.getRiskLevel();
 
-        if (riskLevel >= RISK_BLOCK_LEVEL) {
+        // ★ 방어선을 없앤 게 아니라 조건을 좁혔다(2026-08-27).
+        //   이전: risk>=3 이면 무조건 차단.
+        //   지금: risk>=3 이고 <b>사람 승인이 없으면</b> 차단.
+        //   사람 승인은 approved_by 와 risk_ack_at 이 둘 다 있을 때만 성립한다
+        //   (ReplyDraft.isHumanApproved). 자동 경로는 이 두 값을 절대 채우지 않으므로
+        //   풀자동 게시는 여전히 risk>=3 을 넘지 못한다.
+        boolean humanApproved = draft.isHumanApproved();
+        if (riskLevel >= RISK_BLOCK_LEVEL && !humanApproved) {
             draft.blockForRisk(List.of(analysis.getRiskReasons()));
             auditBlocked(draft, "DRAFT_BLOCKED_RISK_RECHECK");
             return;
@@ -126,7 +133,7 @@ public class PublishScheduler {
 
         PublishJobPayload payload = new PublishJobPayload(draft.getId(), link.getAccountId(), review.getPlatform(),
                 link.getPlatformStoreId(), review.getPlatformReviewId(), draft.getContent(), riskLevel, true,
-                dispatchToken);
+                humanApproved, dispatchToken);
         try {
             stringRedisTemplate.opsForList().leftPush(QUEUE_KEY, objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException e) {

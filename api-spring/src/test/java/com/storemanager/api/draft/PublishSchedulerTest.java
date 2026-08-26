@@ -93,6 +93,54 @@ class PublishSchedulerTest {
         verify(auditLogRepository).save(any());
     }
 
+    /**
+     * ★ 사람이 승인한 고위험 초안은 통과해야 한다(2026-08-27).
+     * 방어선을 없앤 게 아니라 조건을 좁혔다 — approved_by 와 risk_ack_at 이 둘 다 있어야 한다.
+     * 자동 경로는 이 두 값을 채우지 않으므로 풀자동 게시는 여전히 risk>=3 을 넘지 못한다.
+     */
+    @Test
+    void 사람이_승인한_고위험_초안은_디스패치된다() {
+        ReplyDraft draft = ReplyDraft.builder().id(3L).reviewId(12L).storeId(100L).content("답글 내용")
+                .status("BLOCKED").generatedBy("AI").build();
+        draft.approveByHuman(7L, Instant.now(), null, Instant.now().minusSeconds(60));
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(12L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(12L).category("COMPLAINT").sentiment(-0.9f)
+                        .riskLevel((short) 3).riskReasons(new String[] {"FOOD_POISONING"}).model("m")
+                        .promptVersion("v1").build()));
+        safeContext(12L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("dispatch:draft:3"), anyString(), any(Duration.class))).thenReturn(true);
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+
+        scheduler.dispatchDuePublishJobs();
+
+        // 차단되지 않고 큐로 나갔다. payload 의 humanApproved 가 true 여야 워커도 통과시킨다.
+        assertThat(draft.getStatus()).isEqualTo("SCHEDULED");
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(listOperations).leftPush(eq("q:publish"), body.capture());
+        assertThat(body.getValue()).contains("\"humanApproved\":true").contains("\"riskLevel\":3");
+    }
+
+    /** 승인 표시가 반쪽만 있으면 통과하지 않는다 — 사유 확인 없는 승인은 승인이 아니다. */
+    @Test
+    void 사유_확인_없이_승인자만_있으면_여전히_막힌다() {
+        // approved_by 만 채우고 risk_ack_at 은 비운 채 SCHEDULED 인, 있을 수 있는 최악의 행
+        ReplyDraft draft = ReplyDraft.builder().id(4L).reviewId(13L).storeId(100L).content("답글 내용")
+                .status("SCHEDULED").generatedBy("AI").approvedBy(7L).approvedAt(Instant.now())
+                .scheduledAt(Instant.now().minusSeconds(60)).build();
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(13L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(13L).category("COMPLAINT").sentiment(-0.9f)
+                        .riskLevel((short) 3).riskReasons(new String[] {"HYGIENE"}).model("m")
+                        .promptVersion("v1").build()));
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        verify(stringRedisTemplate, never()).opsForValue();
+    }
+
     @Test
     void 정상건은_dispatch_키를_선점한뒤_qpublish로_LPUSH한다() {
         ReplyDraft draft = dueDraft(2L, 11L);

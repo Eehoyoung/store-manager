@@ -25,7 +25,7 @@ final class DraftDtos {
         static DraftResponse from(ReplyDraft d, java.util.UUID reviewPublicId) {
             return new DraftResponse(
                     d.getPublicId().toString(),
-                    reviewPublicId.toString(),
+                    reviewPublicId == null ? null : reviewPublicId.toString(),
                     d.getContent(),
                     d.getStatus(),
                     d.getTier(),
