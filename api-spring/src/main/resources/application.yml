@@ -72,6 +72,29 @@ app:
   internal:
     # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
     token: ${INTERNAL_TOKEN}
+  alimtalk:
+    # 카카오 알림톡 발송(솔라피). 사람 확인이 필요한 리뷰와 매일 정오 브리핑을 보낸다.
+    #
+    # ★ 기본값은 false 다. DATAAPI_WRITE_ENABLED 와 같은 이유 — 알림톡은 되돌릴 수 없고,
+    #   실수 한 번이 실고객 카카오톡으로 나간다. 켜는 것은 사람의 명시적 결정이어야 한다.
+    enabled: ${ALIMTALK_ENABLED:false}
+    # 솔라피 API 자격증명. 기본값을 두지 않는다 — enabled=true 인데 키가 없으면 기동을 막는다.
+    # ★ 절대규칙 5 와 같은 취급이다. 로그·예외 메시지에 절대 싣지 말 것.
+    api-key: ${SOLAPI_API_KEY:}
+    api-secret: ${SOLAPI_API_SECRET:}
+    # 카카오 발신프로필 ID(pfId). 채널당 하나이며 솔라피 콘솔에서 발급한다.
+    pf-id: ${SOLAPI_PF_ID:}
+    # 알림톡 실패 시 대체발송할 SMS 발신번호. 사전 등록된 번호만 쓸 수 있다.
+    # ★ 비워 두면 대체발송을 하지 않는다. 위험 리뷰 알림이 조용히 사라지는 것보다
+    #   문자로라도 가는 편이 낫지만, 등록되지 않은 번호로 보내면 발송 자체가 실패한다.
+    sender-phone: ${SOLAPI_SENDER_PHONE:}
+    # 승인된 템플릿 ID. 카카오는 사전 승인된 템플릿에 변수만 치환해 보낸다 —
+    # 문구를 임의로 바꾸면 발송이 거부된다. 템플릿을 고치면 이 ID 도 함께 바꿔야 한다.
+    template:
+      risk-review: ${SOLAPI_TEMPLATE_RISK_REVIEW:}
+      daily-briefing: ${SOLAPI_TEMPLATE_DAILY_BRIEFING:}
+    # 알림톡 버튼이 여는 링크의 기준 주소. 일회용 토큰이 이 뒤에 붙는다.
+    link-base-url: ${ALIMTALK_LINK_BASE_URL:http://localhost:5173}
   privacy:
     # 리뷰 작성자 닉네임 가명처리(author_hash) salt. 미설정 시 부팅 실패가 안전하다 — 기본값을 두지 않는다.
     salt: ${AUTHOR_HASH_SALT}
