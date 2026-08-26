@@ -61,6 +61,22 @@ public class HqService {
     private static final int RECENT_DAYS = 30;
     private static final int DEFAULT_ANALYTICS_RANGE_DAYS = 30;
 
+    /**
+     * 본부가 조회할 수 있는 최대 소급 기간(일).
+     *
+     * <p>★ 이 값은 성능 튜닝이 아니라 <b>노출 범위 정책</b>이다. 본부는 가맹점 리뷰를
+     * 조회만 할 수 있고, 그 조회조차 최근 90일로 제한한다. 개인정보 최소 원칙이고,
+     * 브랜드 운영 판단에 3년 전 리뷰가 필요하지 않다.
+     *
+     * <p>부수 효과로 조회 부하도 준다 — 상한이 없으면 본부 화면 한 번에
+     * 브랜드 전체 × 보유기간 전체(현재 3년)를 스캔한다.
+     *
+     * <p>★ 저장 기간과 혼동하지 말 것. 데이터는 {@code PRIVACY_RETENTION_DAYS} 까지
+     * 보관된다. 이 상수는 <b>본부에게 보여 주는 창</b>의 크기일 뿐이고,
+     * 가맹점주 본인의 조회는 이 제한을 받지 않는다.
+     */
+    static final int HQ_MAX_LOOKBACK_DAYS = 90;
+
     private final HqAccessGuard hqAccessGuard;
     private final FranchiseHqMemberRepository hqMemberRepository;
     private final HqQueryRepository hqQueryRepository;
@@ -180,11 +196,11 @@ public class HqService {
         PageRequest pageable = PageRequest.of(page, size);
         Page<UnifiedReview> result = normalizedIssueTag == null
                 ? hqQueryRepository.searchBrandReviews(storeIds, blankToNull(status), blankToNull(category),
-                        toShort(minRating), toShort(maxRating), toShort(riskLevel), parseFromDate(from),
+                        toShort(minRating), toShort(maxRating), toShort(riskLevel), hqFrom(from),
                         parseToDateExclusive(to), pageable)
                 : hqQueryRepository.searchBrandReviewsByIssueTag(storeIds, normalizedIssueTag, blankToNull(status),
                         blankToNull(category), toShort(minRating), toShort(maxRating), toShort(riskLevel),
-                        parseFromDate(from), parseToDateExclusive(to), pageable);
+                        hqFrom(from), parseToDateExclusive(to), pageable);
 
         List<UnifiedReview> reviews = result.getContent();
         List<Long> reviewIds = reviews.stream().map(UnifiedReview::getId).toList();
@@ -227,6 +243,13 @@ public class HqService {
         List<Store> stores = hqQueryRepository.findStoresByBrandName(brandName);
         LocalDate toDate = parseOrDefault(toStr, LocalDate.now(KST));
         LocalDate fromDate = parseOrDefault(fromStr, toDate.minusDays(DEFAULT_ANALYTICS_RANGE_DAYS - 1L));
+        // ★ 90일보다 이전을 요청하면 거절하지 않고 90일로 당긴다.
+        //   거절하면 화면이 통째로 비어 원인을 알 수 없다. 응답의 from/to 에 실제 적용 기간이
+        //   담겨 화면에 그대로 표시되므로, 조용히 다른 결과를 주는 것도 아니다.
+        LocalDate earliest = LocalDate.now(KST).minusDays(HQ_MAX_LOOKBACK_DAYS - 1L);
+        if (fromDate.isBefore(earliest)) {
+            fromDate = earliest;
+        }
         long rangeDays = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
         if (rangeDays <= 0) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
@@ -496,14 +519,22 @@ public class HqService {
 
     // ★ 기간 필터는 null 을 넘기지 않고 넓은 경계값으로 대체한다 — ReviewService 와 동일한 이유
     // (Postgres 가 바인드 파라미터 타입을 추론 못해 500 이 나는 문제 회피, 실기동에서 확인된 패턴).
-    private static final Instant OPEN_START = Instant.EPOCH;
     private static final Instant OPEN_END = LocalDate.of(9999, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-    private static Instant parseFromDate(String date) {
+    /**
+     * 본부 리뷰 조회의 시작 시각. 미지정이거나 90일보다 이전이면 90일 전으로 당긴다.
+     *
+     * <p>★ 미지정 기본값이 {@code OPEN_START}(=EPOCH) 였다. 본부가 기간 필터를 걸지 않으면
+     * 브랜드 전체 리뷰를 처음부터 끝까지 조회했다. 여기가 실제로 뚫려 있던 곳이다.
+     */
+    private static Instant hqFrom(String date) {
+        Instant earliest = LocalDate.now(KST).minusDays(HQ_MAX_LOOKBACK_DAYS - 1L)
+                .atStartOfDay(KST).toInstant();
         if (date == null || date.isBlank()) {
-            return OPEN_START;
+            return earliest;
         }
-        return LocalDate.parse(date).atStartOfDay(KST).toInstant();
+        Instant requested = LocalDate.parse(date).atStartOfDay(KST).toInstant();
+        return requested.isBefore(earliest) ? earliest : requested;
     }
 
     private static Instant parseToDateExclusive(String date) {

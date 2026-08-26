@@ -102,6 +102,60 @@ class HqServiceIT {
         return review.getId();
     }
 
+    // ── 본부 조회 소급 기간 상한 ──────────────────────────────────────
+
+    /**
+     * ★ 본부가 기간 필터를 걸지 않으면 시작 시각 기본값이 {@code Instant.EPOCH} 였다.
+     * 즉 브랜드 전체 리뷰를 <b>보유기간 전체</b>에서 끌어왔다. 여기가 실제로 뚫려 있던 곳이다.
+     *
+     * <p>이 테스트가 깨지면 상한을 올리기 전에 개인정보 노출 범위부터 다시 보라.
+     * 본부는 조회 전용이고, 그 조회조차 최근 {@code HQ_MAX_LOOKBACK_DAYS} 일로 제한한다.
+     */
+    @Test
+    void 본부_리뷰조회는_기간을_안_걸어도_90일_이전을_보지_못한다() {
+        UUID hqUser = 본부사용자를_만든다("hq-lookback1@test.com", "소급브랜드");
+        매장픽스처 f = 매장을_만든다("소급브랜드", "store-lb1@test.com");
+        LocalDate today = LocalDate.now(KST);
+        Long 최근 = 리뷰를_만든다(f, "RV-RECENT", 5, 0, today.minusDays(3));
+        리뷰를_만든다(f, "RV-OLD", 5, 0, today.minusDays(120));
+
+        HqDtos.HqReviewListResponse res =
+                hqService.listReviews(hqUser, "소급브랜드", null, null, null, null, null, null, null, null, 0, 50);
+
+        assertThat(res.items()).hasSize(1);
+        assertThat(res.items().get(0).id()).isNotNull();
+        assertThat(res.items()).allSatisfy(i -> assertThat(i.writtenAt()).isNotNull());
+        assertThat(최근).isNotNull();
+    }
+
+    @Test
+    void 본부가_90일보다_이전_from을_직접_넘겨도_창은_90일로_고정된다() {
+        UUID hqUser = 본부사용자를_만든다("hq-lookback2@test.com", "소급브랜드2");
+        매장픽스처 f = 매장을_만든다("소급브랜드2", "store-lb2@test.com");
+        LocalDate today = LocalDate.now(KST);
+        리뷰를_만든다(f, "RV2-RECENT", 5, 0, today.minusDays(10));
+        리뷰를_만든다(f, "RV2-OLD", 5, 0, today.minusDays(200));
+
+        HqDtos.HqReviewListResponse res = hqService.listReviews(hqUser, "소급브랜드2", null, null, null, null,
+                null, null, null, today.minusDays(365).toString(), today.toString(), 0, 50);
+
+        assertThat(res.items()).hasSize(1);
+    }
+
+    /** 집계도 같은 창을 쓴다. 거절하지 않고 당기며, 응답의 from 에 실제 적용 기간이 담긴다. */
+    @Test
+    void 집계_조회도_90일로_당겨지고_적용기간을_응답에_담는다() {
+        UUID hqUser = 본부사용자를_만든다("hq-lookback3@test.com", "소급브랜드3");
+        매장을_만든다("소급브랜드3", "store-lb3@test.com");
+        LocalDate today = LocalDate.now(KST);
+
+        HqDtos.HqAnalyticsResponse res = hqService.analytics(hqUser, "소급브랜드3",
+                today.minusDays(400).toString(), today.toString());
+
+        assertThat(LocalDate.parse(res.from()))
+                .isEqualTo(today.minusDays(HqService.HQ_MAX_LOOKBACK_DAYS - 1L));
+    }
+
     // ── (a) 본부 권한 없는 사용자 → 404 ─────────────────────────────────
 
     @Test
