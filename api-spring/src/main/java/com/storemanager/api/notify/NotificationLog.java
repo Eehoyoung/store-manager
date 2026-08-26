@@ -41,6 +41,11 @@ public class NotificationLog {
     @Column(nullable = false)
     private String status; // SENT|FAILED|READ
 
+    @Builder.Default
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "payload", nullable = false)
+    private String payload = "{}";
+
     @Column(name = "ref_type")
     private String refType;
 
