@@ -94,6 +94,7 @@ public class AccountWithdrawalService {
             subscriptionRepository.findByStoreIdAndStatusNot(store.getId(), "CANCELED")
                     .ifPresent(Subscription::cancelImmediately);
             // 3) 매장 정지 — activated_at 이 남아 있으면 수집·게시가 계속 돈다.
+            // user_agreement 는 계약 관련 증적이라 삭제하지 않는다. 재가입자는 새 user_id 로 다시 동의한다.
             store.softDeleteForWithdrawal(now);
         }
 

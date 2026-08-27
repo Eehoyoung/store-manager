@@ -151,7 +151,7 @@ public class CollectResultService {
 
             Store store = storeRepository.findById(link.getStoreId()).orElse(null);
             if (!serviceGate.isServiceable(store)) {
-                // 전자계약 미서명(docs/11 §2.7) 또는 구독 미활성 매장.
+                // 자격증명 위탁 미동의 또는 구독 미활성 매장.
                 // ★ 여기서 막지 않으면 미납·해지 매장의 리뷰를 계속 적재하고, 그 뒤 생성 스케줄러가
                 //   LLM 비용까지 태운다. 이미 호출은 나갔으므로 적재만 건너뛴다.
                 skipped++;
@@ -326,7 +326,7 @@ public class CollectResultService {
      *   - 그 계정에 사장님이 지정한 매장이 있을 것 (intendedStoreId)
      *   - 그 매장이 아직 이 플랫폼에 연결되지 않았을 것
      *     → 1계정 N매장(F-7)에서 둘째 매장부터는 어느 매장인지 알 수 없다. 건너뛰고 사람이 매핑한다.
-     *   - 매장이 활성화(전자계약 완료)돼 있을 것
+     *   - 매장이 활성화(자격증명 위탁 동의 완료)돼 있을 것
      */
     private StorePlatformLink autoLink(Long requestAccountId, String platform, StoreBlock storeBlock) {
         if (requestAccountId == null || storeBlock.platformStoreId() == null) {

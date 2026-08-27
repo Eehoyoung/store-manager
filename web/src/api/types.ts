@@ -38,13 +38,8 @@ export interface StoreResponse {
   category: string | null;
   address: string | null;
   status: string;
-  /**
-   * ★ 2026-08-20 기준 실제 StoreController.toResponse() 는 activatedAt 을 응답에 포함하지 않는다
-   * (Store 엔티티에는 컬럼이 있지만 DTO 매핑에서 빠졌다 — api-spring/src/main/java/.../StoreController.java 확인).
-   * 백엔드가 필드를 추가하면 그대로 동작하도록 optional 로 선언해둔다. 필드가 없을 때는 "미서명"으로
-   * 안전하게(보수적으로) 취급한다 — CLAUDE.md 의 "activated_at IS NULL → 전량 스킵" 철학과 같은 방향이다.
-   */
-  activatedAt?: string | null;
+  /** 배달앱 로그인 정보 처리 위탁 동의 시각. null이면 수집·게시가 동작하지 않는다. */
+  activatedAt: string | null;
 }
 
 export type DeliveryPlatform = "BAEMIN" | "YOGIYO" | "COUPANGEATS";

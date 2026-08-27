@@ -27,7 +27,7 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
      * ★ 다만 총 3회로 막는다. 계속 실패하는 리뷰를 무한히 재생성하면 LLM 비용과 DataAPI
      *   호출이 함께 샌다. 3회를 넘으면 사람이 봐야 하는 상태다.
      * ★ has_owner_reply=true 는 제외한다. 리뷰 1건당 댓글 1개이고 등록은 되돌릴 수 없다.
-     * ★ activated_at IS NULL 매장은 제외한다(전자계약 게이트).
+     * ★ activated_at IS NULL 매장은 제외한다(자격증명 위탁 동의 게이트).
      * ★ 페르소나가 없으면 생성할 수 없으므로 조인으로 거른다.
      * ★ 구독이 살아 있는 매장만 대상으로 한다 — 미납·해지 매장에 LLM 비용을 쓰면 못 받을 돈을
      *   우리가 대신 내는 셈이다. 조건을 여기(집합 단위)에 두어 건당 조회를 만들지 않는다.

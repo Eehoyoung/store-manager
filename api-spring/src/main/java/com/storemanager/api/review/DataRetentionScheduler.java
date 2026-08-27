@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @ConditionalOnProperty(name = "app.scheduler.retention.enabled", havingValue = "true")
+/** 동의 증적 user_agreement 는 계약 관련 법정 보존 대상이라 파기 배치에서 제외한다. */
 public class DataRetentionScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DataRetentionScheduler.class);

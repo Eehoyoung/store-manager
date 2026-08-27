@@ -106,7 +106,7 @@ class CollectResultIT {
         Store store = Store.builder()
                 .ownerId(ownerId)
                 .name(name)
-                .activatedAt(Instant.now()) // 전자계약 서명 완료 상태여야 워커 결과를 처리한다(docs/11 §2.7)
+                .activatedAt(Instant.now()) // 자격증명 위탁 동의 완료 상태여야 워커 결과를 처리한다.
                 .build();
         Long storeId = storeRepository.save(store).getId();
         // ★ 구독도 있어야 수집 결과를 적재한다(StoreServiceGate). 계약만으로는 비용 드는 작업을

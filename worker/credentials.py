@@ -117,7 +117,7 @@ def active_account_ids() -> list[int]:
       DataAPI 호출을 아예 만들지 않는다. 조건은 Spring 의 StoreServiceGate 와 같아야 한다.
         - 해지된 계정 제외          (revoked_at)
         - 연동 오류 계정 제외        (link_status='ERROR' — 로그인 실패는 재시도해도 실패다)
-        - 삭제·미활성 매장 제외      (deleted_at, activated_at — 전자계약 게이트)
+        - 삭제·미활성 매장 제외      (deleted_at, activated_at — 자격증명 위탁 동의 게이트)
         - 구독이 살아 있는 매장만     (subscription.status='ACTIVE')
       ★ 이 조건을 느슨하게 바꾸면 못 받을 돈에 호출료를 우리가 대신 낸다.
     """

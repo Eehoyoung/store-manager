@@ -38,7 +38,7 @@ class StoreServiceGateTest {
 
     @Test
     void 구독행이_아예_없으면_서비스하지_않는다() {
-        // 전자계약만 하고 결제를 안 한 매장. activated_at 만 보던 시절의 구멍이다.
+        // 위탁 동의만 하고 결제를 안 한 매장. activated_at 만 보던 시절의 구멍이다.
         when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED")).thenReturn(Optional.empty());
         assertThat(gate.isServiceable(store())).isFalse();
     }
@@ -68,11 +68,11 @@ class StoreServiceGateTest {
     }
 
     @Test
-    void 구독이_살아_있어도_전자계약이_없으면_서비스하지_않는다() {
+    void 구독이_살아_있어도_자격증명위탁동의가_없으면_서비스하지_않는다() {
         // 두 게이트는 서로 다른 것을 뜻한다. 하나가 통과했다고 다른 하나를 건너뛰면 안 된다.
         subscription("ACTIVE");
-        Store noContract = Store.builder().id(1L).ownerId(1L).name("가게").status("ACTIVE").build();
-        assertThat(gate.isServiceable(noContract)).isFalse();
+        Store noConsent = Store.builder().id(1L).ownerId(1L).name("가게").status("ACTIVE").build();
+        assertThat(gate.isServiceable(noConsent)).isFalse();
     }
 
     @Test
