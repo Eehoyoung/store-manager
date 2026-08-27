@@ -30,6 +30,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+    // 카카오 알림톡 — 공식 SOLAPI Java SDK
+    implementation 'com.solapi:sdk:1.1.0'
+
     // DB 마이그레이션
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

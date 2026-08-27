@@ -21,6 +21,7 @@ class AlimtalkPropertiesTest {
         p.setApiKey(key);
         p.setApiSecret(secret);
         p.setPfId(pf);
+        p.setWebhookSecret("webhook-test-secret");
         AlimtalkProperties.Template t = new AlimtalkProperties.Template();
         t.setRiskReview(tplRisk);
         t.setDailyBriefing(tplBrief);
@@ -35,17 +36,19 @@ class AlimtalkPropertiesTest {
 
     @Test
     void 켜져_있는데_값이_비면_비어_있는_항목을_말하며_기동을_막는다() {
-        assertThatThrownBy(() -> props(true, "", "", "", "", "").validate())
+        AlimtalkProperties p = props(true, "", "", "", "", "");
+        p.setWebhookSecret("");
+        assertThatThrownBy(p::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SOLAPI_API_KEY")
-                .hasMessageContaining("SOLAPI_TEMPLATE_RISK_REVIEW");
+                .hasMessageContaining("SOLAPI_TEMPLATE_RISK_REVIEW")
+                .hasMessageContaining("SOLAPI_WEBHOOK_SECRET");
     }
 
     @Test
-    void 템플릿_ID_하나만_비어도_막는다() {
-        assertThatThrownBy(() -> props(true, "k", "s", "pf", "tpl-risk", "").validate())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("SOLAPI_TEMPLATE_DAILY_BRIEFING");
+    void 일차_범위가_아닌_브리핑_템플릿은_비어도_기동한다() {
+        assertThatCode(() -> props(true, "k", "s", "pf", "tpl-risk", "").validate())
+                .doesNotThrowAnyException();
     }
 
     @Test

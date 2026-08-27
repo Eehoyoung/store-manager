@@ -42,6 +42,9 @@ public class AppUser {
 
     private String phone; // [PII]
 
+    @Column(name = "phone_verified_at")
+    private Instant phoneVerifiedAt;
+
     @Column(name = "social_provider")
     private String socialProvider;
 

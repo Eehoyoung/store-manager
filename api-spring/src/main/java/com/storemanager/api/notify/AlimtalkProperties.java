@@ -26,6 +26,7 @@ public class AlimtalkProperties {
     private String apiSecret = "";
     private String pfId = "";
     private String senderPhone = "";
+    private String webhookSecret = "";
     private Template template = new Template();
     private String linkBaseUrl = "http://localhost:5173";
 
@@ -73,8 +74,8 @@ public class AlimtalkProperties {
         if (template.getRiskReview().isBlank()) {
             missing.add("SOLAPI_TEMPLATE_RISK_REVIEW");
         }
-        if (template.getDailyBriefing().isBlank()) {
-            missing.add("SOLAPI_TEMPLATE_DAILY_BRIEFING");
+        if (webhookSecret.isBlank()) {
+            missing.add("SOLAPI_WEBHOOK_SECRET");
         }
         if (!missing.isEmpty()) {
             throw new IllegalStateException(
@@ -121,6 +122,14 @@ public class AlimtalkProperties {
 
     public void setSenderPhone(String senderPhone) {
         this.senderPhone = senderPhone;
+    }
+
+    public String getWebhookSecret() {
+        return webhookSecret;
+    }
+
+    public void setWebhookSecret(String webhookSecret) {
+        this.webhookSecret = webhookSecret;
     }
 
     public Template getTemplate() {

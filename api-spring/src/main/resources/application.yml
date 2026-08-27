@@ -73,7 +73,7 @@ app:
     # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
     token: ${INTERNAL_TOKEN}
   alimtalk:
-    # 카카오 알림톡 발송(솔라피). 사람 확인이 필요한 리뷰와 매일 정오 브리핑을 보낸다.
+    # 카카오 알림톡 발송(솔라피). 1차로 사람 확인이 필요한 고위험 리뷰만 보낸다.
     #
     # ★ 기본값은 false 다. DATAAPI_WRITE_ENABLED 와 같은 이유 — 알림톡은 되돌릴 수 없고,
     #   실수 한 번이 실고객 카카오톡으로 나간다. 켜는 것은 사람의 명시적 결정이어야 한다.
@@ -84,10 +84,10 @@ app:
     api-secret: ${SOLAPI_API_SECRET:}
     # 카카오 발신프로필 ID(pfId). 채널당 하나이며 솔라피 콘솔에서 발급한다.
     pf-id: ${SOLAPI_PF_ID:}
-    # 알림톡 실패 시 대체발송할 SMS 발신번호. 사전 등록된 번호만 쓸 수 있다.
-    # ★ 비워 두면 대체발송을 하지 않는다. 위험 리뷰 알림이 조용히 사라지는 것보다
-    #   문자로라도 가는 편이 낫지만, 등록되지 않은 번호로 보내면 발송 자체가 실패한다.
+    # 솔라피에 사전 등록된 발신번호. 현재는 disableSms=true라 문자 대체발송에는 사용하지 않는다.
     sender-phone: ${SOLAPI_SENDER_PHONE:}
+    # SOLAPI 웹훅 등록 시 지정한 공유 비밀. 헤더로 오는 SHA-1 값과 상수시간 비교한다.
+    webhook-secret: ${SOLAPI_WEBHOOK_SECRET:}
     # 승인된 템플릿 ID. 카카오는 사전 승인된 템플릿에 변수만 치환해 보낸다 —
     # 문구를 임의로 바꾸면 발송이 거부된다. 템플릿을 고치면 이 ID 도 함께 바꿔야 한다.
     template:

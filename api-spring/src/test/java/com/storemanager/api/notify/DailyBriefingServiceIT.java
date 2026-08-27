@@ -220,4 +220,19 @@ class DailyBriefingServiceIT {
                 .count();
         assertThat(count).isEqualTo(1);
     }
+
+    /** DB 고유 인덱스와 ON CONFLICT가 같은 고위험 원인의 중복 큐 적재를 함께 막는다. */
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void 같은_고위험_알림은_한_번만_큐에_쌓인다() {
+        Long storeId = 매장을_만든다("risk-queue@t.com", "위험알림점", true, "ACTIVE");
+        Long ownerId = storeRepository.findById(storeId).orElseThrow().getOwnerId();
+
+        assertThat(notificationLogRepository.enqueueHighRiskIfAbsent(
+                ownerId, storeId, "REPLY_DRAFT", 991L, "{}")).isEqualTo(1);
+        assertThat(notificationLogRepository.enqueueHighRiskIfAbsent(
+                ownerId, storeId, "REPLY_DRAFT", 991L, "{}")).isZero();
+        assertThat(notificationLogRepository.countByRefTypeAndRefIdAndTemplate(
+                "REPLY_DRAFT", 991L, "HIGH_RISK_REVIEW")).isEqualTo(1);
+    }
 }

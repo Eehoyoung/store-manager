@@ -39,7 +39,7 @@ public class NotificationLog {
     private String template;
 
     @Column(nullable = false)
-    private String status; // SENT|FAILED|READ
+    private String status; // RECORDED|QUEUED|SENDING|ACCEPTED|DELIVERED|FAILED|SKIPPED
 
     @Builder.Default
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
@@ -52,7 +52,63 @@ public class NotificationLog {
     @Column(name = "ref_id")
     private Long refId;
 
+    @Column(name = "provider_message_id")
+    private String providerMessageId;
+
+    @Builder.Default
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount = 0;
+
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "error_code")
+    private String errorCode;
+
+    @Column(name = "error_message")
+    private String errorMessage;
+
     @Builder.Default
     @Column(name = "sent_at", nullable = false)
     private Instant sentAt = Instant.now();
+
+    void markSending() {
+        this.status = "SENDING";
+        this.attemptCount++;
+        this.nextAttemptAt = null;
+        this.errorCode = null;
+        this.errorMessage = null;
+    }
+
+    void markAccepted(String messageId) {
+        this.status = "ACCEPTED";
+        this.providerMessageId = messageId;
+    }
+
+    void markDelivered(Instant at) {
+        this.status = "DELIVERED";
+        this.deliveredAt = at;
+        this.errorCode = null;
+        this.errorMessage = null;
+    }
+
+    void markFailed(String code, String message) {
+        this.status = "FAILED";
+        this.nextAttemptAt = null;
+        this.errorCode = truncate(code, 40);
+        this.errorMessage = truncate(message, 500);
+    }
+
+    void markSkipped(String code) {
+        this.status = "SKIPPED";
+        this.nextAttemptAt = null;
+        this.errorCode = truncate(code, 40);
+    }
+
+    private static String truncate(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max);
+    }
 }

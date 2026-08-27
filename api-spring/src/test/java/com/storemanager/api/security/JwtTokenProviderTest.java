@@ -35,8 +35,9 @@ class JwtTokenProviderTest {
     @Test
     void 위조된_토큰은_검증에서_거부된다() {
         String token = provider.createAccessToken(UUID.randomUUID().toString());
-        String tampered = token.substring(0, token.length() - 2)
-                + (token.endsWith("A") ? "B" : "A") + token.charAt(token.length() - 1);
+        int signatureStart = token.lastIndexOf('.') + 1;
+        String tampered = token.substring(0, signatureStart)
+                + (token.charAt(signatureStart) == 'A' ? 'B' : 'A') + token.substring(signatureStart + 1);
 
         assertThrows(JwtException.class, () -> provider.parseSubject(tampered));
     }

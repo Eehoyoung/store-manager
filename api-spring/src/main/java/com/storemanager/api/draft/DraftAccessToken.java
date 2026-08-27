@@ -36,7 +36,8 @@ public class DraftAccessToken {
     private Long id;
 
     /** ★ SHA-256(평문). 평문을 저장하면 DB 유출이 곧 유효한 링크 생성이 된다. */
-    @Column(name = "token_hash", nullable = false, updatable = false, length = 64)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+    @Column(name = "token_hash", nullable = false, updatable = false, columnDefinition = "char(64)")
     private String tokenHash;
 
     @Column(name = "draft_id", nullable = false, updatable = false)
