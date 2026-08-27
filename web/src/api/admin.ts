@@ -62,7 +62,20 @@ export type CollectFailureRow = {
   failedAt: string | null;
 };
 
+export type AlimtalkFailureRow = {
+  storeName: string | null;
+  template: string;
+  status: string;
+  errorCode: string | null;
+  attemptCount: number;
+  sentAt: string | null;
+  refType: string | null;
+  refId: number | null;
+  providerMessageIdPresent: boolean;
+};
+
 export type FailureReport = {
   publishFailures: PublishFailureRow[];
   collectFailures: CollectFailureRow[];
+  alimtalkFailures: AlimtalkFailureRow[];
 };

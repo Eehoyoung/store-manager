@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { adminApi, type CollectFailureRow, type FailureReport, type PublishFailureRow } from "../api/admin";
+import {
+  adminApi,
+  type AlimtalkFailureRow,
+  type CollectFailureRow,
+  type FailureReport,
+  type PublishFailureRow,
+} from "../api/admin";
 import { ApiError } from "../api/client";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
@@ -76,6 +82,27 @@ function CollectCard({ row }: { row: CollectFailureRow }) {
   );
 }
 
+function AlimtalkCard({ row }: { row: AlimtalkFailureRow }) {
+  return (
+    <li>
+      <Card className="admin-request">
+        <div className="admin-request__head">
+          <span className="label-etched">알림톡 {row.status}</span>
+          <h3 className="admin-request__brand">{row.storeName ?? "(매장 미상)"}</h3>
+        </div>
+        <dl className="admin-request__facts">
+          <Fact label="템플릿" value={row.template} mono />
+          <Fact label="오류 코드" value={row.errorCode} mono />
+          <Fact label="시도 횟수" value={`${row.attemptCount}회`} />
+          <Fact label="발생" value={fmt(row.sentAt)} />
+          <Fact label="참조" value={row.refType && row.refId != null ? `${row.refType} #${row.refId}` : null} mono />
+          <Fact label="SOLAPI ID" value={row.providerMessageIdPresent ? "있음" : "없음"} />
+        </dl>
+      </Card>
+    </li>
+  );
+}
+
 export function AdminFailures() {
   const [data, setData] = useState<FailureReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +136,18 @@ export function AdminFailures() {
 
       {data ? (
         <>
+          <h2>알림톡 실패·정체 ({data.alimtalkFailures.length})</h2>
+          <p>자동 재발송하지 않습니다. 중복 발송을 막기 위해 원인과 SOLAPI 내역만 확인합니다.</p>
+          {data.alimtalkFailures.length === 0 ? (
+            <EmptyState title="알림톡 실패가 없습니다" description="실패하거나 2시간 넘게 멈춘 알림이 없습니다." />
+          ) : (
+            <ul className="admin-request-list">
+              {data.alimtalkFailures.map((r, i) => (
+                <AlimtalkCard key={`${r.refType}-${r.refId}-${r.sentAt}-${i}`} row={r} />
+              ))}
+            </ul>
+          )}
+
           <h2>답글이 나가지 않은 건 ({data.publishFailures.length})</h2>
           <p>사장님이 기다리는 답글입니다. 리뷰에는 아직 아무 답글도 달리지 않았습니다.</p>
           {data.publishFailures.length === 0 ? (

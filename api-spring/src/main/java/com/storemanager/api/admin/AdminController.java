@@ -87,11 +87,13 @@ public class AdminController {
         guard.requireAdmin(CurrentUser.publicId());
         return new FailureReport(
                 failures.publishFailures(limit),
-                failures.collectFailures(limit));
+                failures.collectFailures(limit),
+                failures.alimtalkFailures(limit));
     }
 
     public record FailureReport(
             List<AdminFailureService.PublishFailureRow> publishFailures,
-            List<AdminFailureService.CollectFailureRow> collectFailures) {
+            List<AdminFailureService.CollectFailureRow> collectFailures,
+            List<AdminFailureService.AlimtalkFailureRow> alimtalkFailures) {
     }
 }

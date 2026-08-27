@@ -2,6 +2,7 @@ package com.storemanager.api.admin;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ public class AdminFailureService {
 
     /** 화면 한 번에 너무 많이 끌어오지 않는다. 오래된 실패는 이미 대응 시점을 놓친 것이다. */
     private static final int DEFAULT_LIMIT = 200;
+    private static final Duration ALIMTALK_STALLED_AFTER = Duration.ofHours(2);
 
     private final EntityManager em;
 
@@ -66,7 +68,40 @@ public class AdminFailureService {
                     (String) c[7],
                     (String) c[8],
                     c[9] == null ? 0 : ((Number) c[9]).intValue(),
-                    c[10] == null ? null : ((java.sql.Timestamp) c[10]).toInstant()));
+                    toInstant(c[10])));
+        }
+        return out;
+    }
+
+    /** 실패·스킵되었거나 접수 단계에서 2시간 넘게 멈춘 알림톡. 재발송은 하지 않는다. */
+    @Transactional(readOnly = true)
+    public List<AlimtalkFailureRow> alimtalkFailures(int limit) {
+        Query q = em.createNativeQuery("""
+                SELECT s.name, n.template, n.status, n.error_code, n.attempt_count,
+                       n.sent_at, n.ref_type, n.ref_id, n.provider_message_id IS NOT NULL
+                  FROM notification_log n
+                  LEFT JOIN store s ON s.id = n.store_id
+                 WHERE n.channel = 'ALIMTALK'
+                   AND (n.status IN ('FAILED', 'SKIPPED')
+                        OR (n.status IN ('SENDING', 'ACCEPTED') AND n.sent_at < :stalledBefore))
+                 ORDER BY n.sent_at DESC
+                 LIMIT :lim
+                """);
+        q.setParameter("stalledBefore", Instant.now().minus(ALIMTALK_STALLED_AFTER));
+        q.setParameter("lim", limit <= 0 ? DEFAULT_LIMIT : Math.min(limit, DEFAULT_LIMIT));
+
+        List<AlimtalkFailureRow> out = new ArrayList<>();
+        for (Object[] c : (List<Object[]>) q.getResultList()) {
+            out.add(new AlimtalkFailureRow(
+                    (String) c[0],
+                    (String) c[1],
+                    (String) c[2],
+                    (String) c[3],
+                    c[4] == null ? 0 : ((Number) c[4]).intValue(),
+                    toInstant(c[5]),
+                    (String) c[6],
+                    c[7] == null ? null : ((Number) c[7]).longValue(),
+                    Boolean.TRUE.equals(c[8])));
         }
         return out;
     }
@@ -96,7 +131,7 @@ public class AdminFailureService {
                     c[4] == null ? null : c[4].toString(),
                     c[5] == null ? null : c[5].toString(),
                     (String) c[6],
-                    c[7] == null ? null : ((java.sql.Timestamp) c[7]).toInstant()));
+                    toInstant(c[7])));
         }
         return out;
     }
@@ -112,6 +147,22 @@ public class AdminFailureService {
         return loginId.substring(0, 3) + "*".repeat(Math.min(loginId.length() - 3, 6));
     }
 
+    private static Instant toInstant(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Instant instant) {
+            return instant;
+        }
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toInstant();
+        }
+        if (value instanceof java.time.OffsetDateTime offsetDateTime) {
+            return offsetDateTime.toInstant();
+        }
+        throw new IllegalArgumentException("지원하지 않는 시각 타입: " + value.getClass().getName());
+    }
+
     /** 게시 실패 — 답글이 매장에 달리지 않았다. 사장님이 기다리는 건이다. */
     public record PublishFailureRow(String storeName, String reviewId, String platform,
             String platformReviewId, Integer rating, String reviewExcerpt,
@@ -121,5 +172,11 @@ public class AdminFailureService {
     /** 수집 실패 — 리뷰가 들어오지 않았다. 조용히 비어 보이는 게 가장 위험하다. */
     public record CollectFailureRow(String storeName, String platform, String loginIdMasked,
             String jobType, String startDate, String endDate, String ecode, Instant failedAt) {
+    }
+
+    /** 알림톡 실패·정체 — payload와 수신번호는 의도적으로 반환하지 않는다. */
+    public record AlimtalkFailureRow(String storeName, String template, String status,
+            String errorCode, int attemptCount, Instant sentAt, String refType, Long refId,
+            boolean providerMessageIdPresent) {
     }
 }
