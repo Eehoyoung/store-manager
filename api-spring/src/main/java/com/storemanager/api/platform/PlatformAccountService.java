@@ -2,6 +2,8 @@ package com.storemanager.api.platform;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.agreement.AgreementService;
+import java.time.Instant;
 import com.storemanager.api.crypto.CredentialService;
 import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
@@ -26,19 +28,27 @@ public class PlatformAccountService {
     private final PlatformAccountRepository accountRepository;
     private final StorePlatformLinkRepository linkRepository;
     private final CredentialService credentialService;
+    private final AgreementService agreementService;
 
     public PlatformAccountService(AppUserRepository appUserRepository, StoreRepository storeRepository,
             PlatformAccountRepository accountRepository, StorePlatformLinkRepository linkRepository,
-            CredentialService credentialService) {
+            CredentialService credentialService, AgreementService agreementService) {
         this.appUserRepository = appUserRepository;
         this.storeRepository = storeRepository;
         this.accountRepository = accountRepository;
         this.linkRepository = linkRepository;
         this.credentialService = credentialService;
+        this.agreementService = agreementService;
     }
 
     @Transactional
-    public PlatformAccountResponse register(UUID ownerPublicId, RegisterPlatformAccountRequest request) {
+    public PlatformAccountResponse register(UUID ownerPublicId, RegisterPlatformAccountRequest request,
+            String ip, String userAgent) {
+        agreementService.requireCurrentVersion(request.docVersion());
+        if (!request.agreedCredentialEntrust()) {
+            throw new ApiException(ErrorCode.CONSENT_REQUIRED,
+                    java.util.Map.of("missing", java.util.List.of(AgreementService.CREDENTIAL)));
+        }
         AppUser owner = appUserRepository.findByPublicId(ownerPublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
         String platform = normalizePlatform(request.platform());
@@ -55,6 +65,9 @@ public class PlatformAccountService {
         PlatformAccount account = credentialService.save(owner.getId(), platform, loginId, request.password(),
                 store.getId());
         account.markVerificationPending(VERIFY_DEFERRED);
+        Instant now = Instant.now();
+        store.activateByCredentialConsent(now);
+        agreementService.record(owner.getId(), store.getId(), AgreementService.CREDENTIAL, true, ip, userAgent);
         // 매장 발견은 Worker 의 수집 작업이 reviewManagement 응답(REVIEWLIST[].STOREID)을 보고 수행한다.
         // ★ Spring 에서 외부 API 를 직접 호출하거나 STOREID 를 추정해 매핑하지 않는다 (서비스 간 경계).
         // ★ 등록 시점에 즉시 호출하지 않는 이유: 호출당 과금이라 오타로 재등록할 때마다 돈이 나간다.
@@ -71,7 +84,7 @@ public class PlatformAccountService {
     }
 
     @Transactional
-    public void revoke(UUID ownerPublicId, UUID accountPublicId) {
+    public void revoke(UUID ownerPublicId, UUID accountPublicId, String ip, String userAgent) {
         AppUser owner = appUserRepository.findByPublicId(ownerPublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
         PlatformAccount account = accountRepository
@@ -79,6 +92,11 @@ public class PlatformAccountService {
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         linkRepository.deleteByAccountId(account.getId());
         credentialService.revoke(account);
+        var store = storeRepository.findById(account.getIntendedStoreId())
+                .filter(candidate -> candidate.getOwnerId().equals(owner.getId()))
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        store.clearCredentialConsent(Instant.now());
+        agreementService.record(owner.getId(), store.getId(), AgreementService.CREDENTIAL, false, ip, userAgent);
     }
 
     private PlatformAccountResponse toResponse(PlatformAccount account) {

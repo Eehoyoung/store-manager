@@ -82,11 +82,11 @@ export function StoresPage() {
                   {s.brandName ? <p className="store-card__brand">{s.brandName}</p> : null}
                   {!s.activatedAt ? (
                     <Badge tone="warning" icon="⚠">
-                      전자계약 서명 전 — 수집·게시가 동작하지 않습니다
+                      배달앱 연동 전 — 수집·게시가 동작하지 않습니다
                     </Badge>
                   ) : (
                     <Badge tone="success" icon="✓">
-                      계약 완료
+                      연동 완료
                     </Badge>
                   )}
                 </div>

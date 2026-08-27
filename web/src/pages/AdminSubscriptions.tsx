@@ -12,7 +12,7 @@ import { Skeleton } from "../components/Skeleton";
  *
  * ★ 활성화는 그 매장에 DataAPI 호출과 LLM 토큰을 쓰기 시작한다는 뜻이다. 돈이 나가는 결정이므로
  *   버튼 옆에 그 사실을 적고, 근거(입금자명·입금일)를 반드시 받는다 — 요금 분쟁 시 유일한 기록이다.
- * ★ 두 게이트를 나눠 보여준다. 계약(법적 근거)과 구독(요금)은 다른 것이고, 둘 다 통과해야 서비스한다.
+ * ★ 두 게이트를 나눠 보여준다. 자격증명 위탁 동의(법적 근거)와 구독(요금)은 다르며 둘 다 필요하다.
  */
 
 const SUB_LABEL: Record<string, { tone: "success" | "danger" | "warning" | "neutral"; text: string }> = {
@@ -70,7 +70,7 @@ export function AdminSubscriptions() {
         <div>
           <h1>매장 서비스 상태</h1>
           <p>
-            입금을 확인한 뒤 활성화합니다. 가입이나 전자계약만으로는 서비스가 시작되지 않습니다.
+            입금을 확인한 뒤 활성화합니다. 가입이나 동의만으로는 서비스가 시작되지 않습니다.
           </p>
         </div>
       </div>
@@ -109,10 +109,10 @@ export function AdminSubscriptions() {
                     <dd className="admin-request__mono">{row.ownerEmail ?? "-"}</dd>
                   </div>
                   <div>
-                    <dt>전자계약</dt>
+                    <dt>자격증명 위탁 동의</dt>
                     <dd>
-                      <Badge tone={row.contractSigned ? "success" : "warning"} icon={row.contractSigned ? "✓" : "•"}>
-                        {row.contractSigned ? "완료" : "미완료"}
+                      <Badge tone={row.credentialConsentCompleted ? "success" : "warning"} icon={row.credentialConsentCompleted ? "✓" : "•"}>
+                        {row.credentialConsentCompleted ? "완료" : "미완료"}
                       </Badge>
                     </dd>
                   </div>
@@ -154,14 +154,14 @@ export function AdminSubscriptions() {
                     <Button
                       type="button"
                       loading={busyId === row.storeId}
-                      disabled={!row.contractSigned}
+                      disabled={!row.credentialConsentCompleted}
                       onClick={() => void act(row, "activate")}
                     >
                       입금 확인 · 서비스 시작
                     </Button>
                   )}
-                  {!row.contractSigned ? (
-                    <span className="admin-request__blocked">전자계약이 끝나야 활성화할 수 있습니다.</span>
+                  {!row.credentialConsentCompleted ? (
+                    <span className="admin-request__blocked">배달앱 로그인 정보 처리 위탁 동의가 필요합니다.</span>
                   ) : null}
                 </div>
               </Card>

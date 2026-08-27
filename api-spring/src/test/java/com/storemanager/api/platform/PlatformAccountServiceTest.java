@@ -8,14 +8,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.agreement.AgreementService;
 import com.storemanager.api.crypto.CredentialService;
+import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.Store;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.util.Optional;
@@ -35,9 +39,11 @@ class PlatformAccountServiceTest {
     private final PlatformAccountRepository accountRepository = mock(PlatformAccountRepository.class);
     private final StorePlatformLinkRepository linkRepository = mock(StorePlatformLinkRepository.class);
     private final CredentialService credentialService = mock(CredentialService.class);
+    private final AgreementService agreementService = mock(AgreementService.class);
 
     private final PlatformAccountService service = new PlatformAccountService(
-            appUserRepository, storeRepository, accountRepository, linkRepository, credentialService);
+            appUserRepository, storeRepository, accountRepository, linkRepository, credentialService,
+            agreementService);
 
     @Test
     void 이미_연동된_배달앱_계정은_409로_거절하고_자격증명을_저장하지_않는다() {
@@ -46,9 +52,10 @@ class PlatformAccountServiceTest {
         when(accountRepository.existsByPlatformAndLoginIdAndRevokedAtIsNull("BAEMIN", "jinsa66"))
                 .thenReturn(true);
 
-        var request = new RegisterPlatformAccountRequest("BAEMIN", "jinsa66", "pw", UUID.randomUUID());
+        var request = new RegisterPlatformAccountRequest("BAEMIN", "jinsa66", "pw", UUID.randomUUID(), true,
+                AgreementService.CURRENT_VERSION);
 
-        assertThatThrownBy(() -> service.register(ownerPublicId, request))
+        assertThatThrownBy(() -> service.register(ownerPublicId, request, null, null))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PLATFORM_ACCOUNT_ALREADY_LINKED);
@@ -73,9 +80,10 @@ class PlatformAccountServiceTest {
         UUID ownerPublicId = UUID.randomUUID();
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(mock(AppUser.class)));
 
-        var request = new RegisterPlatformAccountRequest("YOGIYO2", "id", "pw", UUID.randomUUID());
+        var request = new RegisterPlatformAccountRequest("YOGIYO2", "id", "pw", UUID.randomUUID(), true,
+                AgreementService.CURRENT_VERSION);
 
-        assertThatThrownBy(() -> service.register(ownerPublicId, request))
+        assertThatThrownBy(() -> service.register(ownerPublicId, request, null, null))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode())
                 .isEqualTo(ErrorCode.VALIDATION_FAILED);
@@ -87,5 +95,56 @@ class PlatformAccountServiceTest {
         // 응답·로그에 배달앱 아이디 원문이 그대로 나가면 안 된다.
         assertThat(PlatformAccountService.maskLoginId("jinsa66")).isEqualTo("ji••••66");
         assertThat(PlatformAccountService.maskLoginId("ab")).isEqualTo("••••");
+    }
+
+    @Test
+    void 위탁동의가_없으면_자격증명을_저장하지_않는다() {
+        var request = new RegisterPlatformAccountRequest("BAEMIN", "id", "pw", UUID.randomUUID(), false,
+                AgreementService.CURRENT_VERSION);
+        assertThatThrownBy(() -> service.register(UUID.randomUUID(), request, null, null))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.CONSENT_REQUIRED);
+        verifyNoInteractions(credentialService, accountRepository);
+    }
+
+    @Test
+    void 위탁동의하면_매장을_활성화하고_동의행을_남긴다() {
+        UUID ownerPublicId = UUID.randomUUID();
+        UUID storePublicId = UUID.randomUUID();
+        AppUser owner = AppUser.builder().id(1L).publicId(ownerPublicId).email("a@b.com").name("사장").build();
+        Store store = Store.builder().id(2L).publicId(storePublicId).ownerId(1L).name("매장").build();
+        PlatformAccount account = PlatformAccount.builder().id(3L).ownerId(1L).platform("BAEMIN")
+                .loginId("ownerid").encPassword(new byte[1]).encDek(new byte[1]).kmsKeyId("k")
+                .encNonce(new byte[1]).passwordFingerprint(new byte[1]).intendedStoreId(2L).build();
+        when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
+        when(credentialService.save(1L, "BAEMIN", "ownerid", "pw", 2L)).thenReturn(account);
+        when(linkRepository.findByAccountIdOrderByCreatedAtAsc(3L)).thenReturn(java.util.List.of());
+
+        service.register(ownerPublicId, new RegisterPlatformAccountRequest("BAEMIN", "ownerid", "pw",
+                storePublicId, true, AgreementService.CURRENT_VERSION), "127.0.0.1", "test");
+
+        assertThat(store.getActivatedAt()).isNotNull();
+        verify(agreementService).record(1L, 2L, AgreementService.CREDENTIAL, true, "127.0.0.1", "test");
+    }
+
+    @Test
+    void 연동해제하면_매장을_비활성화하고_철회행을_남긴다() {
+        UUID ownerPublicId = UUID.randomUUID();
+        UUID accountPublicId = UUID.randomUUID();
+        AppUser owner = AppUser.builder().id(1L).publicId(ownerPublicId).email("a@b.com").name("사장").build();
+        Store store = Store.builder().id(2L).ownerId(1L).name("매장").activatedAt(java.time.Instant.now()).build();
+        PlatformAccount account = PlatformAccount.builder().id(3L).publicId(accountPublicId).ownerId(1L)
+                .platform("BAEMIN").loginId("ownerid").encPassword(new byte[1]).encDek(new byte[1]).kmsKeyId("k")
+                .encNonce(new byte[1]).passwordFingerprint(new byte[1]).intendedStoreId(2L).build();
+        when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
+        when(accountRepository.findByPublicIdAndOwnerIdAndRevokedAtIsNull(accountPublicId, 1L))
+                .thenReturn(Optional.of(account));
+        when(storeRepository.findById(2L)).thenReturn(Optional.of(store));
+
+        service.revoke(ownerPublicId, accountPublicId, "127.0.0.1", "test");
+
+        assertThat(store.getActivatedAt()).isNull();
+        verify(agreementService).record(1L, 2L, AgreementService.CREDENTIAL, false, "127.0.0.1", "test");
     }
 }

@@ -11,7 +11,9 @@ record RegisterPlatformAccountRequest(
         @NotBlank @Size(max = 20) String platform,
         @NotBlank @Size(max = 128) String loginId,
         @NotBlank @Size(max = 256) String password,
-        @NotNull UUID storeId) {
+        @NotNull UUID storeId,
+        boolean agreedCredentialEntrust,
+        @NotBlank @Size(max = 20) String docVersion) {
 }
 
 record PlatformAccountResponse(

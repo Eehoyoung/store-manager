@@ -6,6 +6,8 @@ export interface RegisterPlatformAccountPayload {
   loginId: string;
   password: string;
   storeId: string;
+  agreedCredentialEntrust: boolean;
+  docVersion: string;
 }
 
 export const platformAccountsApi = {

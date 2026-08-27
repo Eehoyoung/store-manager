@@ -82,7 +82,7 @@ public class Store {
     /**
      * 회원 탈퇴에 따른 매장 정지.
      *
-     * <p>★ activated_at 을 반드시 비운다. 이 값이 남아 있으면 수집·생성·게시가 계속 돌아
+     * <p>★ 자격증명 위탁 동의 시각을 반드시 비운다. 이 값이 남아 있으면 수집·생성·게시가 계속 돌아
      * 탈퇴한 사람의 매장에 답글이 달리고 우리 비용이 나간다(StoreServiceGate 참고).
      */
     public void softDeleteForWithdrawal(Instant at) {
@@ -95,5 +95,15 @@ public class Store {
     public void assignBrand(String brandName) {
         this.brandName = brandName;
         this.updatedAt = Instant.now();
+    }
+
+    public void activateByCredentialConsent(Instant at) {
+        this.activatedAt = at;
+        this.updatedAt = at;
+    }
+
+    public void clearCredentialConsent(Instant at) {
+        this.activatedAt = null;
+        this.updatedAt = at;
     }
 }

@@ -82,9 +82,9 @@ public class AdminSubscriptionService {
     public void activate(UUID storePublicId, String note, Long adminUserId) {
         Store store = loadStore(storePublicId);
         if (store.getActivatedAt() == null) {
-            // 전자계약이 없는 매장을 활성화하면 법적 근거 없이 데이터를 다루게 된다.
-            throw new ApiException(ErrorCode.CONTRACT_NOT_SIGNED,
-                    Map.of("reason", "전자계약이 완료되지 않은 매장입니다."));
+            // 자격증명 처리 위탁 동의가 없는 매장을 활성화하면 법적 근거 없이 데이터를 다루게 된다.
+            throw new ApiException(ErrorCode.CONSENT_REQUIRED,
+                    Map.of("reason", "배달앱 로그인 정보 처리 위탁 동의가 필요한 매장입니다."));
         }
         Instant now = Instant.now();
         Subscription sub = subscriptionRepository
@@ -138,6 +138,7 @@ public class AdminSubscriptionService {
     }
 
     public record StoreServiceRow(String storeId, String storeName, String ownerName, String ownerEmail,
-            boolean contractSigned, String subscriptionStatus, Instant currentPeriodEnd, boolean serviceActive) {
+            boolean credentialConsentCompleted, String subscriptionStatus, Instant currentPeriodEnd,
+            boolean serviceActive) {
     }
 }
