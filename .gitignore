@@ -47,3 +47,6 @@ worker/fixture_*_review.json
 
 # 운영 백업 산출물 — 자격증명 암호문과 리뷰 원문이 들어 있다. 절대 커밋 금지.
 deploy/backups/
+
+# 로컬 PDF 검사 등 임시 작업 산출물. 디렉토리와 파일은 삭제하지 않는다.
+tmp/
