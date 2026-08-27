@@ -11,6 +11,7 @@ import { Field } from "../components/Field";
 import { Skeleton } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../auth/AuthContext";
+import { agreementsApi, type AgreementHistoryRow } from "../api/agreements";
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
@@ -27,6 +28,7 @@ export function SettingsPage() {
       <p className="settings-page__intro">계정 정보와 보안 설정을 관리합니다.</p>
       <ProfileCard profile={profile} onUpdated={setProfile} />
       <PasswordCard />
+      <AgreementHistoryCard />
       <Card className="settings-page__security-note">
         <h2>서비스 보안</h2>
         <p>배달앱 비밀번호는 별도 봉투암호화로 저장되며 이 화면에 표시하지 않습니다.</p>
@@ -42,6 +44,23 @@ export function SettingsPage() {
       <SessionCard />
     </div>
   );
+}
+
+function AgreementHistoryCard() {
+  const [rows, setRows] = useState<AgreementHistoryRow[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => { agreementsApi.history().then(setRows).catch(() => setMessage("동의 내역을 불러오지 못했습니다.")); }, []);
+  const withdraw = async () => {
+    await agreementsApi.requestHqWithdrawal();
+    setMessage("가맹본부 소속 해제 요청이 접수되었습니다. 실제 해제는 운영자가 처리합니다.");
+    setRows(await agreementsApi.history());
+  };
+  return <Card className="settings-page__card"><h2>동의 내역</h2>
+    {message ? <p role="status">{message}</p> : null}
+    <ul>{rows.map((row, index) => <li key={`${row.code}-${row.agreedAt}-${index}`}><strong>{row.code}</strong> · {row.agreed ? "동의" : "철회/거부"} · {new Date(row.agreedAt).toLocaleString("ko-KR")} · 문서 {row.docVersion} · <Link to={row.documentUrl}>전문 보기</Link></li>)}</ul>
+    <p>필수 동의는 이 화면에서 철회할 수 없으며 회원 탈퇴로만 철회할 수 있습니다.</p>
+    <Button type="button" variant="secondary" onClick={() => void withdraw()}>가맹본부 소속 해제 요청</Button>
+  </Card>;
 }
 
 function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdated: (profile: AccountProfile) => void }) {

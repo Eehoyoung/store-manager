@@ -31,8 +31,10 @@ export function BillingPage() {
       <h1>구독 결제</h1>
       <Card className="billing-page__card">
         <p className="billing-page__eyebrow">외부 결제 · 우리 서비스는 결제정보를 저장하지 않음</p>
-        <h2>리뷰파일럿 월 구독</h2>
+        <h2>결제는 결제 전문업체 화면에서 진행됩니다.</h2>
+        <p>버튼을 누르시면 <strong>Groble 결제 화면으로 이동</strong>합니다. 카드번호 같은 결제 정보는 그 화면에서만 입력하시게 되며, <strong>저희 서비스는 카드번호·유효기간·CVC를 받지도, 저장하지도 않습니다.</strong></p>
         <p className="billing-page__price">월 33,000원 <small>(VAT 포함)</small></p>
+        <table><tbody><tr><th>요금</th><td>매장 1곳당 <strong>월 33,000원</strong> (30,000원 + 부가세 3,000원)</td></tr><tr><th>결제 주기</th><td>한 달에 한 번</td></tr><tr><th>계산 단위</th><td><strong>매장 개수만큼</strong> 요금이 나옵니다</td></tr></tbody></table>
         <ul className="billing-page__methods" aria-label="지원 결제수단">
           <li>앱카드·카드 할부</li>
           <li>카카오페이</li>
@@ -40,12 +42,13 @@ export function BillingPage() {
         </ul>
         {paymentUrl ? (
           <a className="btn btn--primary" href={paymentUrl} target="_blank" rel="noreferrer">
-            Groble에서 결제하기
+            Groble 결제 화면으로 이동
           </a>
         ) : (
           <p className="field__error" role="alert">결제 링크를 준비 중입니다.</p>
         )}
       </Card>
+      <Card><h2>해지하고 싶으실 때</h2><p>서비스 화면이나 고객문의로 해지를 신청하시면 접수해 드립니다. 결제업체 쪽 정기결제 중단까지는 <strong>며칠이 걸릴 수 있으며</strong>, 처리 결과는 따로 알려드립니다.</p><p>이미 결제하신 기간은 <strong>끝날 때까지 계속 이용</strong>하실 수 있습니다. 이미 지나간 기간에 대한 요금은 돌려드리지 않습니다.</p></Card>
       <Card className="billing-page__status" role="status">
         <h2>결제 상태 안내</h2>
         <ol>

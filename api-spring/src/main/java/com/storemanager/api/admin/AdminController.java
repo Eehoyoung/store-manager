@@ -2,6 +2,8 @@ package com.storemanager.api.admin;
 
 import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.CurrentUser;
+import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.user.AppUserRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
@@ -16,13 +18,18 @@ public class AdminController {
     private final FranchiseService franchises;
     private final AdminSubscriptionService subscriptions;
     private final AdminFailureService failures;
+    private final AuditLogRepository audits;
+    private final AppUserRepository users;
 
     public AdminController(AdminAccessGuard guard, FranchiseService franchises,
-            AdminSubscriptionService subscriptions, AdminFailureService failures) {
+            AdminSubscriptionService subscriptions, AdminFailureService failures,
+            AuditLogRepository audits, AppUserRepository users) {
         this.guard = guard;
         this.franchises = franchises;
         this.subscriptions = subscriptions;
         this.failures = failures;
+        this.audits = audits;
+        this.users = users;
     }
 
     @GetMapping("/me")
@@ -74,6 +81,19 @@ public class AdminController {
     /** note 는 입금자명·입금일 같은 판단 근거다. 요금 분쟁 시 유일한 기록이므로 필수로 받는다. */
     public record ServiceDecisionRequest(@NotBlank @jakarta.validation.constraints.Size(max = 200) String note) {}
     public record DecisionRequest(@NotBlank String decision) {}
+
+    @GetMapping("/hq-withdrawal-requests")
+    public List<HqWithdrawalRequest> hqWithdrawalRequests() {
+        guard.requireAdmin(CurrentUser.publicId());
+        return audits.findByActionOrderByCreatedAtAsc("HQ_AFFILIATION_WITHDRAWAL_REQUESTED").stream()
+                .map(log -> users.findById(log.getActorId())
+                        .map(user -> new HqWithdrawalRequest(log.getId(), user.getName(), user.getEmail(),
+                                log.getCreatedAt())).orElse(null))
+                .filter(java.util.Objects::nonNull).toList();
+    }
+
+    public record HqWithdrawalRequest(Long id, String requesterName, String requesterEmail,
+            java.time.Instant requestedAt) {}
 
     /**
      * 재시도를 소진하고 실패한 건 목록.

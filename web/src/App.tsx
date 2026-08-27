@@ -21,8 +21,9 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { AdminPage } from "./pages/AdminPage";
 import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 import { AdminFailures } from "./pages/AdminFailures";
+import { LegalDocumentPage } from "./pages/LegalDocumentPage";
 
-// 라우트 표 (문서 14 §2). 전자계약은 보류이므로 온보딩 안에서 '준비 중' 으로만 표시한다.
+// 라우트 표 (문서 14 §2). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
 // /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
 // 서버가 403/404 로 막는다. 링크를 보여주고 클릭 후 거절하는 흐름을 만들지 말 것.
 function App() {
@@ -35,6 +36,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
             </Route>
+            <Route path="/legal/:slug" element={<LegalDocumentPage />} />
 
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>

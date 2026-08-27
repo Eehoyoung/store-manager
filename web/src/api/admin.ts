@@ -9,23 +9,25 @@ export interface AffiliationRequest {
   storeAddress: string | null;
   requestedAt: string;
 }
+export interface HqWithdrawalRequest { id: number; requesterName: string; requesterEmail: string; requestedAt: string; }
 
 export interface StoreServiceRow {
   storeId: string;
   storeName: string;
   ownerName: string | null;
   ownerEmail: string | null;
-  contractSigned: boolean;
+  credentialConsentCompleted: boolean;
   /** null 이면 구독 행 자체가 없다 = 한 번도 결제되지 않은 매장 */
   subscriptionStatus: string | null;
   currentPeriodEnd: string | null;
-  /** 계약과 구독을 모두 통과했는가 — 실제로 비용이 나가는 상태인지 */
+  /** 자격증명 위탁 동의와 구독을 모두 통과했는가 — 실제로 비용이 나가는 상태인지 */
   serviceActive: boolean;
 }
 
 export const adminApi = {
   me: () => apiRequest<{ admin: boolean }>("/admin/me"),
   requests: () => apiRequest<AffiliationRequest[]>("/admin/franchise-requests"),
+  hqWithdrawalRequests: () => apiRequest<HqWithdrawalRequest[]>("/admin/hq-withdrawal-requests"),
   decide: (id: string, decision: "APPROVE" | "REJECT") =>
     apiRequest<void>(`/admin/franchise-requests/${id}`, { method: "PATCH", body: { decision } }),
   stores: () => apiRequest<StoreServiceRow[]>("/admin/stores"),

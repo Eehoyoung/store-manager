@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { adminApi, type AffiliationRequest } from "../api/admin";
+import { adminApi, type AffiliationRequest, type HqWithdrawalRequest } from "../api/admin";
 import { ApiError } from "../api/client";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -20,11 +20,11 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [withdrawals, setWithdrawals] = useState<HqWithdrawalRequest[]>([]);
 
   const load = () =>
-    adminApi
-      .requests()
-      .then(setItems)
+    Promise.all([adminApi.requests(), adminApi.hqWithdrawalRequests()])
+      .then(([requests, nextWithdrawals]) => { setItems(requests); setWithdrawals(nextWithdrawals); })
       .catch((e) => setError(e instanceof ApiError ? e.message : "승인 대기 목록을 불러오지 못했습니다."));
 
   useEffect(() => {
@@ -132,6 +132,8 @@ export function AdminPage() {
           </li>
         ))}
       </ul>
+      <h2>가맹본부 소속 해제 요청</h2>
+      {withdrawals.length === 0 ? <p>접수된 요청이 없습니다.</p> : <ul>{withdrawals.map((item) => <li key={item.id}>{item.requesterName} · {item.requesterEmail} · {new Date(item.requestedAt).toLocaleString("ko-KR")}</li>)}</ul>}
     </div>
   );
 }

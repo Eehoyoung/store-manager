@@ -71,7 +71,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**", "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**")
+                        .requestMatchers("/api/v1/auth/**", "/api/v1/agreements",
+                                "/api/v1/agreements/documents/**", "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**")
                         .permitAll()
                         // /internal/** 는 JWT 가 아니라 X-Internal-Token 공유 시크릿으로 인증한다(컨트롤러에서 검증).
                         .requestMatchers("/internal/**").permitAll()
