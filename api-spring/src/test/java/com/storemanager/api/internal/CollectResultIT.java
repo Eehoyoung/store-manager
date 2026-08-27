@@ -11,6 +11,7 @@ import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.draft.ReviewAnalysisRepository;
+import com.storemanager.api.notify.NotificationLogRepository;
 import com.storemanager.api.review.ReplyStyleSample;
 import com.storemanager.api.review.ReplyStyleSampleRepository;
 import com.storemanager.api.review.StorePlatformLink;
@@ -88,6 +89,9 @@ class CollectResultIT {
 
     @Autowired
     ReplyStyleSampleRepository replyStyleSampleRepository;
+
+    @Autowired
+    NotificationLogRepository notificationLogRepository;
 
     @Autowired
     ReplyDraftRepository replyDraftRepository;
@@ -421,5 +425,7 @@ class CollectResultIT {
         assertThat(after.getRetryCount()).isEqualTo((short) 0);
         // scheduled_at 은 남아 있어도 무해하다 — 스케줄러 조회가 status=SCHEDULED 만 보므로 재디스패치되지 않는다.
         assertThat(after.getFailCode()).isEqualTo("RISK_LEVEL_TOO_HIGH");
+        assertThat(notificationLogRepository.countByRefTypeAndRefIdAndTemplate(
+                "UNIFIED_REVIEW", f.reviewId(), "HIGH_RISK_REVIEW")).isEqualTo(1);
     }
 }

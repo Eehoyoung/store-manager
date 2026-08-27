@@ -308,7 +308,7 @@ public class CollectResultService {
 
     private void notifyHighRisk(ReplyDraft draft) {
         storeRepository.findById(draft.getStoreId()).ifPresent(store -> notifier.send(store.getOwnerId(),
-                store.getId(), "ALIMTALK", "HIGH_RISK_REVIEW", "REPLY_DRAFT", draft.getId()));
+                store.getId(), "ALIMTALK", "HIGH_RISK_REVIEW", "UNIFIED_REVIEW", draft.getReviewId()));
     }
 
     private void notifyLinkError(ReplyDraft draft) {

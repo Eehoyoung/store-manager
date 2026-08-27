@@ -1,7 +1,6 @@
 package com.storemanager.api.notify;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,7 +27,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("refType") String refType, @Param("refId") Long refId, @Param("payload") String payload);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<NotificationLog> findTop20ByChannelAndStatusAndNextAttemptAtLessThanEqualOrderById(
+    Optional<NotificationLog> findFirstByChannelAndStatusAndNextAttemptAtLessThanEqualOrderById(
             String channel, String status, Instant now);
 
     Optional<NotificationLog> findByProviderMessageId(String providerMessageId);
