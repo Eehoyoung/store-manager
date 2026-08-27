@@ -10,6 +10,17 @@
   padding: var(--space-6) var(--space-4);
   background: var(--color-bg);
 }
+
+.service-notice, .consent-box, .service-warning { margin: 18px 0; padding: 16px; border-radius: 8px; background: #f3f4f6; }
+.consent-box--hq, .service-warning { border-left: 4px solid #d97706; }
+.consent-check { display: block; margin: 12px 0; line-height: 1.6; }
+.consent-check input { width: 18px; height: 18px; margin-right: 8px; vertical-align: middle; }
+.consent-check--all { font-size: 18px; font-weight: 700; border-bottom: 1px solid #d1d5db; padding-bottom: 12px; }
+.consent-table-wrap { overflow-x: auto; }
+.consent-table-wrap table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.consent-table-wrap th, .consent-table-wrap td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+.legal-page { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+.legal-page pre { white-space: pre-wrap; font: inherit; line-height: 1.7; }
 .auth-card {
   max-width: 460px;
   width: 100%;

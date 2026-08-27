@@ -2,6 +2,7 @@ package com.storemanager.api.user;
 
 import com.storemanager.api.security.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import org.springframework.http.HttpHeaders;
@@ -35,8 +36,9 @@ public class AuthController {
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
-    public AuthResponse signup(@Valid @RequestBody SignupRequest req, HttpServletResponse res) {
-        return respond(authService.signup(req), res);
+    public AuthResponse signup(@Valid @RequestBody SignupRequest req, HttpServletRequest request,
+            HttpServletResponse res) {
+        return respond(authService.signup(req, clientIp(request), request.getHeader("User-Agent")), res);
     }
 
     @PostMapping("/login")
@@ -64,7 +66,19 @@ public class AuthController {
         setCookie(res, pair.refreshToken());
         AppUser u = pair.user();
         UserSummary summary = new UserSummary(u.getPublicId().toString(), u.getName(), u.getEmail());
-        return new AuthResponse(pair.accessToken(), pair.expiresIn(), summary);
+        return new AuthResponse(pair.accessToken(), pair.expiresIn(), summary, pair.affiliationRequested());
+    }
+
+    /** 프록시가 전달한 첫 주소만 증적에 쓰며 어떤 로그에도 출력하지 않는다. */
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        String value = forwarded == null || forwarded.isBlank() ? request.getRemoteAddr() : forwarded.split(",", 2)[0].trim();
+        try {
+            java.net.InetAddress.getByName(value);
+            return value;
+        } catch (java.net.UnknownHostException e) {
+            return null;
+        }
     }
 
     private void setCookie(HttpServletResponse res, String refreshToken) {

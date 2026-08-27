@@ -28,6 +28,7 @@ export interface AuthResponse {
   accessToken: string;
   expiresIn: number;
   user: UserSummary;
+  affiliationRequested?: boolean;
 }
 
 export interface StoreResponse {

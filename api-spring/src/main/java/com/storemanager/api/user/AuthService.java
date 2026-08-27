@@ -2,6 +2,7 @@ package com.storemanager.api.user;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.agreement.AgreementService;
 import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.StoreService;
@@ -28,20 +29,29 @@ public class AuthService {
     private final StringRedisTemplate redisTemplate;
     private final StoreService storeService;
     private final FranchiseService franchiseService;
+    private final AgreementService agreementService;
 
     public AuthService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate, StoreService storeService,
-            FranchiseService franchiseService) {
+            FranchiseService franchiseService, AgreementService agreementService) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.redisTemplate = redisTemplate;
         this.storeService = storeService;
         this.franchiseService = franchiseService;
+        this.agreementService = agreementService;
     }
 
     @Transactional
-    public TokenPair signup(SignupRequest req) {
+    public TokenPair signup(SignupRequest req, String ip, String userAgent) {
+        agreementService.requireCurrentVersion(req.docVersion());
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        if (!req.agreedTerms()) missing.add(AgreementService.TERMS);
+        if (!req.agreedPrivacy()) missing.add(AgreementService.PRIVACY);
+        if (!missing.isEmpty()) {
+            throw new ApiException(ErrorCode.CONSENT_REQUIRED, java.util.Map.of("missing", missing));
+        }
         appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email())
                 .ifPresent(u -> {
                     throw new ApiException(ErrorCode.DUPLICATE_RESOURCE);
@@ -57,10 +67,18 @@ public class AuthService {
                 .build();
         appUserRepository.save(user);
         var store = storeService.createStore(user, req.storeName(), req.storeAddress());
-        if (req.franchiseCode() != null && !req.franchiseCode().isBlank()) {
+        agreementService.record(user.getId(), null, AgreementService.TERMS, true, ip, userAgent);
+        agreementService.record(user.getId(), null, AgreementService.PRIVACY, true, ip, userAgent);
+        boolean hasCode = req.franchiseCode() != null && !req.franchiseCode().isBlank();
+        if (hasCode) {
+            agreementService.record(user.getId(), store.getId(), AgreementService.HQ,
+                    Boolean.TRUE.equals(req.agreedHqDataSharing()), ip, userAgent);
+        }
+        boolean affiliationRequested = hasCode && Boolean.TRUE.equals(req.agreedHqDataSharing());
+        if (affiliationRequested) {
             franchiseService.requestAffiliation(user, store, req.franchiseCode());
         }
-        return issueTokens(user);
+        return issueTokens(user, affiliationRequested);
     }
 
     @Transactional
@@ -72,7 +90,7 @@ public class AuthService {
             throw new ApiException(ErrorCode.UNAUTHORIZED);
         }
         user.recordLogin(Instant.now());
-        return issueTokens(user);
+        return issueTokens(user, false);
     }
 
     @Transactional
@@ -88,7 +106,7 @@ public class AuthService {
         redisTemplate.delete(key); // 회전: 기존 토큰 즉시 폐기
         AppUser user = appUserRepository.findByPublicId(UUID.fromString(userPublicId))
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
-        return issueTokens(user);
+        return issueTokens(user, false);
     }
 
     public void logout(String refreshToken) {
@@ -123,15 +141,17 @@ public class AuthService {
         user.changePassword(passwordEncoder.encode(req.newPassword()));
     }
 
-    private TokenPair issueTokens(AppUser user) {
+    private TokenPair issueTokens(AppUser user, boolean affiliationRequested) {
         String publicId = user.getPublicId().toString();
         String accessToken = jwtTokenProvider.createAccessToken(publicId);
         String refreshToken = jwtTokenProvider.createRefreshToken();
         redisTemplate.opsForValue().set(REFRESH_KEY_PREFIX + refreshToken, publicId,
                 Duration.ofSeconds(jwtTokenProvider.getRefreshTtlSeconds()));
-        return new TokenPair(accessToken, refreshToken, jwtTokenProvider.getAccessTtlSeconds(), user);
+        return new TokenPair(accessToken, refreshToken, jwtTokenProvider.getAccessTtlSeconds(), user,
+                affiliationRequested);
     }
 
-    public record TokenPair(String accessToken, String refreshToken, long expiresIn, AppUser user) {
+    public record TokenPair(String accessToken, String refreshToken, long expiresIn, AppUser user,
+            boolean affiliationRequested) {
     }
 }

@@ -20,7 +20,11 @@ record SignupRequest(
         @Pattern(regexp = AuthPatterns.FRANCHISE_CODE, message = "가맹코드 형식이 올바르지 않습니다.")
         @Size(max = 32) String franchiseCode,
         @NotBlank @Size(max = 100) String storeName,
-        @NotBlank @Size(max = 300) String storeAddress) {
+        @NotBlank @Size(max = 300) String storeAddress,
+        boolean agreedTerms,
+        boolean agreedPrivacy,
+        Boolean agreedHqDataSharing,
+        @NotBlank @Size(max = 20) String docVersion) {
 }
 
 record LoginRequest(
@@ -31,7 +35,7 @@ record LoginRequest(
 record UserSummary(String id, String name, String email) {
 }
 
-record AuthResponse(String accessToken, long expiresIn, UserSummary user) {
+record AuthResponse(String accessToken, long expiresIn, UserSummary user, boolean affiliationRequested) {
 }
 
 record UpdateProfileRequest(

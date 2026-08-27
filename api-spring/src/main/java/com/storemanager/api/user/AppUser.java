@@ -46,7 +46,7 @@ public class AppUser {
     private Instant phoneVerifiedAt;
 
     @Column(name = "social_provider")
-    private String socialProvider;
+    private String socialProvider; // 소셜 로그인 구현 시 provider별 필수 동의 수집 시점을 별도로 기록해야 한다.
 
     @Column(name = "social_id")
     private String socialId;

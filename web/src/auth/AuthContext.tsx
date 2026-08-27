@@ -11,6 +11,10 @@ export interface SignupPayload {
   franchiseCode?: string;
   storeName: string;
   storeAddress: string;
+  agreedTerms: boolean;
+  agreedPrivacy: boolean;
+  agreedHqDataSharing?: boolean;
+  docVersion: string;
 }
 
 interface AuthContextValue {
@@ -18,7 +22,7 @@ interface AuthContextValue {
   /** "checking" 인 동안은 새로고침 복구(refresh) 가 진행 중이라 로그인 여부를 아직 모른다. */
   status: "checking" | "ready";
   login: (email: string, password: string) => Promise<void>;
-  signup: (payload: SignupPayload) => Promise<void>;
+  signup: (payload: SignupPayload) => Promise<boolean>;
   updateUser: (user: UserSummary) => void;
   logout: () => Promise<void>;
 }
@@ -63,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await apiRequest<AuthResponse>("/auth/signup", { method: "POST", body: payload });
     setAccessToken(res.accessToken);
     setUser(res.user);
+    return res.affiliationRequested ?? false;
   };
 
   const updateUser = (nextUser: UserSummary) => setUser(nextUser);
