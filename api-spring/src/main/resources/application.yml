@@ -93,7 +93,7 @@ app:
     template:
       risk-review: ${SOLAPI_TEMPLATE_RISK_REVIEW:}
       daily-briefing: ${SOLAPI_TEMPLATE_DAILY_BRIEFING:}
-    # 알림톡 버튼이 여는 링크의 기준 주소. 일회용 토큰이 이 뒤에 붙는다.
+    # 알림톡 버튼이 여는 로그인 보호 리뷰 목록의 기준 주소.
     link-base-url: ${ALIMTALK_LINK_BASE_URL:http://localhost:5173}
   privacy:
     # 리뷰 작성자 닉네임 가명처리(author_hash) salt. 미설정 시 부팅 실패가 안전하다 — 기본값을 두지 않는다.
