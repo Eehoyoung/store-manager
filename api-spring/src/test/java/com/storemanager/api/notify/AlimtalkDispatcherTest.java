@@ -95,6 +95,19 @@ class AlimtalkDispatcherTest {
         assertThat(variables.getValue()).containsOnlyKeys("storeName", "reviewUrl");
     }
 
+    /** ★ 실패 원인은 로그에만 남는다. 수신번호는 가리되 추적 단서는 살려야 한다. */
+    @Test
+    void 실패로그는_수신번호만_가리고_원인은_남긴다() {
+        assertThat(AlimtalkDispatcher.maskPhones("invalid receiver 01012345678 for pfId KA01PF"))
+                .isEqualTo("invalid receiver *** for pfId KA01PF");
+        assertThat(AlimtalkDispatcher.maskPhones("수신번호 010-1234-5678 오류")).isEqualTo("수신번호 *** 오류");
+
+        // 날짜·템플릿ID·메시지ID 는 원인 추적 단서라 가리지 않는다.
+        assertThat(AlimtalkDispatcher.maskPhones("template TPL_2026 not approved at 2026-08-28"))
+                .isEqualTo("template TPL_2026 not approved at 2026-08-28");
+        assertThat(AlimtalkDispatcher.maskPhones(null)).isEmpty();
+    }
+
     private AlimtalkDispatchTransactions.Claim claim(Long id, String phone, String payload) {
         return new AlimtalkDispatchTransactions.Claim(id, 10L, payload, phone);
     }
