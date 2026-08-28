@@ -29,4 +29,21 @@ class AgreementServiceTest {
         service.record(1L, 2L, AgreementService.HQ, false, "127.0.0.1", "test");
         verify(repository, times(2)).save(any(UserAgreement.class));
     }
+
+    /**
+     * ★ X-Forwarded-For 는 클라이언트가 넣는 값이다. 호스트명을 그대로 넘기면 미인증 가입 경로가
+     * DNS 를 조회하게 된다. 리터럴만 통과시키고 나머지는 조용히 버린다.
+     */
+    @Test
+    void 호스트명은_DNS를_조회하지_않고_버린다() {
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress("evil.example.com")).isNull();
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress("localhost")).isNull();
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress("1.2.3.4.evil.example.com")).isNull();
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress(null)).isNull();
+
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress("203.0.113.7"))
+                .isNotNull()
+                .extracting(java.net.InetAddress::getHostAddress).isEqualTo("203.0.113.7");
+        org.assertj.core.api.Assertions.assertThat(AgreementService.toAddress("2001:db8::1")).isNotNull();
+    }
 }

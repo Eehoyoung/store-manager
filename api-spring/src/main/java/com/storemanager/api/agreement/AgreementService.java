@@ -45,8 +45,23 @@ public class AgreementService {
         return value == null ? null : value.substring(0, Math.min(value.length(), max));
     }
 
-    private static java.net.InetAddress toAddress(String value) {
-        if (value == null) return null;
+    /**
+     * IP 리터럴만 받는다.
+     *
+     * <p>★ {@code InetAddress.getByName} 은 리터럴이 아니면 <b>DNS 를 조회한다.</b> 이 값은
+     * {@code X-Forwarded-For} 에서 오고 그 헤더는 클라이언트가 넣는다 — 거르지 않으면 미인증
+     * 회원가입 경로가 임의 호스트명을 조회하게 되고, 그 블로킹 호출이 가입 트랜잭션 안에서 돈다.
+     * 리터럴로 확인된 값에는 getByName 이 이름 해석을 하지 않는다.
+     */
+    static java.net.InetAddress toAddress(String value) {
+        if (value == null) {
+            return null;
+        }
+        boolean ipv4 = value.matches("[0-9.]+");
+        boolean ipv6 = value.indexOf(':') >= 0 && value.matches("[0-9a-fA-F:.]+");
+        if (!ipv4 && !ipv6) {
+            return null;
+        }
         try {
             return java.net.InetAddress.getByName(value);
         } catch (java.net.UnknownHostException e) {
