@@ -17,7 +17,16 @@ final class ReviewDtos {
             List<String> riskReasons) {
     }
 
-    record DraftSummaryResponse(String id, String status, String content) {
+    /**
+     * ★ guardrailFlags 를 내려보내는 이유 — 화면이 차단 사유를 사람이 읽을 문구로 보여주고,
+     * 승인 가능 여부(RISK_LEVEL_TOO_HIGH 단독인가)를 누르기 전에 알려주기 위해서다.
+     * 이 값이 없으면 사장님은 승인 버튼을 눌러 422 를 받고 나서야 승인이 안 된다는 것을 안다.
+     *
+     * <p>★ 최종 판정은 여전히 서버가 한다({@code RiskApprovalService.APPROVABLE_FLAG}).
+     * 화면 검사는 사용자 편의일 뿐이며, 이 필드를 근거로 서버 검사를 줄이지 말 것.
+     */
+    record DraftSummaryResponse(String id, String status, String content, String generatedBy,
+            List<String> guardrailFlags) {
     }
 
     record ReviewSummaryResponse(String id, String platform, Integer rating, String body, String authorMasked,

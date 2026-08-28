@@ -128,7 +128,9 @@ public class ReviewService {
         if (d == null) {
             return null;
         }
-        return new DraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent());
+        String[] flags = d.getGuardrailFlags();
+        return new DraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent(),
+                d.getGeneratedBy(), flags == null ? List.of() : List.of(flags));
     }
 
     private static AnalysisResponse toAnalysisResponse(ReviewAnalysis a) {

@@ -14,7 +14,7 @@ import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
 import { Pagination } from "../components/Pagination";
 import { useToast } from "../components/Toast";
-import { describeGuardrailFlag, describeRiskReason } from "../lib/labels";
+import { describeGeneratedBy, describeGuardrailFlag, describeRiskReason } from "../lib/labels";
 import { useShellStore } from "../layout/AppShell";
 
 const TONE_OPTIONS: { value: PersonaRequest["tone"]; label: string }[] = [
@@ -437,6 +437,7 @@ function PersonaPreview({ storeId, persona }: { storeId: string; persona: Person
 
       {result ? (
         <div className="persona-page__preview-result">
+          <Badge tone="info">{describeGeneratedBy("AI")}</Badge>
           <p className="persona-page__preview-content">{result.content}</p>
           <p className="field__hint">
             모델 등급 {result.tier ?? "-"} · {result.model ?? "-"} · 프롬프트 버전 {result.promptVersion ?? "-"}

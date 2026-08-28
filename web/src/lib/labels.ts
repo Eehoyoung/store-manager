@@ -56,3 +56,18 @@ const PLATFORM_LABELS: Record<string, string> = {
 export function describePlatform(code: string): string {
   return PLATFORM_LABELS[code.toUpperCase()] ?? code;
 }
+
+// 인공지능기본법 제31조 제2항 — 답글 초안이 생성형 AI 로 만들어졌음을 화면에 표시한다.
+// ReplyDraft.generatedBy: AI|HUMAN|AI_EDITED|TEMPLATE. 사람이 처음부터 쓴 값(HUMAN)이나
+// 알려지지 않은 값은 표시하지 않는다 — 화면 문구는 확실한 것만 말한다.
+const GENERATED_BY_LABELS: Record<string, string> = {
+  AI: "AI 생성 초안",
+  AI_EDITED: "AI 초안 · 사람이 수정함",
+};
+
+export function describeGeneratedBy(code: string | null | undefined): string | null {
+  if (!code) {
+    return null;
+  }
+  return GENERATED_BY_LABELS[code] ?? null;
+}

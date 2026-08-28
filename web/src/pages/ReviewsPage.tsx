@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { reviewsApi } from "../api/reviews";
+import { canApproveBlockedDraft, draftsApi, DRAFT_CONTENT_MAX_LENGTH } from "../api/drafts";
 import type { ReviewDetail, ReviewSummary } from "../api/types";
 import { ApiError } from "../api/client";
 import { Card } from "../components/Card";
@@ -11,8 +12,15 @@ import { Modal } from "../components/Modal";
 import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
 import { Button } from "../components/Button";
+import { useToast } from "../components/Toast";
 import { DRAFT_STATUS_META } from "../components/draftStatus";
-import { describeCategory, describePlatform, describeRiskReason } from "../lib/labels";
+import {
+  describeCategory,
+  describeGeneratedBy,
+  describeGuardrailFlag,
+  describePlatform,
+  describeRiskReason,
+} from "../lib/labels";
 import { useShellStore } from "../layout/AppShell";
 
 const CATEGORY_OPTIONS = ["PRAISE", "POSITIVE", "IMPROVEMENT", "COMPLAINT", "ABUSIVE", "NOISE"];
@@ -203,7 +211,11 @@ export function ReviewsPage() {
         </nav>
       ) : null}
 
-      <ReviewDetailModal reviewId={selectedId} onClose={() => setSelectedId(null)} />
+      <ReviewDetailModal
+        reviewId={selectedId}
+        onClose={() => setSelectedId(null)}
+        onDraftChanged={() => setRetryTick((t) => t + 1)}
+      />
     </div>
   );
 }
@@ -212,6 +224,7 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
   const analysis = review.analysis;
   const highRisk = (analysis?.riskLevel ?? 0) >= HIGH_RISK_THRESHOLD;
   const meta = review.draft ? DRAFT_STATUS_META[review.draft.status] : null;
+  const generatedByLabel = describeGeneratedBy(review.draft?.generatedBy);
 
   return (
     <Card
@@ -244,6 +257,7 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
         ) : (
           <Badge tone="neutral">초안 없음</Badge>
         )}
+        {generatedByLabel ? <Badge tone="info">{generatedByLabel}</Badge> : null}
         {highRisk ? (
           <Badge tone="danger" icon="⚠">
             고위험
@@ -284,10 +298,28 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
   );
 }
 
-// ★ 절대규칙 1·3: 읽기 전용이다. 승인·거절·답글 수정 경로를 만들지 않는다.
-function ReviewDetailModal({ reviewId, onClose }: { reviewId: string | null; onClose: () => void }) {
+// ★ 절대규칙 1: 리뷰 본문 조회는 읽기 전용이다 — 여기서 만드는 것은 리뷰가 아니라 "이미 있는
+// 위험 초안"에 대한 사람 승인·거절이다(RiskApprovalController, 2026-08-27 신설). 리뷰 본문을
+// 생성·수정하는 코드는 추가하지 않는다.
+function ReviewDetailModal({
+  reviewId,
+  onClose,
+  onDraftChanged,
+}: {
+  reviewId: string | null;
+  onClose: () => void;
+  onDraftChanged: () => void;
+}) {
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const reload = () => {
+    if (!reviewId) return;
+    reviewsApi
+      .get(reviewId)
+      .then(setDetail)
+      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했습니다."));
+  };
 
   useEffect(() => {
     if (!reviewId) {
@@ -295,10 +327,8 @@ function ReviewDetailModal({ reviewId, onClose }: { reviewId: string | null; onC
       setError(null);
       return;
     }
-    reviewsApi
-      .get(reviewId)
-      .then(setDetail)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했습니다."));
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewId]);
 
   return (
@@ -345,14 +375,30 @@ function ReviewDetailModal({ reviewId, onClose }: { reviewId: string | null; onC
             <EmptyState title="아직 생성된 답글이 없습니다" />
           ) : (
             <ul className="review-detail__drafts">
-              {detail.drafts.map((d) => {
+              {detail.drafts.map((d, idx) => {
                 const meta = DRAFT_STATUS_META[d.status];
+                const generatedByLabel = describeGeneratedBy(d.generatedBy);
+                // drafts 는 재생성 이력 최신순이다 — 승인·거절은 가장 최근 초안(idx===0)에만 연다.
+                const isLatestBlocked = idx === 0 && d.status === "BLOCKED";
                 return (
                   <li key={d.id} className="review-detail__draft">
                     <Badge tone={meta.tone} icon={meta.icon}>
                       {meta.label}
                     </Badge>
+                    {generatedByLabel ? <Badge tone="info">{generatedByLabel}</Badge> : null}
                     <p>{d.content}</p>
+                    {isLatestBlocked ? (
+                      <RiskApprovalPanel
+                        draftId={d.id}
+                        originalContent={d.content}
+                        riskReasons={detail.analysis?.riskReasons ?? []}
+                        guardrailFlags={d.guardrailFlags ?? []}
+                        onDone={() => {
+                          reload();
+                          onDraftChanged();
+                        }}
+                      />
+                    ) : null}
                   </li>
                 );
               })}
@@ -361,5 +407,132 @@ function ReviewDetailModal({ reviewId, onClose }: { reviewId: string | null; onC
         </div>
       ) : null}
     </Modal>
+  );
+}
+
+/**
+ * 위험 초안의 사람 승인·거절 (약관 제6조 4항이 약속한 권리).
+ *
+ * ★ 화면 검사는 사용자 편의다. 최종 안전 판정은 항상 서버가 한다
+ * (RiskApprovalService.APPROVABLE_FLAG — RISK_LEVEL_TOO_HIGH 단독일 때만 승인).
+ * 여기서 미리 막는 이유는 사장님이 버튼을 누르고 나서 422 를 받는 일을 없애기 위해서다.
+ */
+function RiskApprovalPanel({
+  draftId,
+  originalContent,
+  riskReasons,
+  guardrailFlags,
+  onDone,
+}: {
+  draftId: string;
+  originalContent: string;
+  riskReasons: string[];
+  guardrailFlags: string[];
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [content, setContent] = useState(originalContent);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const judgement = canApproveBlockedDraft({ guardrailFlags, riskAcknowledged: acknowledged, content });
+  const overLimit = content.length > DRAFT_CONTENT_MAX_LENGTH;
+
+  const handleApprove = async () => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      // 수정하지 않았으면 content 를 보내지 않는다 — AI 초안이 그대로 게시된다.
+      const edited = content.trim() === originalContent.trim() ? undefined : content.trim();
+      await draftsApi.approve(draftId, { riskAcknowledged: acknowledged, content: edited });
+      toast.show("승인했습니다. 예정된 시간에 게시됩니다.", "success");
+      onDone();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "GUARDRAIL_BLOCKED") {
+        const flags = Array.isArray(e.details?.flags) ? (e.details?.flags as string[]) : [];
+        setActionError(
+          `이 답글은 다른 안전규칙도 위반해 승인할 수 없습니다.${
+            flags.length > 0 ? " (" + flags.map(describeGuardrailFlag).join(", ") + ")" : ""
+          }`,
+        );
+      } else {
+        setActionError(e instanceof ApiError ? e.message : "승인 처리 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await draftsApi.reject(draftId);
+      toast.show("게시하지 않기로 했습니다.", "info");
+      onDone();
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "거절 처리 중 오류가 발생했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="queue-item__blocked-notice" role="group" aria-label="위험 리뷰 승인">
+      <strong>⚠ 이 답글은 위험 리뷰로 자동 게시가 멈췄습니다.</strong>
+      <p>
+        {riskReasons.length > 0
+          ? `차단 사유: ${riskReasons.map(describeRiskReason).join(", ")} (위 분석 결과 참고)`
+          : "구체적인 차단 사유는 위 분석 결과를 확인해 주세요."}
+      </p>
+
+      <label className="queue-item__reply-label" htmlFor={`risk-approval-content-${draftId}`}>
+        권장 답글 (필요하면 고쳐서 게시할 수 있습니다)
+      </label>
+      <textarea
+        id={`risk-approval-content-${draftId}`}
+        className="queue-item__textarea"
+        rows={4}
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        disabled={busy}
+      />
+      <p className={`queue-item__counter ${overLimit ? "queue-item__counter--over" : ""}`}>
+        {content.length} / {DRAFT_CONTENT_MAX_LENGTH}자{overLimit ? " — 글자 수를 줄여야 승인할 수 있습니다" : ""}
+      </p>
+
+      <label className="persona-page__checkbox">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          disabled={busy}
+        />
+        위 차단 사유를 확인했습니다
+      </label>
+
+      <p>
+        <strong>게시하면 되돌릴 수 없습니다.</strong> 배달 플랫폼이 답글 수정·삭제 기능을 제공하지 않아
+        회사도 이후에 고치거나 지울 수 없습니다.
+      </p>
+
+      {!judgement.ok && !actionError ? <p className="field__hint">{judgement.reason}</p> : null}
+
+      {actionError ? (
+        <p className="review-detail__error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+
+      <div className="queue-item__actions">
+        <Button type="button" variant="primary" disabled={!judgement.ok || busy} loading={busy} onClick={handleApprove}>
+          승인하고 게시 예약
+        </Button>
+        <Button type="button" variant="secondary" disabled={busy} onClick={handleReject}>
+          게시하지 않기
+        </Button>
+      </div>
+    </div>
   );
 }
