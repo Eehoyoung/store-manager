@@ -10,6 +10,7 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.draft.PersonalIdentifierMasker;
 import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.persona.PersonaDtos.PersonaRequest;
@@ -189,8 +190,11 @@ public class PersonaService {
         if (styleSampleQueryRepository.countByStoreIdAndSource(store.getId(), "MANUAL") >= 3) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("styleSamples", "답글 형식은 최대 3건까지 등록할 수 있습니다."));
         }
+        // ★ 이 코퍼스는 ai-python 이 few-shot 예시로 Anthropic 에 보낸다(ai-python/rag.py).
+        //   사장님이 답글 형식에 가게 전화번호를 적어 두는 일이 실제로 있어, 적재 시점에 지운다.
         ReplyStyleSample sample = styleSampleQueryRepository.save(ReplyStyleSample.builder()
-                .storeId(store.getId()).reviewText("").replyText(req.replyText()).source("MANUAL").build());
+                .storeId(store.getId()).reviewText("")
+                .replyText(PersonalIdentifierMasker.mask(req.replyText())).source("MANUAL").build());
         return new StyleSampleResponse(String.valueOf(sample.getId()), sample.getReviewText(), sample.getReplyText(),
                 null, sample.getSource(), sample.getCreatedAt().toString());
     }

@@ -113,6 +113,41 @@ class DraftServiceTest {
     }
 
     @Test
+    void AI요청에는_전화번호등_식별자가_마스킹되고_리뷰원문은_그대로_남는다() {
+        UUID reviewPublicId = UUID.randomUUID();
+        String rawBody = "배달기사님이 늦어서 010-1234-5678 로 전화했어요";
+        UnifiedReview review = UnifiedReview.builder().id(25L).publicId(reviewPublicId).storeId(100L).linkId(1L)
+                .platform("BAEMIN").platformReviewId("r-25").rating((short) 3).body(rawBody)
+                .orderedMenus("[\"메뉴문의는 02-1234-5678 로\"]").writtenAt(Instant.now()).collectedAt(Instant.now())
+                .build();
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
+                .signature("문의: 010-9999-8888").delayHours((short) 0).publishWindows("[]")
+                .personaSeed(1).build();
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", -0.2f, List.of(), 1, List.of(), "local-7b", "v1");
+        DraftOut draftOut = new DraftOut("불편을 드려 죄송합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
+        AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of());
+        when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
+        when(reviewAnalysisRepository.findById(25L)).thenReturn(Optional.empty());
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, "제 번호는 010-1111-2222"));
+
+        ArgumentCaptor<AnalyzeAndDraftRequest> requestCaptor = ArgumentCaptor.forClass(AnalyzeAndDraftRequest.class);
+        org.mockito.Mockito.verify(aiClient).analyzeAndDraft(requestCaptor.capture());
+        AnalyzeAndDraftRequest sent = requestCaptor.getValue();
+        assertThat(sent.review().body()).isEqualTo("배달기사님이 늦어서 [전화번호] 로 전화했어요");
+        assertThat(sent.review().menus()).containsExactly("메뉴문의는 [전화번호] 로");
+        assertThat(sent.persona().signature()).isEqualTo("문의: [전화번호]");
+        assertThat(sent.options().instruction()).isEqualTo("제 번호는 [전화번호]");
+        // ★ 원본(unified_review.body)은 마스킹 사본과 무관하게 그대로 남는다.
+        assertThat(review.getBody()).isEqualTo(rawBody);
+    }
+
+    @Test
     void 풀자동화는_별점과_무관하게_안전한_초안을_SCHEDULED로_전이한다() {
         UUID reviewPublicId = UUID.randomUUID();
         UnifiedReview review = UnifiedReview.builder().id(21L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")

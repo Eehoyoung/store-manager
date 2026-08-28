@@ -12,6 +12,7 @@ import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.draft.PersonalIdentifierMasker;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.draft.ReviewAnalysis;
@@ -410,13 +411,20 @@ public class CollectResultService {
         if (replyText == null || replyText.isBlank()) {
             return;
         }
-        if (replyStyleSampleRepository.existsByStoreIdAndReplyText(storeId, replyText)) {
+        // ★ 적재 시점에 식별자를 지운다. 이 코퍼스는 ai-python 이 pgvector 로 직접 조회해
+        //   few-shot 예시로 Anthropic 에 보낸다(ai-python/rag.py). 즉 DraftService 의
+        //   마스킹이 덮지 못하는 두 번째 국외 이전 경로다 — 개인정보처리방침 §6.3 은
+        //   "개인을 알아볼 수 없도록 처리된 정보만 외부 AI 에 전송한다" 고 약속한다.
+        //   원본 리뷰는 unified_review.body 에 그대로 남으므로 잃는 것이 없다.
+        String maskedReply = PersonalIdentifierMasker.mask(replyText);
+        String maskedReview = PersonalIdentifierMasker.mask(reviewBody == null ? "" : reviewBody);
+        if (replyStyleSampleRepository.existsByStoreIdAndReplyText(storeId, maskedReply)) {
             return;
         }
         replyStyleSampleRepository.save(ReplyStyleSample.builder()
                 .storeId(storeId)
-                .reviewText(reviewBody == null ? "" : reviewBody)
-                .replyText(replyText)
+                .reviewText(maskedReview)
+                .replyText(maskedReply)
                 .rating(rating)
                 .source("RC_LIST")
                 // embedding: TODO Sprint 3 담당 — pgvector 임베딩은 여기서 채우지 않는다

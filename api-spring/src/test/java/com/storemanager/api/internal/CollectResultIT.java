@@ -236,6 +236,34 @@ class CollectResultIT {
         assertThat(samples.get(0).getReplyText()).isEqualTo("bbb님, 감사합니다");
     }
 
+    /**
+     * ★ 말투 코퍼스는 ai-python 이 pgvector 로 직접 조회해 few-shot 예시로 Anthropic 에 보낸다
+     * (ai-python/rag.py). DraftService 의 마스킹이 덮지 못하는 두 번째 국외 이전 경로이므로
+     * 적재 시점에 지운다 — 개인정보처리방침 §6.3 은 "개인을 알아볼 수 없도록 처리된 정보만
+     * 외부 AI 에 전송한다" 고 약속한다. 이 검증을 지우면 그 약속이 코드에서 풀린다.
+     */
+    @Test
+    void 기존_답글은_식별자를_지우고_말투_코퍼스에_적재된다() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("mask-owner@example.com")
+                .passwordHash("dummy").name("사장M").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-id-mask", "pw");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "마스킹매장");
+        매장을_연동한다(storeId, account.getId(), "BAEMIN", "mask-store-1");
+
+        // 픽스처가 기존 답글을 "{authorRaw}님, 감사합니다" 로 만든다. 사장님이 답글에 연락처를
+        // 적어 두는 사례를 재현하려고 authorRaw 자리에 전화번호를 넣는다.
+        String body = 수집결과_요청바디("job-mask", "BAEMIN", "mask-store-1", "rv-mask", "010-1234-5678", true);
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+
+        List<ReplyStyleSample> samples = replyStyleSampleRepository.findAll().stream()
+                .filter(s -> storeId.equals(s.getStoreId())).toList();
+        assertThat(samples).hasSize(1);
+        assertThat(samples.get(0).getReplyText()).doesNotContain("010-1234-5678");
+        assertThat(samples.get(0).getReplyText()).endsWith("님, 감사합니다");
+    }
+
     @Test
     void 한_계정의_두_매장이_각각_자기_link에_적재된다() throws Exception {
         AppUser owner = appUserRepository.save(AppUser.builder().email("f7owner@example.com")

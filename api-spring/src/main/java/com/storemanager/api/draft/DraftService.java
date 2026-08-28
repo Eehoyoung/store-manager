@@ -40,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 답글 생성·자동예약(S3, S8). docs/13 §6.
  * ★ 리뷰 본문은 AiClient 를 통해 있는 그대로 전달만 하고 여기서 생성·가공하지 않는다(절대규칙 1).
+ *   예외: buildAiRequest 에서 PersonalIdentifierMasker 로 형식이 명확한 개인 식별자만 지워 사본을
+ *   만든다(privacy.md §6.3). 리뷰 원문(unified_review.body)은 이 사본과 무관하게 그대로 남는다.
  * ★ risk_level >= 3 인 초안은 승인할 수 없다(절대규칙 3) — 여기와 PublishScheduler 양쪽에서 검증한다.
  */
 @Service
@@ -225,20 +227,23 @@ public class DraftService {
 
     private AiClientDtos.AnalyzeAndDraftRequest buildAiRequest(UnifiedReview review, StorePersona persona,
             GenerateDraftsRequest req) {
-        List<String> menus = parseStringList(review.getOrderedMenus());
+        // ★ privacy.md §6.3 — 외부 AI 에는 비식별 처리된 정보만 보낸다. 여기서 만드는 사본에만 적용하고
+        // review.getBody() 등 원본(unified_review.body)은 건드리지 않는다(WP-04, T-6).
+        List<String> menus = PersonalIdentifierMasker.maskAll(parseStringList(review.getOrderedMenus()));
         AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(
                 review.getRating() == null ? 0 : review.getRating(),
-                review.getBody() == null ? "" : review.getBody(),
+                PersonalIdentifierMasker.mask(review.getBody() == null ? "" : review.getBody()),
                 menus,
                 review.getPlatform());
         AiClientDtos.PersonaIn personaIn = new AiClientDtos.PersonaIn(
                 persona.getTone(), persona.isUseEmoji(), persona.getEmojiLevel(), persona.getCustomerTitle(),
-                persona.getSignature(), persona.getOpeningStyle(),
+                PersonalIdentifierMasker.mask(persona.getSignature()),
+                PersonalIdentifierMasker.mask(persona.getOpeningStyle()),
                 persona.getBannedWords() == null ? List.of() : List.of(persona.getBannedWords()),
                 bannedWordQueryRepository.findActiveGlobal(), persona.getLengthMin(), persona.getLengthMax(),
                 persona.getPersonaSeed());
         int variants = req != null && req.variants() != null ? req.variants() : 1;
-        String instruction = req == null ? null : req.instruction();
+        String instruction = req == null ? null : PersonalIdentifierMasker.mask(req.instruction());
         AiClientDtos.OptionsIn optionsIn = new AiClientDtos.OptionsIn(variants, instruction, null);
         // ★ store_id/review_id 는 ai-python 이 pgvector 조회에 BIGINT 로 그대로 쓰므로 public_id 가 아니라
         // 내부 BIGSERIAL id 를 문자열로 넘긴다(ai-python/rag.py: "store_id = %s::bigint").
