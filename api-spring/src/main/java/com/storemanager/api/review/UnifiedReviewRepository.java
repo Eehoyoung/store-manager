@@ -48,6 +48,23 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
             """)
     List<UnifiedReview> findNeedingDraft(Pageable pageable);
 
+    /**
+     * 보유기간이 지난 리뷰 id 를 파기 예정일 오름차순으로 최대 batchSize 건 뽑는다 (DataRetentionScheduler).
+     *
+     * <p>★ {@link #anonymizeExpired}와 조건(WHERE/ORDER/LIMIT)이 동일하다. 파생 테이블
+     * (reply_draft·review_analysis·notification_log)을 리뷰 익명화와 같은 배치로 지우려면
+     * 먼저 대상 id를 확정해야 하기 때문이다. 같은 트랜잭션 안에서 순서대로 호출하므로
+     * 두 조회 사이에 다른 트랜잭션이 끼어들지 않는 한(운영은 스케줄러 단일 인스턴스) 같은
+     * 행 집합을 가리킨다.
+     */
+    @Query(value = """
+            SELECT id FROM unified_review
+             WHERE purge_after IS NOT NULL AND purge_after <= :now
+             ORDER BY purge_after
+             LIMIT :batchSize
+            """, nativeQuery = true)
+    List<Long> findIdsDueForPurge(@Param("now") java.time.Instant now, @Param("batchSize") int batchSize);
+
     /** 파기 예정일이 없는 행에 collected_at + 보유기간을 채운다 (DataRetentionScheduler). */
     @Modifying(clearAutomatically = true)
     @Query(value = """
