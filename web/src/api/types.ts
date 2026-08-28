@@ -103,6 +103,10 @@ export interface DraftSummary {
   id: string;
   status: DraftStatus;
   content: string;
+  /** AI|HUMAN|AI_EDITED|TEMPLATE(ReplyDraft.generatedBy). AI·AI_EDITED만 화면에 생성 주체를 표시한다. */
+  generatedBy: string | null;
+  /** 차단 사유. BLOCKED 초안의 승인 가능 여부(RISK_LEVEL_TOO_HIGH 단독인가)를 미리 판정하는 근거다. */
+  guardrailFlags: string[];
 }
 
 /** GET /stores/{storeId}/reviews 항목(ReviewDtos.ReviewSummaryResponse). */
@@ -272,6 +276,12 @@ export interface HqPlatformLink {
   linkStatus: string;
 }
 
+/**
+ * ★ WP-03(2026-08-28) — analytics 와 같은 최소 집계 기준을 매장 목록 통계에도 적용한다.
+ * pendingCount·blockedCount·highRiskCount·recentReviewCount 가 1~4 건이면 null 이고
+ * belowThreshold 가 true 다. 0 건은 "그 상태가 없다"는 뜻이라 가리지 않는다.
+ * recentAvgRating 은 recentReviewCount 가 가려지면 함께 null 이 된다.
+ */
 export interface HqStore {
   storeId: string;
   name: string;
@@ -281,11 +291,12 @@ export interface HqStore {
   serviceStatus: string;
   platformLinks: HqPlatformLink[];
   lastCollectedAt: string | null;
-  pendingCount: number;
-  blockedCount: number;
-  highRiskCount: number;
-  recentReviewCount: number;
+  pendingCount: number | null;
+  blockedCount: number | null;
+  highRiskCount: number | null;
+  recentReviewCount: number | null;
   recentAvgRating: number | null;
+  belowThreshold: boolean;
 }
 
 export interface HqIssueTagItem {
@@ -338,10 +349,12 @@ export interface HqDailyRiskItem {
 export interface HqStoreComparisonItem {
   storeId: string;
   storeName: string;
-  reviewCount: number;
+  /** 최소 집계 기준 미만이면 null 로 가려진다. 매장명은 남는다. */
+  reviewCount: number | null;
   avgRating: number | null;
-  replyCompletionRate: number;
-  unprocessedCount: number;
+  replyCompletionRate: number | null;
+  unprocessedCount: number | null;
+  belowThreshold: boolean;
 }
 
 export interface HqAnalyticsResponse {

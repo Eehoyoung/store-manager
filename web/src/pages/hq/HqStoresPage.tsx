@@ -14,9 +14,13 @@ import { HqAccessDenied } from "./HqAccessDenied";
 
 // 문서 14 §11.2 — 가맹점 목록·운영 상태. 미처리·고위험이 많은 매장이 위로 오도록 기본 정렬한다
 // (본부가 가장 먼저 봐야 할 매장이다).
+// ★ WP-03 — 표시 기준 미달로 null 이 된 값은 실제로는 1~4건이다. 정렬에서 0 취급하지 않도록 1로 본다.
 function problemScore(s: HqStore): number {
-  return s.pendingCount + s.blockedCount + s.highRiskCount;
+  return (s.pendingCount ?? 1) + (s.blockedCount ?? 1) + (s.highRiskCount ?? 1);
 }
+
+// HqAnalyticsPage 와 같은 표현(CLAUDE.md 가맹본부 절 T-3) — 조용히 숨기면 "문제 없음"으로 오독된다.
+const BELOW_THRESHOLD_LABEL = "표시 기준 미달";
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "데이터 없음";
@@ -143,14 +147,17 @@ function StoreRow({ store }: { store: HqStore }) {
       </td>
       <td>{formatDateTime(store.lastCollectedAt)}</td>
       <td>
-        검수대기 {store.pendingCount} · 차단 {store.blockedCount} ·{" "}
-        <span className={store.highRiskCount > 0 ? "hq-store-row__risk" : undefined}>
-          고위험 {store.highRiskCount}
+        검수대기 {store.pendingCount ?? BELOW_THRESHOLD_LABEL} · 차단{" "}
+        {store.blockedCount ?? BELOW_THRESHOLD_LABEL} ·{" "}
+        <span className={(store.highRiskCount ?? 1) > 0 ? "hq-store-row__risk" : undefined}>
+          고위험 {store.highRiskCount ?? BELOW_THRESHOLD_LABEL}
         </span>
       </td>
       <td>
         {store.recentReviewCount === 0
           ? "데이터 없음"
+          : store.recentReviewCount == null
+          ? BELOW_THRESHOLD_LABEL
           : `${store.recentReviewCount}건 · ${
               store.recentAvgRating != null ? store.recentAvgRating.toFixed(1) : "-"
             }점`}

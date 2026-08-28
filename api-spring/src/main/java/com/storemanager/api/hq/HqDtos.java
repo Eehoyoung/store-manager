@@ -19,10 +19,18 @@ final class HqDtos {
     record PlatformLinkStatus(String platform, String linkStatus) {
     }
 
-    /** FR-802. 매장별 운영 상태. */
+    /**
+     * FR-802. 매장별 운영 상태.
+     *
+     * <p>★ WP-03(2026-08-28) — pendingCount·blockedCount·highRiskCount·recentReviewCount 는
+     * analytics 와 같은 최소 집계 기준(HqService.MIN_AGGREGATION_THRESHOLD)을 적용한다. 기준
+     * 미만(1~4)이면 null 로 가리고 belowThreshold 가 true 다. 0 은 "그 상태가 없다"는 뜻이라
+     * 가리지 않는다. recentAvgRating 은 recentReviewCount 가 가려지면 함께 가린다 — 적은
+     * 표본의 평균은 그 표본을 좁힌다.
+     */
     record HqStoreResponse(String storeId, String name, String address, boolean activated, String serviceStatus,
-            List<PlatformLinkStatus> platformLinks, String lastCollectedAt, long pendingCount, long blockedCount,
-            long highRiskCount, long recentReviewCount, Double recentAvgRating) {
+            List<PlatformLinkStatus> platformLinks, String lastCollectedAt, Long pendingCount, Long blockedCount,
+            Long highRiskCount, Long recentReviewCount, Double recentAvgRating, boolean belowThreshold) {
     }
 
     record RatingBucket(int rating, long count) {
@@ -62,9 +70,18 @@ final class HqDtos {
             boolean belowThreshold) {
     }
 
-    /** FR-804 매장별 비교. 미처리 건수는 pendingCount+blockedCount+highRiskCount 합계(현재 기준, 기간 무관). */
-    record StoreComparisonItem(String storeId, String storeName, long reviewCount, Double avgRating,
-            double replyCompletionRate, long unprocessedCount) {
+    /**
+     * FR-804 매장별 비교. 미처리 건수는 pendingCount+blockedCount+highRiskCount 합계(현재 기준, 기간 무관).
+     *
+     * <p>★ 최소 집계 기준 미만이면 reviewCount·avgRating·replyCompletionRate·unprocessedCount 가
+     * 전부 null 이 되고 belowThreshold 가 true 다. 매장명은 남긴다 — 항목을 목록에서 빼면
+     * 본부가 '문제 없음' 으로 읽는다(WP-02, T-3).
+     *
+     * <p>★ 완료율까지 가리는 이유 — 리뷰 2건 중 1건 완료면 0.5 다. 분모가 작으면 비율이
+     * 곧 원본 건수를 알려준다. 건수만 가리고 비율을 남기면 가린 의미가 없다.
+     */
+    record StoreComparisonItem(String storeId, String storeName, Long reviewCount, Double avgRating,
+            Double replyCompletionRate, Long unprocessedCount, boolean belowThreshold) {
     }
 
     /**

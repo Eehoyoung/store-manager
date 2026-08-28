@@ -10,6 +10,8 @@ import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.crypto.CredentialService;
 import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.draft.PublishScheduleCalculator;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.review.StorePlatformLink;
@@ -58,6 +60,7 @@ class HqServiceIT {
     @Autowired FranchiseHqMemberRepository hqMemberRepository;
     @Autowired UnifiedReviewRepository unifiedReviewRepository;
     @Autowired ReviewAnalysisRepository reviewAnalysisRepository;
+    @Autowired ReplyDraftRepository replyDraftRepository;
     @Autowired CredentialService credentialService;
     @Autowired StorePlatformLinkRepository storePlatformLinkRepository;
     @Autowired AuditLogRepository auditLogRepository;
@@ -324,5 +327,69 @@ class HqServiceIT {
             assertThat(d.belowThreshold()).isTrue();
         });
         assertThat(result.dailyRiskBelowThreshold()).isEqualTo(1);
+
+        // ── 매장 비교표도 같은 기준으로 가린다 ──
+        // ★ 완료율까지 가리는 이유: 리뷰 2건 중 1건 완료면 0.5 다. 분모가 작으면 비율이
+        //   곧 원본 건수를 알려주므로, 건수만 가리고 비율을 남기면 가린 의미가 없다.
+        assertThat(result.storeComparison()).isNotEmpty().allSatisfy(c -> {
+            assertThat(c.storeName()).isNotBlank(); // 매장 자체는 목록에서 사라지지 않는다
+            if (c.belowThreshold() && c.reviewCount() == null) {
+                assertThat(c.avgRating()).isNull();
+                assertThat(c.replyCompletionRate()).isNull();
+            }
+        });
+    }
+
+    /**
+     * ★ WP-03(2026-08-28) — analytics 뿐 아니라 매장 목록(listStores)의 pendingCount·blockedCount·
+     * highRiskCount·recentReviewCount·recentAvgRating 에도 같은 최소 집계 기준(=5)을 적용한다.
+     * 문서(hq-data-sharing.md)가 "최소 집계 기준을 충족한 별점·분류·이슈·답글 처리 통계"라고
+     * 약속했는데 이 4개 필드만 기준을 우회해 원값을 내려보내고 있었다.
+     */
+    @Test
+    void 매장목록_통계도_최소_집계_기준_미만이면_가려지고_매장_자체는_남는다() {
+        매장픽스처 가려짐매장 = 매장을_만든다("목록임계값브랜드", "hidden-owner@example.com");
+        매장픽스처 안가려짐매장 = 매장을_만든다("목록임계값브랜드", "shown-owner@example.com");
+        UUID hqUser = 본부사용자를_만든다("liststat-hq@example.com", "목록임계값브랜드");
+        LocalDate today = LocalDate.now(KST);
+
+        // 가려짐매장 — pending 2건 · highRisk 2건 · 최근리뷰 2건. 전부 기준(5) 미만.
+        for (int i = 0; i < 2; i++) {
+            Long reviewId = 리뷰를_만든다(가려짐매장, "hidden-" + i, 1, 3, today,
+                    new String[0], new String[] {"FOREIGN_OBJECT"}, "[]");
+            replyDraftRepository.save(ReplyDraft.builder().reviewId(reviewId).storeId(가려짐매장.storeId())
+                    .content("초안").status("DRAFT").generatedBy("AI").build());
+        }
+
+        // 안가려짐매장 — pending 5건 · highRisk 5건 · 최근리뷰 5건. 기준(5) 이상이라 그대로 보인다.
+        for (int i = 0; i < 5; i++) {
+            Long reviewId = 리뷰를_만든다(안가려짐매장, "shown-" + i, 3, 3, today,
+                    new String[0], new String[] {"FOREIGN_OBJECT"}, "[]");
+            replyDraftRepository.save(ReplyDraft.builder().reviewId(reviewId).storeId(안가려짐매장.storeId())
+                    .content("초안").status("DRAFT").generatedBy("AI").build());
+        }
+
+        List<HqDtos.HqStoreResponse> result = hqService.listStores(hqUser, "목록임계값브랜드");
+
+        assertThat(result).extracting(HqDtos.HqStoreResponse::storeId)
+                .containsExactlyInAnyOrder(가려짐매장.storePublicId().toString(), 안가려짐매장.storePublicId().toString());
+
+        HqDtos.HqStoreResponse hidden = result.stream()
+                .filter(s -> s.storeId().equals(가려짐매장.storePublicId().toString())).findFirst().orElseThrow();
+        assertThat(hidden.name()).isNotBlank(); // 매장 자체 정보는 가리지 않는다
+        assertThat(hidden.pendingCount()).isNull();
+        assertThat(hidden.highRiskCount()).isNull();
+        assertThat(hidden.recentReviewCount()).isNull();
+        assertThat(hidden.recentAvgRating()).isNull(); // 표본(recentReviewCount)이 가려지면 평균도 함께 가린다
+        assertThat(hidden.blockedCount()).isEqualTo(0L); // 0건은 "없다"는 뜻이라 가리지 않는다
+        assertThat(hidden.belowThreshold()).isTrue();
+
+        HqDtos.HqStoreResponse shown = result.stream()
+                .filter(s -> s.storeId().equals(안가려짐매장.storePublicId().toString())).findFirst().orElseThrow();
+        assertThat(shown.pendingCount()).isEqualTo(5L);
+        assertThat(shown.highRiskCount()).isEqualTo(5L);
+        assertThat(shown.recentReviewCount()).isEqualTo(5L);
+        assertThat(shown.recentAvgRating()).isEqualTo(3.0);
+        assertThat(shown.belowThreshold()).isFalse();
     }
 }

@@ -155,14 +155,26 @@ public class HqService {
         return stores.stream().map(store -> {
             Long id = store.getId();
             Map<String, Long> statusCounts = draftStatusByStore.getOrDefault(id, Map.of());
+            long pending = statusCounts.getOrDefault("DRAFT", 0L);
+            long blocked = statusCounts.getOrDefault("BLOCKED", 0L);
+            long highRisk = highRiskByStore.getOrDefault(id, 0L);
             Object[] recent = recentStatsByStore.get(id);
             long recentCount = recent == null ? 0L : ((Number) recent[0]).longValue();
             Double recentAvg = recent == null || recent[1] == null ? null : ((Number) recent[1]).doubleValue();
+
+            // ★ WP-03 — analytics 와 같은 최소 집계 기준을 매장 목록 통계에도 적용한다.
+            boolean pendingBelow = revealsIndividual(pending);
+            boolean blockedBelow = revealsIndividual(blocked);
+            boolean highRiskBelow = revealsIndividual(highRisk);
+            boolean recentBelow = revealsIndividual(recentCount);
+            boolean belowThreshold = pendingBelow || blockedBelow || highRiskBelow || recentBelow;
+
             return new HqStoreResponse(store.getPublicId().toString(), store.getName(), store.getAddress(),
                     store.getActivatedAt() != null, toServiceStatus(subStatusByStore.get(id)),
                     linksByStore.getOrDefault(id, List.of()), toIso(lastCollectedByStore.get(id)),
-                    statusCounts.getOrDefault("DRAFT", 0L), statusCounts.getOrDefault("BLOCKED", 0L),
-                    highRiskByStore.getOrDefault(id, 0L), recentCount, recentAvg);
+                    pendingBelow ? null : pending, blockedBelow ? null : blocked,
+                    highRiskBelow ? null : highRisk, recentBelow ? null : recentCount,
+                    recentBelow ? null : recentAvg, belowThreshold);
         }).toList();
     }
 
@@ -330,8 +342,17 @@ public class HqService {
             Map<String, Long> allTimeStatus = allTimeDraftStatusByStore.getOrDefault(id, Map.of());
             long unprocessed = allTimeStatus.getOrDefault("DRAFT", 0L) + allTimeStatus.getOrDefault("BLOCKED", 0L)
                     + highRiskByStore.getOrDefault(id, 0L);
-            return new StoreComparisonItem(store.getPublicId().toString(), store.getName(), reviewCount, avg,
-                    completionRate, unprocessed);
+            // ★ 매장 비교표도 같은 기준으로 가린다. 리뷰가 1~4건인 매장은 평균 별점과 완료율이
+            //   곧 그 몇 건을 가리킨다. 매장 자체는 목록에 남긴다 — 빼면 '문제 없음' 으로 읽힌다.
+            boolean reviewBelow = revealsIndividual(reviewCount);
+            boolean unprocessedBelow = revealsIndividual(unprocessed);
+            boolean below = reviewBelow || unprocessedBelow;
+            return new StoreComparisonItem(store.getPublicId().toString(), store.getName(),
+                    reviewBelow ? null : reviewCount,
+                    reviewBelow ? null : avg,
+                    reviewBelow ? null : completionRate,
+                    unprocessedBelow ? null : unprocessed,
+                    below);
         }).toList();
 
         return new HqAnalyticsResponse(fromDate.toString(), toDate.toString(), previousFromDate.toString(),

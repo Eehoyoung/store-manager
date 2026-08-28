@@ -67,9 +67,9 @@ export function HqAnalyticsPage() {
     if (!data) return [];
     return [...data.storeComparison].sort((a, b) => {
       if (sortKey === "rating") return (a.avgRating ?? Infinity) - (b.avgRating ?? Infinity);
-      if (sortKey === "reviews") return b.reviewCount - a.reviewCount;
-      if (sortKey === "completion") return a.replyCompletionRate - b.replyCompletionRate;
-      return b.unprocessedCount - a.unprocessedCount;
+      if (sortKey === "reviews") return (b.reviewCount ?? 1) - (a.reviewCount ?? 1);
+      if (sortKey === "completion") return (a.replyCompletionRate ?? 0) - (b.replyCompletionRate ?? 0);
+      return (b.unprocessedCount ?? 1) - (a.unprocessedCount ?? 1);
     });
   }, [data, sortKey]);
 
@@ -192,7 +192,11 @@ function DistributionCards({ data }: { data: HqAnalyticsResponse }) {
   return <div className="hq-two-col"><Card><h2>별점 분포</h2>{data.ratingDistribution.length === 0 ? <EmptyState title="데이터가 없습니다" /> : <ul className="hq-bars">{[5, 4, 3, 2, 1].map((rating) => { const count = data.ratingDistribution.find((x) => x.rating === rating)?.count ?? 0; const max = Math.max(...data.ratingDistribution.map((x) => x.count), 1); return <li key={rating} className="hq-bar"><span className="hq-bar__label">{rating}점</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${count / max * 100}%` }} /></span><span className="hq-bar__value">{count}건</span></li>; })}</ul>}</Card><Card><h2>카테고리 분포</h2>{data.categoryDistribution.length === 0 ? <EmptyState title="데이터가 없습니다" /> : <ul className="hq-bars">{data.categoryDistribution.map((item) => { const max = Math.max(...data.categoryDistribution.map((x) => x.count), 1); return <li key={item.category} className="hq-bar"><span className="hq-bar__label">{describeCategory(item.category)}</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${item.count / max * 100}%` }} /></span><span className="hq-bar__value">{item.count}건</span></li>; })}</ul>}</Card></div>;
 }
 
+// 가려진 값은 "데이터 없음"으로 쓰지 않는다 — 없는 것과 가린 것은 다르다.
+const MASKED = "표시 기준 미달";
+
 function StoreCompareRow({ store }: { store: HqStoreComparisonItem }) {
-  const needsAttention = store.unprocessedCount > 0;
-  return <tr className={needsAttention ? "hq-store-row--problem" : ""}><td>{store.storeName}</td><td>{store.reviewCount}건</td><td>{store.avgRating != null ? `${store.avgRating.toFixed(1)}점` : "데이터 없음"}</td><td>{store.reviewCount === 0 ? "데이터 없음" : pct(store.replyCompletionRate)}</td><td className={needsAttention ? "hq-store-row__risk" : undefined}>{store.unprocessedCount}건</td></tr>;
+  // 가려졌다는 것은 1~4건이라는 뜻이므로 "문제 없음"으로 정렬되지 않게 주의가 필요한 행으로 본다.
+  const needsAttention = store.unprocessedCount == null || store.unprocessedCount > 0;
+  return <tr className={needsAttention ? "hq-store-row--problem" : ""}><td>{store.storeName}</td><td>{store.reviewCount == null ? MASKED : `${store.reviewCount}건`}</td><td>{store.reviewCount == null ? MASKED : store.avgRating != null ? `${store.avgRating.toFixed(1)}점` : "데이터 없음"}</td><td>{store.replyCompletionRate == null ? MASKED : store.reviewCount === 0 ? "데이터 없음" : pct(store.replyCompletionRate)}</td><td className={needsAttention ? "hq-store-row__risk" : undefined}>{store.unprocessedCount == null ? MASKED : `${store.unprocessedCount}건`}</td></tr>;
 }
