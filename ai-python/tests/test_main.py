@@ -1,6 +1,8 @@
 """POST /internal/ai/analyze-and-draft 스텁 계약(스키마) 검증."""
 from fastapi.testclient import TestClient
 
+import main
+from llm import LlmResult
 from main import app
 
 client = TestClient(app)
@@ -63,3 +65,31 @@ def test_variants_must_be_one():
     payload = _payload(rating=5)
     payload["options"]["variants"] = 2
     assert client.post("/internal/ai/analyze-and-draft", json=payload, headers=HEADERS).status_code == 422
+
+
+def test_force_tier_rejects_unknown_value():
+    payload = _payload(rating=5)
+    payload["options"]["forceTier"] = "EXPENSIVE"
+    assert client.post("/internal/ai/analyze-and-draft", json=payload, headers=HEADERS).status_code == 422
+
+
+def test_recent_reply_duplicate_is_blocked(monkeypatch):
+    duplicate = "고객님, 말씀해 주신 부분을 꼼꼼히 확인하고 더 나은 모습으로 정성껏 준비하겠습니다. 리뷰 남겨주셔서 감사합니다."
+
+    class Provider:
+        client = None
+
+        def complete(self, system, user, model, max_tokens):
+            return LlmResult(duplicate, model, 10, 5, 0.1)
+
+    class Example:
+        review_text = "이전 리뷰"
+        reply_text = duplicate
+
+    monkeypatch.setattr(main.llm, "get_provider", lambda: Provider())
+    monkeypatch.setattr(main.rag, "fetch_examples", lambda *_args, **_kwargs: [Example()])
+
+    res = client.post("/internal/ai/analyze-and-draft", json=_payload(rating=5), headers=HEADERS)
+    assert res.status_code == 200
+    assert res.json()["blocked"] is True
+    assert "G7_DUPLICATE" in res.json()["blockReasons"]

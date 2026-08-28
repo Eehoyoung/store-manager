@@ -83,6 +83,14 @@ def test_평균_원가가_기준선을_넘지_않는다():
     assert avg <= 6.5, f"리뷰 1건 평균 원가가 {avg:.2f}원이다 (기준 6.5원)"
 
 
+def test_캐시_토큰은_과금_배율을_구분한다():
+    plain = llm.cost_krw("claude-haiku-4-5", 1_000_000, 0)
+    created = llm.cost_krw("claude-haiku-4-5", 0, 0, cache_creation_input=1_000_000)
+    cached = llm.cost_krw("claude-haiku-4-5", 0, 0, cache_read_input=1_000_000)
+    assert created == plain * 1.25
+    assert cached == plain * 0.1
+
+
 @pytest.mark.parametrize("risk", (0, 1, 2, 3))
 def test_어떤_경우에도_생성_티어가_비지_않는다(risk):
     tier = router.route(3, "본문", "COMPLAINT", risk)

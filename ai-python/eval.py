@@ -91,14 +91,16 @@ def _try_import_main_classifier():
     if not callable(classify) or review_model is None:
         return None
 
+    provider = main.llm.get_provider()
+
     def _run(rating: int, body: str) -> dict:
         # 실제 파이프라인의 분류 경로를 그대로 태운다(키가 없으면 StubProvider 로 동작).
-        provider = main.llm.get_provider()
         classified, _model, _tin, _tout, _cost = classify(
             provider, review_model(rating=rating, body=body, menus=[], platform="BAEMIN")
         )
         return {"category": classified.category, "risk_level": classified.risk_level}
 
+    _run.provider_name = type(provider).__name__  # type: ignore[attr-defined]
     return _run
 
 
@@ -174,6 +176,7 @@ def evaluate_high_risk(rows: list[dict], classifier=AUTO) -> dict:
         "false_positive_rate": false_positive_rate,
         "false_positives": false_positives,
         "used_main_classifier": main_classifier is not None,
+        "classifier_provider": getattr(main_classifier, "provider_name", "custom" if main_classifier else "fallback"),
         "passed": recall >= 0.95,
     }
 
@@ -245,6 +248,7 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
         "guardrail_false_positive_rate": guardrail_fp_rate,
         "guardrail_false_positives": guardrail_false_positives,
         "used_main_classifier": main_classifier is not None,
+        "classifier_provider": getattr(main_classifier, "provider_name", "custom" if main_classifier else "fallback"),
         "gates": gates,
         "passed": all(gates.values()),
     }
@@ -252,7 +256,8 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
 
 def _print_report(report: dict) -> None:
     print(f"[골든셋 평가] 총 {report['total']}건 "
-          f"(분류기: {'main.py' if report['used_main_classifier'] else '규칙 기반 폴백'})")
+          f"(분류기: {'main.py' if report['used_main_classifier'] else '규칙 기반 폴백'}, "
+          f"provider: {report['classifier_provider']})")
     print(f"  카테고리 정확도       : {report['category_accuracy']:.1%}")
     print(f"  ABUSIVE 재현율         : {report['abusive_recall']:.1%} "
           f"({report['abusive_total']}건 중)")

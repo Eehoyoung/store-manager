@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import secrets
+from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -74,7 +75,7 @@ class OptionsIn(BaseModel):
 
     variants: int = Field(default=1, ge=1, le=1)
     instruction: str | None = Field(default=None, max_length=200)
-    force_tier: str | None = Field(default=None, alias="forceTier")
+    force_tier: Literal["T0", "T1", "T2", "T3"] | None = Field(default=None, alias="forceTier")
 
 
 class AnalyzeAndDraftRequest(BaseModel):
@@ -149,7 +150,8 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
     if client is None:
         return _stub_classify(review), "stub", 0, 0, 0.0
 
-    system, user = prompts.build_classify_messages(review.body, review.rating, review.menus)
+    sanitized_body, _injection_found, _markers = guardrails.sanitize_review(review.body)
+    system, user = prompts.build_classify_messages(sanitized_body, review.rating, review.menus)
     for _attempt in range(2):  # 문서 12 §2 후처리 1: JSON 파싱 실패 시 1회 재시도
         try:
             resp = client.messages.parse(
@@ -160,9 +162,14 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
                 output_format=prompts.ClassifyOutput,
             )
             parsed = resp.parsed_output
-            token_in = resp.usage.input_tokens
+            plain_input = resp.usage.input_tokens
+            cache_creation = getattr(resp.usage, "cache_creation_input_tokens", 0) or 0
+            cache_read = getattr(resp.usage, "cache_read_input_tokens", 0) or 0
+            token_in = plain_input + cache_creation + cache_read
             token_out = resp.usage.output_tokens
-            cost = llm.cost_krw(router.CLASSIFY_MODEL, token_in, token_out)
+            cost = llm.cost_krw(
+                router.CLASSIFY_MODEL, plain_input, token_out, cache_creation, cache_read
+            )
             return parsed, router.CLASSIFY_MODEL, token_in, token_out, cost
         except Exception:
             continue
@@ -178,7 +185,7 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
 def _generate_draft(
     provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
     issue_tags: list[str] | None = None,
-) -> tuple[str | None, str, str, int, int, float]:
+) -> tuple[str | None, str, str, int, int, float, list[str]]:
     """(content, 사용모델, 사용티어, token_in, token_out, cost_krw) 를 반환한다.
     content 가 None 이면 두 티어(원래 티어 + 폴백 1회) 모두 실패한 것이다."""
     persona = req.persona
@@ -192,25 +199,28 @@ def _generate_draft(
             seed = (persona.persona_seed or 0) + variant_idx
             content = prompts.render_t0_template(persona.customer_title, seed, persona.use_emoji, persona.signature)
             content = content[: guardrails.MAX_LENGTH]
-            return content, "rule-template", "T0", 0, 0, 0.0
+            return content, "rule-template", "T0", 0, 0, 0.0, []
 
         examples = rag.fetch_examples(req.store_id, req.review.body, k=4)
         few_shot_text = prompts.format_few_shot([(e.review_text, e.reply_text) for e in examples])
+        recent_replies = [e.reply_text for e in examples]
         # ★ issue_tags 를 넘긴다. 이게 없으면 '국물이 샜다' 와 '배달이 늦었다' 가 같은
         #   COMPLAINT 지침 한 줄로 뭉뚱그려진다(사장/소비자 관점 검토에서 공통 지적).
+        sanitized_body, _injection_found, _markers = guardrails.sanitize_review(req.review.body)
+        safe_review = req.review.model_copy(update={"body": sanitized_body})
         system, user = prompts.build_generate_messages(
-            category, req.review, persona, few_shot_text, issue_tags
+            category, safe_review, persona, few_shot_text, issue_tags, req.options.instruction
         )
         model_id = router.TIER_MODELS[attempt_tier]
         try:
             result = provider.complete(system, user, model_id, max_tokens=400)
             max_len = min(persona.length_max or guardrails.MAX_LENGTH, guardrails.MAX_LENGTH)
             content = result.text.strip()[:max_len]
-            return content, result.model, attempt_tier, result.token_in, result.token_out, result.cost_krw
+            return content, result.model, attempt_tier, result.token_in, result.token_out, result.cost_krw, recent_replies
         except Exception:
             continue
 
-    return None, "", tier, 0, 0, 0.0
+    return None, "", tier, 0, 0, 0.0, []
 
 
 def _produce_variant(
@@ -226,17 +236,24 @@ def _produce_variant(
     RETRY_FLAGS 만 걸리면(G1_LENGTH_MIN 등) 문서 12 §4 대로 1회 재생성한다.
     """
     last_flags: list[str] = []
+    total_token_in = 0
+    total_token_out = 0
+    total_cost = 0.0
     for _regen in range(2):  # 최초 생성 1회 + RETRY 시 재생성 1회
-        content, gen_model, used_tier, tok_in, tok_out, cost = _generate_draft(
+        content, gen_model, used_tier, tok_in, tok_out, cost, recent_replies = _generate_draft(
             provider, tier, category, req, variant_idx, issue_tags
         )
+        total_token_in += tok_in
+        total_token_out += tok_out
+        total_cost += cost
         if content is None:
             return None, ["GENERATION_FAILED"]
 
         banned_rules = [(r.word, r.category, r.match_type) for r in req.persona.global_banned_words]
         banned_rules.extend((word, "STORE", "CONTAINS") for word in req.persona.banned_words)
         flags = guardrails.check(
-            content, risk_level, review_body=req.review.body, extra_banned_words=banned_rules
+            content, risk_level, review_body=req.review.body, recent_replies=recent_replies,
+            extra_banned_words=banned_rules
         )
         content_flags = [f for f in flags if f != "G8_RISK"]
 
@@ -244,7 +261,7 @@ def _produce_variant(
             draft = DraftOut(
                 content=content, tier=used_tier, model=gen_model, promptVersion=prompts.PROMPT_VERSION,
                 guardrailFlags=[], similarityMax=flags.similarity_max,
-                tokenIn=tok_in, tokenOut=tok_out, costKrw=cost,
+                tokenIn=total_token_in, tokenOut=total_token_out, costKrw=round(total_cost, 4),
             )
             return draft, []
 
@@ -273,7 +290,9 @@ def analyze_and_draft(
 
     # 문서 12 §1.2: 키워드 룰이 모델보다 우선(하향 금지)
     risk_level, keyword_reasons = prompts.upgrade_risk_level(req.review.body, classified.risk_level)
-    risk_reasons = sorted(set(classified.risk_reasons) | set(keyword_reasons))
+    risk_reasons = sorted(
+        (set(classified.risk_reasons) | set(keyword_reasons)) & set(prompts.RISK_REASON_VALUES)
+    )
     # 사전 외 태그 제거(문서 12 §2 후처리 2)
     issue_tags = [t for t in classified.issue_tags if t in prompts.ISSUE_TAG_DICT]
 
@@ -295,7 +314,7 @@ def analyze_and_draft(
 
     tier = router.route(
         req.review.rating, req.review.body, classified.category, risk_level,
-        req.options.force_tier, issue_tag_count=len(classified.issue_tags),
+        req.options.force_tier, issue_tag_count=len(issue_tags),
     )
 
     drafts: list[DraftOut] = []
@@ -304,7 +323,7 @@ def analyze_and_draft(
 
     for variant_idx in range(n_variants):
         draft, flags = _produce_variant(
-            provider, tier, classified.category, req, variant_idx, risk_level, classified.issue_tags
+            provider, tier, classified.category, req, variant_idx, risk_level, issue_tags
         )
         if draft is None:
             for f in flags:
@@ -312,6 +331,12 @@ def analyze_and_draft(
                     block_reasons.append(f)
             continue
         drafts.append(draft)
+
+    # variants 는 현재 1개로 제한된다. 분류 호출도 같은 요청의 원가이므로 저장되는 초안에 합산한다.
+    if drafts:
+        drafts[0].token_in += c_tok_in
+        drafts[0].token_out += c_tok_out
+        drafts[0].cost_krw = round(drafts[0].cost_krw + c_cost, 4)
 
     if not drafts:
         # 가드레일 전량 차단 또는 생성 전량 실패 — 답글 없이 사람 검수로 넘긴다(절대규칙 1·3·4).

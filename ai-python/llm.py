@@ -30,18 +30,25 @@ USD_KRW = 1400
 # ★ 모델 ID 에 날짜 접미사를 붙이지 않는다.
 PRICING_USD_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.0, 5.0),
-    "claude-sonnet-5": (3.0, 15.0),
+    "claude-sonnet-5": (2.0, 10.0),
     "claude-opus-5": (5.0, 25.0),
 }
 
 
-def cost_krw(model: str, token_in: int, token_out: int) -> float:
-    """모델·토큰 사용량으로 원화 원가를 계산한다. 단가표에 없는 모델(rule-template, stub 등)은 0원."""
+def cost_krw(
+    model: str,
+    token_in: int,
+    token_out: int,
+    cache_creation_input: int = 0,
+    cache_read_input: int = 0,
+) -> float:
+    """일반·캐시 토큰을 현재 Anthropic 과금 배율로 계산한다."""
     price = PRICING_USD_PER_MTOK.get(model)
     if price is None:
         return 0.0
     in_usd_per_mtok, out_usd_per_mtok = price
-    usd = (token_in / 1_000_000) * in_usd_per_mtok + (token_out / 1_000_000) * out_usd_per_mtok
+    billed_input = token_in + cache_creation_input * 1.25 + cache_read_input * 0.1
+    usd = (billed_input / 1_000_000) * in_usd_per_mtok + (token_out / 1_000_000) * out_usd_per_mtok
     return round(usd * USD_KRW, 4)
 
 
@@ -115,14 +122,17 @@ class AnthropicProvider:
             messages=[{"role": "user", "content": user}],
         )
         text = next((b.text for b in resp.content if b.type == "text"), "")
-        token_in = resp.usage.input_tokens
+        plain_input = resp.usage.input_tokens
+        cache_creation = getattr(resp.usage, "cache_creation_input_tokens", 0) or 0
+        cache_read = getattr(resp.usage, "cache_read_input_tokens", 0) or 0
+        token_in = plain_input + cache_creation + cache_read
         token_out = resp.usage.output_tokens
         return LlmResult(
             text=text,
             model=model,
             token_in=token_in,
             token_out=token_out,
-            cost_krw=cost_krw(model, token_in, token_out),
+            cost_krw=cost_krw(model, plain_input, token_out, cache_creation, cache_read),
         )
 
 
@@ -145,7 +155,7 @@ def demo() -> None:
     assert r.text == r2.text
 
     assert cost_krw("claude-haiku-4-5", 1_000_000, 1_000_000) == round((1.0 + 5.0) * USD_KRW, 4)
-    assert cost_krw("claude-sonnet-5", 1_000_000, 1_000_000) == round((3.0 + 15.0) * USD_KRW, 4)
+    assert cost_krw("claude-sonnet-5", 1_000_000, 1_000_000) == round((2.0 + 10.0) * USD_KRW, 4)
     assert cost_krw("claude-opus-5", 1_000_000, 1_000_000) == round((5.0 + 25.0) * USD_KRW, 4)
     assert cost_krw("stub", 100, 100) == 0.0
     assert cost_krw("rule-template", 100, 100) == 0.0
