@@ -14,7 +14,6 @@ import { PersonaPage } from "./pages/PersonaPage";
 import { BillingPage } from "./pages/BillingPage";
 import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
 import { HqStoresPage } from "./pages/hq/HqStoresPage";
-import { HqReviewsPage } from "./pages/hq/HqReviewsPage";
 import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
 import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -53,9 +52,10 @@ function App() {
                 <Route path="/admin/failures" element={<AdminFailures />} />
 
                 {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}
+                {/* ★ WP-01(2026-08-28) — 개별 리뷰 조회(/hq/brands/:brand/reviews) 라우트 제거.
+                    hq-data-sharing.md 가 본부에 개별 리뷰를 제공하지 않는다고 명시했다. */}
                 <Route path="/hq/brands" element={<HqBrandsPage />} />
                 <Route path="/hq/brands/:brand/stores" element={<HqStoresPage />} />
-                <Route path="/hq/brands/:brand/reviews" element={<HqReviewsPage />} />
                 <Route path="/hq/brands/:brand/analytics" element={<HqAnalyticsPage />} />
               </Route>
             </Route>

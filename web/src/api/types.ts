@@ -257,6 +257,9 @@ export interface AnalyticsResponsePerformance {
 // 코드가 정답이다(오케스트레이터 지시). 특히 /hq/brands, /hq/brands/{brand}/stores 는 문서의
 // {items,hasMore} 래핑이 아니라 배열을 그대로 반환한다. analytics 의 issueTagRanking 항목에는
 // 문서와 달리 avgRating 이 없고, storeComparison(문서의 stores)의 미처리 필드명은 unprocessedCount 다.
+// ★ WP-01(2026-08-28) — FR-803 개별 리뷰 통합 조회(/hq/brands/{brand}/reviews)를 제거했다.
+// hq-data-sharing.md 가 "개별 리뷰 내용·사진·주문 메뉴·작성일·작성자 표시는 볼 수 없다"고
+// 명시해 코드를 문서에 맞췄다 — HqReviewItem·HqReviewListResponse 타입도 함께 제거했다.
 
 export interface HqBrand {
   brandName: string;
@@ -285,76 +288,51 @@ export interface HqStore {
   recentAvgRating: number | null;
 }
 
-export interface HqAnalysis {
-  category: string | null;
-  sentiment: number | null;
-  issueTags: string[];
-  riskLevel: number | null;
-  riskReasons: string[];
-}
-
-export interface HqDraftSummary {
-  id: string;
-  status: DraftStatus;
-  content: string;
-}
-
-export interface HqReviewItem {
-  id: string;
-  storeId: string | null;
-  storeName: string | null;
-  platform: string;
-  rating: number | null;
-  body: string | null;
-  authorMasked: string;
-  orderedMenus: string[];
-  imageUrls: string[];
-  writtenAt: string | null;
-  writtenDateOnly: boolean;
-  collectedAt: string | null;
-  hasOwnerReply: boolean;
-  analysis: HqAnalysis | null;
-  draft: HqDraftSummary | null;
-}
-
-export interface HqReviewListResponse {
-  items: HqReviewItem[];
-  hasMore: boolean;
-}
-
 export interface HqIssueTagItem {
   tag: string;
-  count: number;
-  previousCount: number;
-  /** 분석 완료 리뷰 100건당 발생 건수. 분석 데이터가 없으면 null. */
+  /**
+   * ★ WP-02(2026-08-28) — 최소 집계 기준(서버 상수, 기본 5) 미만이면 count 이하 수치가 전부
+   * null 이고 belowThreshold 가 true 다. tag 자체는 남아 있다 — 항목이 사라지면 "그런 이슈가
+   * 없다"로 오독되기 때문이다(CLAUDE.md 가맹본부 절 T-3).
+   */
+  count: number | null;
+  previousCount: number | null;
+  /** 분석 완료 리뷰 100건당 발생 건수. 분석 데이터가 없거나 표시 기준 미달이면 null. */
   ratePer100: number | null;
   previousRatePer100: number | null;
   deltaRatePoints: number | null;
-  affectedStoreCount: number;
+  affectedStoreCount: number | null;
   avgRating: number | null;
-  signal: "NEW" | "RISING" | "STABLE" | "FALLING";
+  signal: "NEW" | "RISING" | "STABLE" | "FALLING" | "BELOW_THRESHOLD";
+  belowThreshold: boolean;
 }
 
+/** ★ WP-02 — count 등이 최소 집계 기준 미만이면 null, belowThreshold=true (HqIssueTagItem 과 동일 원칙). */
 export interface HqRiskClusterItem {
   reason: string;
-  count: number;
-  previousCount: number;
-  affectedStoreCount: number;
+  count: number | null;
+  previousCount: number | null;
+  affectedStoreCount: number | null;
+  belowThreshold: boolean;
 }
 
+/** ★ WP-02 — count 등이 최소 집계 기준 미만이면 null, belowThreshold=true. */
 export interface HqMenuIssueItem {
   menu: string;
   tag: string;
-  count: number;
-  affectedStoreCount: number;
+  count: number | null;
+  affectedStoreCount: number | null;
   avgRating: number | null;
+  belowThreshold: boolean;
 }
 
+/** ★ WP-02 — issueReviewCount·highRiskCount 는 각각 최소 집계 기준 미만이면 null. analyzedCount 는 항상 노출된다. */
 export interface HqDailyRiskItem {
   date: string;
   analyzedCount: number;
-  issueReviewCount: number;
-  highRiskCount: number;
+  issueReviewCount: number | null;
+  highRiskCount: number | null;
+  belowThreshold: boolean;
 }
 
 export interface HqStoreComparisonItem {
@@ -378,6 +356,11 @@ export interface HqAnalyticsResponse {
   avgRating: number | null;
   highRiskReviews: number;
   highRiskAffectedStores: number;
+  /** ★ WP-02 — 최소 집계 기준 미만이라 수치를 가린 항목 수. 0 이 아니면 화면에 "표시 기준 미달" 안내를 함께 보여준다. */
+  issueTagsBelowThreshold: number;
+  riskClustersBelowThreshold: number;
+  menuIssuesBelowThreshold: number;
+  dailyRiskBelowThreshold: number;
   ratingDistribution: RatingBucket[];
   categoryDistribution: CategoryBucket[];
   issueTagRanking: HqIssueTagItem[];

@@ -1,11 +1,8 @@
 package com.storemanager.api.hq;
 
-import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.store.Store;
 import java.time.Instant;
 import java.util.List;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -68,81 +65,10 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
             """)
     List<Object[]> highRiskPendingCountsByStore(@Param("storeIds") List<Long> storeIds);
 
-    // ── FR-803: 브랜드 통합 리뷰 조회 ──────────────────────────────────
-
-    @Query(value = """
-            SELECT r FROM UnifiedReview r
-            LEFT JOIN ReviewAnalysis a ON a.reviewId = r.id
-            LEFT JOIN ReplyDraft d ON d.id = (
-                SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
-            WHERE r.storeId IN :storeIds
-              AND (:status IS NULL OR d.status = :status)
-              AND (:category IS NULL OR a.category = :category)
-              AND (:minRating IS NULL OR r.rating >= :minRating)
-              AND (:maxRating IS NULL OR r.rating <= :maxRating)
-              AND (:riskLevel IS NULL OR a.riskLevel >= :riskLevel)
-              AND r.writtenAt >= :from
-              AND r.writtenAt < :to
-            ORDER BY r.writtenAt DESC, r.id DESC
-            """,
-            countQuery = """
-            SELECT COUNT(r) FROM UnifiedReview r
-            LEFT JOIN ReviewAnalysis a ON a.reviewId = r.id
-            LEFT JOIN ReplyDraft d ON d.id = (
-                SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
-            WHERE r.storeId IN :storeIds
-              AND (:status IS NULL OR d.status = :status)
-              AND (:category IS NULL OR a.category = :category)
-              AND (:minRating IS NULL OR r.rating >= :minRating)
-              AND (:maxRating IS NULL OR r.rating <= :maxRating)
-              AND (:riskLevel IS NULL OR a.riskLevel >= :riskLevel)
-              AND r.writtenAt >= :from
-              AND r.writtenAt < :to
-            """)
-    Page<UnifiedReview> searchBrandReviews(@Param("storeIds") List<Long> storeIds, @Param("status") String status,
-            @Param("category") String category, @Param("minRating") Short minRating,
-            @Param("maxRating") Short maxRating, @Param("riskLevel") Short riskLevel, @Param("from") Instant from,
-            @Param("to") Instant to, Pageable pageable);
-
-    /** issueTag 는 null 이 아닌 경우에만 이 쿼리를 호출한다. PostgreSQL 배열 조건의 null 타입 추론을 피한다. */
-    @Query(value = """
-            SELECT r.* FROM unified_review r
-            LEFT JOIN review_analysis a ON a.review_id = r.id
-            LEFT JOIN reply_draft d ON d.id = (
-                SELECT MAX(d2.id) FROM reply_draft d2 WHERE d2.review_id = r.id)
-            WHERE r.store_id IN (:storeIds)
-              AND :issueTag = ANY(a.issue_tags)
-              AND (:status IS NULL OR d.status = :status)
-              AND (:category IS NULL OR a.category = :category)
-              AND (:minRating IS NULL OR r.rating >= :minRating)
-              AND (:maxRating IS NULL OR r.rating <= :maxRating)
-              AND (:riskLevel IS NULL OR a.risk_level >= :riskLevel)
-              AND r.written_at >= :from
-              AND r.written_at < :to
-            ORDER BY r.written_at DESC, r.id DESC
-            """,
-            countQuery = """
-            SELECT COUNT(r.id) FROM unified_review r
-            LEFT JOIN review_analysis a ON a.review_id = r.id
-            LEFT JOIN reply_draft d ON d.id = (
-                SELECT MAX(d2.id) FROM reply_draft d2 WHERE d2.review_id = r.id)
-            WHERE r.store_id IN (:storeIds)
-              AND :issueTag = ANY(a.issue_tags)
-              AND (:status IS NULL OR d.status = :status)
-              AND (:category IS NULL OR a.category = :category)
-              AND (:minRating IS NULL OR r.rating >= :minRating)
-              AND (:maxRating IS NULL OR r.rating <= :maxRating)
-              AND (:riskLevel IS NULL OR a.risk_level >= :riskLevel)
-              AND r.written_at >= :from
-              AND r.written_at < :to
-            """, nativeQuery = true)
-    Page<UnifiedReview> searchBrandReviewsByIssueTag(@Param("storeIds") List<Long> storeIds,
-            @Param("issueTag") String issueTag, @Param("status") String status,
-            @Param("category") String category, @Param("minRating") Short minRating,
-            @Param("maxRating") Short maxRating, @Param("riskLevel") Short riskLevel, @Param("from") Instant from,
-            @Param("to") Instant to, Pageable pageable);
-
     // ── FR-804: 브랜드 집계 ────────────────────────────────────────────
+    // ★ WP-01(2026-08-28)에서 FR-803 개별 리뷰 통합 조회(searchBrandReviews·searchBrandReviewsByIssueTag)를
+    //   제거했다. hq-data-sharing.md 가 "개별 리뷰 내용은 볼 수 없다"고 명시해 코드를 문서에 맞췄다.
+    //   집계(WP-04 이하)는 review_analysis/unified_review 를 직접 집계 쿼리로만 조회하고 행 단위로 반환하지 않는다.
 
     @Query("SELECT COUNT(r), AVG(r.rating) FROM UnifiedReview r "
             + "WHERE r.storeId IN :storeIds AND r.writtenAt >= :from AND r.writtenAt < :to")

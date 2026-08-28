@@ -2,11 +2,9 @@ package com.storemanager.api.hq;
 
 import com.storemanager.api.hq.HqDtos.HqAnalyticsResponse;
 import com.storemanager.api.hq.HqDtos.HqBrandResponse;
-import com.storemanager.api.hq.HqDtos.HqReviewListResponse;
 import com.storemanager.api.hq.HqDtos.HqStoreResponse;
 import com.storemanager.api.security.CurrentUser;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,24 +37,6 @@ public class HqController {
     @GetMapping("/brands/{brandName}/stores")
     public List<HqStoreResponse> stores(@PathVariable String brandName) {
         return hqService.listStores(CurrentUser.publicId(), brandName);
-    }
-
-    /** FR-803 — 브랜드 전체 리뷰 통합 조회. */
-    @GetMapping("/brands/{brandName}/reviews")
-    public HqReviewListResponse reviews(@PathVariable String brandName,
-            @RequestParam(required = false) UUID storeId,
-            @RequestParam(required = false) Integer minRating,
-            @RequestParam(required = false) Integer maxRating,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) Integer riskLevel,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String issueTag,
-            @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return hqService.listReviews(CurrentUser.publicId(), brandName, storeId, minRating, maxRating, category,
-                riskLevel, status, issueTag, from, to, page, size);
     }
 
     /** FR-804 — 브랜드 집계(별점·카테고리 분포, 이슈 태그 랭킹, 매장별 비교). */

@@ -52,6 +52,7 @@ class HqServiceIT {
             DockerImageName.parse("pgvector/pgvector:pg16").asCompatibleSubstituteFor("postgres"));
 
     @Autowired HqService hqService;
+    @Autowired HqAccessGuard hqAccessGuard;
     @Autowired AppUserRepository appUserRepository;
     @Autowired StoreRepository storeRepository;
     @Autowired FranchiseHqMemberRepository hqMemberRepository;
@@ -85,10 +86,6 @@ class HqServiceIT {
         return hqUser.getPublicId();
     }
 
-    private Long 리뷰를_만든다(매장픽스처 f, String platformReviewId, int rating, int riskLevel, LocalDate writtenDate) {
-        return 리뷰를_만든다(f, platformReviewId, rating, riskLevel, writtenDate, new String[0], new String[0], "[]");
-    }
-
     private Long 리뷰를_만든다(매장픽스처 f, String platformReviewId, int rating, int riskLevel,
             LocalDate writtenDate, String[] issueTags, String[] riskReasons, String orderedMenus) {
         UnifiedReview review = unifiedReviewRepository.save(UnifiedReview.builder()
@@ -103,44 +100,9 @@ class HqServiceIT {
     }
 
     // ── 본부 조회 소급 기간 상한 ──────────────────────────────────────
-
-    /**
-     * ★ 본부가 기간 필터를 걸지 않으면 시작 시각 기본값이 {@code Instant.EPOCH} 였다.
-     * 즉 브랜드 전체 리뷰를 <b>보유기간 전체</b>에서 끌어왔다. 여기가 실제로 뚫려 있던 곳이다.
-     *
-     * <p>이 테스트가 깨지면 상한을 올리기 전에 개인정보 노출 범위부터 다시 보라.
-     * 본부는 조회 전용이고, 그 조회조차 최근 {@code HQ_MAX_LOOKBACK_DAYS} 일로 제한한다.
-     */
-    @Test
-    void 본부_리뷰조회는_기간을_안_걸어도_90일_이전을_보지_못한다() {
-        UUID hqUser = 본부사용자를_만든다("hq-lookback1@test.com", "소급브랜드");
-        매장픽스처 f = 매장을_만든다("소급브랜드", "store-lb1@test.com");
-        LocalDate today = LocalDate.now(KST);
-        Long 최근 = 리뷰를_만든다(f, "RV-RECENT", 5, 0, today.minusDays(3));
-        리뷰를_만든다(f, "RV-OLD", 5, 0, today.minusDays(120));
-
-        HqDtos.HqReviewListResponse res =
-                hqService.listReviews(hqUser, "소급브랜드", null, null, null, null, null, null, null, null, 0, 50);
-
-        assertThat(res.items()).hasSize(1);
-        assertThat(res.items().get(0).id()).isNotNull();
-        assertThat(res.items()).allSatisfy(i -> assertThat(i.writtenAt()).isNotNull());
-        assertThat(최근).isNotNull();
-    }
-
-    @Test
-    void 본부가_90일보다_이전_from을_직접_넘겨도_창은_90일로_고정된다() {
-        UUID hqUser = 본부사용자를_만든다("hq-lookback2@test.com", "소급브랜드2");
-        매장픽스처 f = 매장을_만든다("소급브랜드2", "store-lb2@test.com");
-        LocalDate today = LocalDate.now(KST);
-        리뷰를_만든다(f, "RV2-RECENT", 5, 0, today.minusDays(10));
-        리뷰를_만든다(f, "RV2-OLD", 5, 0, today.minusDays(200));
-
-        HqDtos.HqReviewListResponse res = hqService.listReviews(hqUser, "소급브랜드2", null, null, null, null,
-                null, null, null, today.minusDays(365).toString(), today.toString(), 0, 50);
-
-        assertThat(res.items()).hasSize(1);
-    }
+    // ★ WP-01(2026-08-28) — FR-803 개별 리뷰 조회(listReviews)를 제거하면서 이 조회에 대한
+    //   90일 상한 테스트 2건도 함께 제거했다. 집계(analytics)의 90일 상한은 아래
+    //   "집계_조회도_90일로_당겨지고_적용기간을_응답에_담는다" 가 계속 검증한다.
 
     /** 집계도 같은 창을 쓴다. 거절하지 않고 당기며, 응답의 from 에 실제 적용 기간이 담긴다. */
     @Test
@@ -179,16 +141,16 @@ class HqServiceIT {
                 .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
     }
 
-    // ── (b) A브랜드 본부가 B브랜드 매장 storeId 로 조회 → 404 (H6-2) ────────
+    // ── (b) 다른 브랜드 매장 storeId 로 접근 → 404 (H6-2) ────────
+    // ★ WP-01(2026-08-28) — 이 재확인은 원래 FR-803 개별 리뷰 조회(listReviews)를 통해서만
+    //   검증됐다. listReviews 를 제거했지만 HqAccessGuard.requireStoreInBrand 자체는 그대로
+    //   남겨뒀으므로(do_not_touch) 가드를 직접 호출해 404 차단을 검증한다.
 
     @Test
-    void A브랜드_본부가_B브랜드_매장_storeId로_리뷰조회시_404() {
+    void 다른_브랜드_매장_storeId로_접근하면_404() {
         매장픽스처 storeB = 매장을_만든다("브랜드B", "b-owner@example.com");
-        UUID hqUserA = 본부사용자를_만든다("hq-a@example.com", "브랜드A");
-        매장을_만든다("브랜드A", "a-owner2@example.com"); // 브랜드A 본부가 실제 권한을 갖도록 매장 1개는 A로 만들어둔다
 
-        assertThatThrownBy(() -> hqService.listReviews(hqUserA, "브랜드A", storeB.storePublicId(), null, null, null,
-                null, null, null, null, 0, 20))
+        assertThatThrownBy(() -> hqAccessGuard.requireStoreInBrand(storeB.storePublicId(), "브랜드A"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
     }
@@ -212,40 +174,10 @@ class HqServiceIT {
         });
     }
 
-    @Test
-    void 리뷰_조회시에도_감사로그가_적재된다() {
-        매장픽스처 store = 매장을_만든다("브랜드E", "e-owner@example.com");
-        UUID hqUser = 본부사용자를_만든다("hq-e@example.com", "브랜드E");
-
-        hqService.listReviews(hqUser, "브랜드E", null, null, null, null, null, null, null, null, 0, 20);
-
-        assertThat(auditLogRepository.findAll()).anySatisfy(l -> {
-            assertThat(l.getActorType()).isEqualTo("HQ");
-            assertThat(l.getAction()).isEqualTo("HQ_REVIEWS_VIEW");
-        });
-        // ★ 감사로그에는 리뷰 본문·작성자 정보를 절대 넣지 않는다(H7).
-        boolean leaksReviewBody = auditLogRepository.findAll().stream()
-                .anyMatch(l -> l.getDetail() != null && l.getDetail().contains("리뷰본문"));
-        assertThat(leaksReviewBody).isFalse();
-    }
-
-    // ── (e) riskLevel 필터 동작 ─────────────────────────────────────────
-
-    @Test
-    void 브랜드_리뷰조회에서_riskLevel_필터가_동작한다() {
-        매장픽스처 store = 매장을_만든다("브랜드D", "d-owner@example.com");
-        UUID hqUser = 본부사용자를_만든다("hq-d@example.com", "브랜드D");
-        LocalDate day = LocalDate.of(2026, 8, 10);
-        리뷰를_만든다(store, "r-low", 5, 0, day);
-        리뷰를_만든다(store, "r-high", 1, 3, day);
-
-        HqDtos.HqReviewListResponse res = hqService.listReviews(hqUser, "브랜드D", null, null, null, null, 3, null,
-                null, null, 0, 20);
-
-        assertThat(res.items()).hasSize(1);
-        assertThat(res.items().get(0).analysis().riskLevel()).isEqualTo(3);
-        assertThat(res.items().get(0).storeName()).isEqualTo("매장-d-owner@example.com");
-    }
+    // ★ WP-01(2026-08-28) — "리뷰_조회시에도_감사로그가_적재된다" 와
+    //   "브랜드_리뷰조회에서_riskLevel_필터가_동작한다" 는 제거한 FR-803 개별 리뷰 조회
+    //   (listReviews) 전용 테스트였다. 본부 조회 감사 로그 자체는 위
+    //   "매장목록_조회시_감사로그가_HQ_액터로_적재된다" 와 아래 analytics 테스트가 계속 검증한다.
 
     @Test
     void 본부_권한이_없으면_브랜드목록은_빈배열이지_예외가_아니다() {
@@ -257,65 +189,140 @@ class HqServiceIT {
         assertThat(res).isEmpty();
     }
 
+    /**
+     * ★ WP-02(2026-08-28) — 최소 집계 기준(=5)을 넘는 값만 이 테스트가 검증한다. 기준 미만
+     * 항목이 가려지는 동작은 별도로 아래 "최소_집계_기준_미만인_항목은..." 테스트가 검증한다.
+     * (숫자를 전부 5 이상으로 올려 재구성했다 — 원래 값(1·3건)은 새 기준으로는 전부 가려진다.)
+     */
     @Test
     void 이상징후_레이더는_동일기간_발생률과_영향매장_고위험_메뉴근거를_집계한다() {
         매장픽스처 store1 = 매장을_만든다("레이더브랜드", "radar-owner1@example.com");
         매장픽스처 store2 = 매장을_만든다("레이더브랜드", "radar-owner2@example.com");
         UUID hqUser = 본부사용자를_만든다("radar-hq@example.com", "레이더브랜드");
 
-        // 직전 3일: 분석 10건 중 배달지연 1건(10.0건/100건).
-        for (int i = 0; i < 10; i++) {
+        // 직전 기간: 분석 20건 중 배달지연 5건(25.0건/100건) — 기준(5) 이상이라 가려지지 않는다.
+        for (int i = 0; i < 20; i++) {
             리뷰를_만든다(store1, "radar-prev-" + i, 4, 0, LocalDate.of(2026, 8, 7),
-                    i == 0 ? new String[] {"배달지연"} : new String[0], new String[0], "[]");
+                    i < 5 ? new String[] {"배달지연"} : new String[0], new String[0], "[]");
         }
-        // 현재 3일: 분석 10건 중 배달지연 3건(30.0건/100건), 2개 매장에 걸쳐 발생.
-        for (int i = 0; i < 10; i++) {
+        // 현재 기간: 분석 30건. 배달지연 8건(순수 불만) + 5건(고위험·FOREIGN_OBJECT 동반) = 13건,
+        // 2개 매장에 걸쳐 발생. 고위험 5건은 모두 store1.
+        for (int i = 0; i < 8; i++) {
             매장픽스처 target = i == 1 ? store2 : store1;
-            boolean issue = i < 3;
-            리뷰를_만든다(target, "radar-now-" + i, issue ? 2 : 5, issue && i == 2 ? 3 : 0,
-                    LocalDate.of(2026, 8, 10), issue ? new String[] {"배달지연"} : new String[0],
-                    issue && i == 2 ? new String[] {"FOREIGN_OBJECT"} : new String[0],
-                    issue ? "[\"치킨세트\"]" : "[]");
+            리뷰를_만든다(target, "radar-now-delay-" + i, 2, 0, LocalDate.of(2026, 8, 10),
+                    new String[] {"배달지연"}, new String[0], "[\"치킨세트\"]");
+        }
+        for (int i = 0; i < 5; i++) {
+            리뷰를_만든다(store1, "radar-now-risk-" + i, 1, 3, LocalDate.of(2026, 8, 10),
+                    new String[] {"배달지연"}, new String[] {"FOREIGN_OBJECT"}, "[\"치킨세트\"]");
+        }
+        for (int i = 0; i < 17; i++) {
+            리뷰를_만든다(store1, "radar-now-filler-" + i, 5, 0, LocalDate.of(2026, 8, 10),
+                    new String[0], new String[0], "[]");
         }
 
         HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "레이더브랜드", "2026-08-08", "2026-08-10");
 
         assertThat(result.analysisCoverageRate()).isEqualTo(1.0);
-        assertThat(result.highRiskReviews()).isEqualTo(1);
+        assertThat(result.highRiskReviews()).isEqualTo(5);
         assertThat(result.highRiskAffectedStores()).isEqualTo(1);
         assertThat(result.issueTagRanking()).filteredOn(i -> i.tag().equals("배달지연")).singleElement()
                 .satisfies(i -> {
-                    assertThat(i.count()).isEqualTo(3);
-                    assertThat(i.previousCount()).isEqualTo(1);
-                    assertThat(i.ratePer100()).isEqualTo(30.0);
-                    assertThat(i.previousRatePer100()).isEqualTo(10.0);
-                    assertThat(i.deltaRatePoints()).isEqualTo(20.0);
+                    assertThat(i.belowThreshold()).isFalse();
+                    assertThat(i.count()).isEqualTo(13);
+                    assertThat(i.previousCount()).isEqualTo(5);
+                    assertThat(i.ratePer100()).isEqualTo(43.3);
+                    assertThat(i.previousRatePer100()).isEqualTo(25.0);
+                    assertThat(i.deltaRatePoints()).isEqualTo(18.3);
                     assertThat(i.affectedStoreCount()).isEqualTo(2);
                     assertThat(i.signal()).isEqualTo("RISING");
                 });
         assertThat(result.riskClusters()).anySatisfy(r -> {
             assertThat(r.reason()).isEqualTo("FOREIGN_OBJECT");
-            assertThat(r.count()).isEqualTo(1);
+            assertThat(r.belowThreshold()).isFalse();
+            assertThat(r.count()).isEqualTo(5);
         });
         assertThat(result.menuIssues()).anySatisfy(m -> {
             assertThat(m.menu()).isEqualTo("치킨세트");
             assertThat(m.tag()).isEqualTo("배달지연");
-            assertThat(m.count()).isEqualTo(3);
+            assertThat(m.belowThreshold()).isFalse();
+            assertThat(m.count()).isEqualTo(13);
         });
+        assertThat(result.issueTagsBelowThreshold()).isEqualTo(0);
+        assertThat(result.riskClustersBelowThreshold()).isEqualTo(0);
+        assertThat(result.menuIssuesBelowThreshold()).isEqualTo(0);
     }
 
+    /**
+     * ★ WP-02(2026-08-28) 핵심 회귀 — count=1~4 짜리 이슈 태그·위험 사유·메뉴 이슈·일자별
+     * 고위험 건수는 특정 리뷰(작성자)를 다시 알아볼 수 있게 한다(hq-data-sharing.md "최소
+     * 집계 기준"). 항목을 목록에서 지우면 "그런 문제가 아예 없다"로 오독되므로(T-3),
+     * 항목은 남기고 수치만 null 로 가리며 belowThreshold 플래그와 전체 가려진 건수를 함께 낸다.
+     */
     @Test
-    void 레이더_이슈를_클릭하면_해당_태그의_근거리뷰만_조회한다() {
-        매장픽스처 store = 매장을_만든다("드릴다운브랜드", "drill-owner@example.com");
-        UUID hqUser = 본부사용자를_만든다("drill-hq@example.com", "드릴다운브랜드");
+    void 최소_집계_기준_미만인_항목은_수치가_가려지고_목록에는_남는다() {
+        매장픽스처 store = 매장을_만든다("임계값브랜드", "threshold-owner@example.com");
+        UUID hqUser = 본부사용자를_만든다("threshold-hq@example.com", "임계값브랜드");
         LocalDate day = LocalDate.of(2026, 8, 10);
-        리뷰를_만든다(store, "drill-delay", 2, 1, day, new String[] {"배달지연"}, new String[0], "[]");
-        리뷰를_만든다(store, "drill-taste", 2, 1, day, new String[] {"맛"}, new String[0], "[]");
 
-        HqDtos.HqReviewListResponse result = hqService.listReviews(hqUser, "드릴다운브랜드", null, null, null,
-                null, null, null, "배달지연", "2026-08-10", "2026-08-10", 0, 20);
+        // 기준(5) 미만 — 이슈 태그 "손톱" 2건, 메뉴(떡볶이,손톱) 2건, 위험 사유는 없음.
+        for (int i = 0; i < 2; i++) {
+            리뷰를_만든다(store, "th-nail-" + i, 1, 0, day, new String[] {"손톱"}, new String[0], "[\"떡볶이\"]");
+        }
+        // 기준(5) 이상 — 이슈 태그 "맛" 5건. 위험은 아니다.
+        for (int i = 0; i < 5; i++) {
+            리뷰를_만든다(store, "th-taste-" + i, 4, 0, day, new String[] {"맛"}, new String[0], "[]");
+        }
+        // 기준(5) 미만 — 고위험 사유 "FOOD_POISONING" 2건.
+        for (int i = 0; i < 2; i++) {
+            리뷰를_만든다(store, "th-risk-" + i, 1, 3, day, new String[0], new String[] {"FOOD_POISONING"}, "[]");
+        }
 
-        assertThat(result.items()).singleElement()
-                .satisfies(item -> assertThat(item.analysis().issueTags()).containsExactly("배달지연"));
+        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "임계값브랜드", "2026-08-10", "2026-08-10");
+
+        // ── 이슈 태그: "손톱"은 가려지고, "맛"은 그대로 보인다 ──
+        assertThat(result.issueTagRanking()).extracting(HqDtos.IssueTagItem::tag)
+                .containsExactlyInAnyOrder("손톱", "맛");
+        assertThat(result.issueTagRanking()).filteredOn(i -> i.tag().equals("손톱")).singleElement().satisfies(i -> {
+            assertThat(i.belowThreshold()).isTrue();
+            assertThat(i.count()).isNull();
+            assertThat(i.ratePer100()).isNull();
+            assertThat(i.affectedStoreCount()).isNull();
+            assertThat(i.signal()).isEqualTo("BELOW_THRESHOLD");
+        });
+        assertThat(result.issueTagRanking()).filteredOn(i -> i.tag().equals("맛")).singleElement().satisfies(i -> {
+            assertThat(i.belowThreshold()).isFalse();
+            assertThat(i.count()).isEqualTo(5);
+        });
+        assertThat(result.issueTagsBelowThreshold()).isEqualTo(1);
+
+        // ── 위험 사유: "FOOD_POISONING" 은 목록에 남지만 수치는 가려진다 ──
+        assertThat(result.riskClusters()).singleElement().satisfies(r -> {
+            assertThat(r.reason()).isEqualTo("FOOD_POISONING");
+            assertThat(r.belowThreshold()).isTrue();
+            assertThat(r.count()).isNull();
+            assertThat(r.affectedStoreCount()).isNull();
+        });
+        assertThat(result.riskClustersBelowThreshold()).isEqualTo(1);
+        // ★ 최상위 highRiskReviews 요약치는 WP-02 범위 밖이다(개별 목록 항목만 가린다) — 그대로 노출된다.
+        assertThat(result.highRiskReviews()).isEqualTo(2);
+
+        // ── 메뉴×이슈: (떡볶이,손톱) 조합도 남지만 수치는 가려진다 ──
+        assertThat(result.menuIssues()).singleElement().satisfies(m -> {
+            assertThat(m.menu()).isEqualTo("떡볶이");
+            assertThat(m.tag()).isEqualTo("손톱");
+            assertThat(m.belowThreshold()).isTrue();
+            assertThat(m.count()).isNull();
+        });
+        assertThat(result.menuIssuesBelowThreshold()).isEqualTo(1);
+
+        // ── 일자별 위험 흐름: 그 날 고위험 2건(<5)은 가려지지만, 분석 총량은 가리지 않는다 ──
+        assertThat(result.dailyRiskTrend()).singleElement().satisfies(d -> {
+            assertThat(d.analyzedCount()).isEqualTo(9);
+            assertThat(d.issueReviewCount()).isEqualTo(7); // 손톱(2)+맛(5) — 기준 이상이라 안 가려짐
+            assertThat(d.highRiskCount()).isNull(); // 2건 — 기준 미만이라 가려짐
+            assertThat(d.belowThreshold()).isTrue();
+        });
+        assertThat(result.dailyRiskBelowThreshold()).isEqualTo(1);
     }
 }
