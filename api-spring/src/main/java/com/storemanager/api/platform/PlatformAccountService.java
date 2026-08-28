@@ -90,13 +90,20 @@ public class PlatformAccountService {
         PlatformAccount account = accountRepository
                 .findByPublicIdAndOwnerIdAndRevokedAtIsNull(accountPublicId, owner.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        // ★ 매장 조회를 파기보다 먼저, 그리고 던지지 않게 한다.
+        //   intended_store_id 는 V22 에서 nullable 로 추가돼 그 이전 계정은 비어 있다.
+        //   파기 뒤에 조회가 던지면 트랜잭션이 통째로 롤백돼 자격증명이 그대로 남는다 —
+        //   AccountWithdrawalService 의 "다른 단계가 실패해도 자격증명만은 먼저 지운다" 와 같은 원칙이다.
+        var store = account.getIntendedStoreId() == null ? null
+                : storeRepository.findById(account.getIntendedStoreId())
+                        .filter(candidate -> candidate.getOwnerId().equals(owner.getId()))
+                        .orElse(null);
         linkRepository.deleteByAccountId(account.getId());
         credentialService.revoke(account);
-        var store = storeRepository.findById(account.getIntendedStoreId())
-                .filter(candidate -> candidate.getOwnerId().equals(owner.getId()))
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        store.clearCredentialConsent(Instant.now());
-        agreementService.record(owner.getId(), store.getId(), AgreementService.CREDENTIAL, false, ip, userAgent);
+        if (store != null) {
+            store.clearCredentialConsent(Instant.now());
+            agreementService.record(owner.getId(), store.getId(), AgreementService.CREDENTIAL, false, ip, userAgent);
+        }
     }
 
     private PlatformAccountResponse toResponse(PlatformAccount account) {

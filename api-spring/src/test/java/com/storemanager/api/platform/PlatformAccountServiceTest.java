@@ -147,4 +147,22 @@ class PlatformAccountServiceTest {
         assertThat(store.getActivatedAt()).isNull();
         verify(agreementService).record(1L, 2L, AgreementService.CREDENTIAL, false, "127.0.0.1", "test");
     }
+
+    /** ★ 자격증명 파기는 다른 조회 실패에 막히면 안 된다. V22 이전 계정은 intended_store_id 가 비어 있다. */
+    @Test
+    void 지정매장이_없어도_자격증명은_파기한다() {
+        UUID ownerPublicId = UUID.randomUUID();
+        UUID accountPublicId = UUID.randomUUID();
+        AppUser owner = AppUser.builder().id(1L).publicId(ownerPublicId).email("a@b.com").name("사장").build();
+        PlatformAccount account = PlatformAccount.builder().id(3L).publicId(accountPublicId).ownerId(1L)
+                .platform("BAEMIN").loginId("ownerid").encPassword(new byte[1]).encDek(new byte[1]).kmsKeyId("k")
+                .encNonce(new byte[1]).passwordFingerprint(new byte[1]).intendedStoreId(null).build();
+        when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
+        when(accountRepository.findByPublicIdAndOwnerIdAndRevokedAtIsNull(accountPublicId, 1L))
+                .thenReturn(Optional.of(account));
+
+        service.revoke(ownerPublicId, accountPublicId, "127.0.0.1", "test");
+
+        verify(credentialService).revoke(account);
+    }
 }
