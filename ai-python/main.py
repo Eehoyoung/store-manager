@@ -353,6 +353,11 @@ def analyze_and_draft(
 def demo() -> None:
     from fastapi.testclient import TestClient
 
+    # 인증은 fail-closed 다 — INTERNAL_TOKEN 이 비면 전부 401. 자기점검용 토큰을 여기서 주입한다.
+    global INTERNAL_TOKEN
+    INTERNAL_TOKEN = INTERNAL_TOKEN or "demo-internal-token"
+    hdr = {"X-Internal-Token": INTERNAL_TOKEN}
+
     c = TestClient(app)
     assert c.get("/health").json() == {"status": "ok"}
 
@@ -365,7 +370,7 @@ def demo() -> None:
         },
         "options": {"variants": 1, "instruction": None, "forceTier": None},
     }
-    res = c.post("/internal/ai/analyze-and-draft", json=payload)
+    res = c.post("/internal/ai/analyze-and-draft", json=payload, headers=hdr)
     assert res.status_code == 200
     body = res.json()
     assert body["blocked"] is False
@@ -376,7 +381,7 @@ def demo() -> None:
     # 이물질 키워드 → risk_level 3 승격 → blocked=True (초안은 있어도 자동게시 금지)
     payload2 = dict(payload)
     payload2["review"] = {"rating": 1, "body": "국물에서 벌레가 나왔어요", "menus": [], "platform": "BAEMIN"}
-    res2 = c.post("/internal/ai/analyze-and-draft", json=payload2).json()
+    res2 = c.post("/internal/ai/analyze-and-draft", json=payload2, headers=hdr).json()
     assert res2["analysis"]["riskLevel"] == 3
     assert res2["blocked"] is True
 
@@ -384,7 +389,7 @@ def demo() -> None:
     # 여기서는 빈 본문 NOISE 경로만 추가 확인한다.
     payload3 = dict(payload)
     payload3["review"] = {"rating": 5, "body": "", "menus": [], "platform": "BAEMIN"}
-    res3 = c.post("/internal/ai/analyze-and-draft", json=payload3).json()
+    res3 = c.post("/internal/ai/analyze-and-draft", json=payload3, headers=hdr).json()
     assert res3["analysis"]["category"] == "NOISE"
     assert res3["blocked"] is False
 
