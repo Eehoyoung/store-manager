@@ -513,7 +513,7 @@
 {"id": "G-0533", "platform": "yogiyo", "category": "COMPLAINT", "industry": "치킨", "rating": 1, "body": "성의가 너무 없어 보였습니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0534", "platform": "coupangeats", "category": "COMPLAINT", "industry": "분식", "rating": 1, "body": "너무 실망스러워서 화가 났어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0535", "platform": "baemin", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "환불 받고 싶을 정도로 별로였습니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0536", "platform": "yogiyo", "category": "COMPLAINT", "industry": "중식", "rating": 1, "body": "진짜 어이없을 정도로 양이 적어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
+{"id": "G-0536", "platform": "yogiyo", "category": "COMPLAINT", "industry": "중식", "rating": 1, "body": "진짜 어이없을 정도로 양이 적어요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0537", "platform": "coupangeats", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "이건 좀 심하지 않나요 팔아도 되는 상태가 아니에요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0538", "platform": "baemin", "category": "COMPLAINT", "industry": "한식", "rating": 2, "body": "정말 화가 나서 리뷰 남깁니다 이건 너무하네요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0539", "platform": "yogiyo", "category": "COMPLAINT", "industry": "분식", "rating": 1, "body": "진짜 열받아서 참고 못 넘어가겠어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
@@ -525,7 +525,7 @@
 {"id": "G-0545", "platform": "yogiyo", "category": "COMPLAINT", "industry": "치킨", "rating": 1, "body": "너무 황당해서 헛웃음이 나올 지경이었어요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0546", "platform": "coupangeats", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "속상함을 넘어서 화가 머리끝까지 났습니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0547", "platform": "baemin", "category": "COMPLAINT", "industry": "중식", "rating": 2, "body": "이건 그냥 넘어갈 수 없을 만큼 화가 나네요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0548", "platform": "yogiyo", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "정말 어처구니가 없어서 손이 떨렸습니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
+{"id": "G-0548", "platform": "yogiyo", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "정말 어처구니가 없어서 손이 떨렸습니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0549", "platform": "coupangeats", "category": "COMPLAINT", "industry": "분식", "rating": 1, "body": "진짜 짜증이 나서 리뷰 안 쓰려다가 씁니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0550", "platform": "baemin", "category": "COMPLAINT", "industry": "치킨", "rating": 2, "body": "화딱지가 나서 도저히 참을 수가 없었어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0551", "platform": "yogiyo", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "포장이 다 터져서 왔어요 환불 요청합니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
@@ -539,7 +539,7 @@
 {"id": "G-0559", "platform": "baemin", "category": "COMPLAINT", "industry": "분식", "rating": 2, "body": "먹지도 못할 상태라 전액 환불을 요구합니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0560", "platform": "yogiyo", "category": "COMPLAINT", "industry": "치킨", "rating": 1, "body": "포장이 열려서 왔어요 이건 보상해 주셔야죠", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0561", "platform": "coupangeats", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "메뉴가 반이나 빠졌어요 부족한 만큼 환불해 주세요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0562", "platform": "baemin", "category": "COMPLAINT", "industry": "중식", "rating": 2, "body": "이 가격에 이 퀄리티면 환불이 맞다고 봅니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
+{"id": "G-0562", "platform": "baemin", "category": "COMPLAINT", "industry": "중식", "rating": 2, "body": "이 가격에 이 퀄리티면 환불이 맞다고 봅니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0563", "platform": "yogiyo", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "지난번에도 늦더니 이번에도 똑같네요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0564", "platform": "coupangeats", "category": "COMPLAINT", "industry": "분식", "rating": 1, "body": "매번 시킬 때마다 뭔가 하나씩 빠져 있어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0565", "platform": "baemin", "category": "COMPLAINT", "industry": "치킨", "rating": 2, "body": "세 번째인데 또 양이 줄었네요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
