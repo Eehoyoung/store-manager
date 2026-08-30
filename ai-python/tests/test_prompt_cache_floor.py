@@ -1,0 +1,39 @@
+"""분류 시스템 프롬프트가 Haiku 4.5 의 캐시 최소 길이 아래로 떨어지지 않게 잠근다.
+
+★ 왜 '최소' 길이인가 — 보통 프롬프트는 짧을수록 싸다. 여기는 반대다.
+  Anthropic 의 최소 캐시 프리픽스는 모델마다 다르고 **세대가 올라간다고 줄지 않는다**:
+      Opus 5 / Fable 5            512 토큰
+      Sonnet 5 / Opus 4.8         1,024 토큰
+      Opus 4.7 / Haiku 3.5        2,048 토큰
+      Opus 4.6 / Opus 4.5 / Haiku 4.5   4,096 토큰   ← 우리 분류 모델
+  이 값 미만이면 cache_control 을 붙여도 **오류 없이 조용히** 캐시되지 않는다.
+
+  2026-08-30 v1.7 실측에서 시스템 프롬프트가 2,496 토큰이라 캐시 적중이 0% 였다.
+  564건 1회에 2,218원. 4,096 을 넘기자 캐시 읽기가 0.1배로 과금돼 약 590원이 된다.
+  즉 **토큰 하나 차이로 비용이 4배 갈린다.**
+
+  따라서 이 프롬프트에서 문장을 지우는 것은 절약이 아니라 지출이다. 줄이려면
+  4,096 토큰 위에서만 줄여라.
+
+실측 환산: 4,362 토큰 / 5,451 자 = 0.800 토큰/자 (claude-haiku-4-5, 2026-08-30 count_tokens).
+CI 에서 API 를 부르지 않으려고 문자 길이로 근사한다 — 한국어 기준이라 비율이 안정적이다.
+"""
+import prompts
+
+HAIKU_MIN_CACHE_TOKENS = 4096
+TOKENS_PER_CHAR = 0.800  # claude-haiku-4-5 실측
+MIN_CHARS = int(HAIKU_MIN_CACHE_TOKENS / TOKENS_PER_CHAR)  # 5,120자
+
+
+def test_분류_프롬프트가_haiku_캐시_최소길이_아래로_내려가지_않는다():
+    n = len(prompts.CLASSIFY_SYSTEM)
+    assert n >= MIN_CHARS, (
+        f"CLASSIFY_SYSTEM 이 {n}자로 줄었다. {MIN_CHARS}자(약 {HAIKU_MIN_CACHE_TOKENS}토큰) 미만이면 "
+        "Haiku 4.5 에서 프롬프트 캐시가 조용히 꺼져 골든셋 1회 원가가 590원 → 2,200원으로 뛴다. "
+        "짧게 만들고 싶으면 먼저 count_tokens 로 4,096 토큰을 넘는지 확인하라."
+    )
+
+
+def test_캐시_임계_상수를_실수로_낮추지_않는다():
+    """상수 자체가 바뀌면 위 테스트가 무의미해진다. Anthropic 문서상 Haiku 4.5 = 4,096."""
+    assert HAIKU_MIN_CACHE_TOKENS == 4096
