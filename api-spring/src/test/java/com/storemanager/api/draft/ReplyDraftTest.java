@@ -38,9 +38,11 @@ class ReplyDraftTest {
     @Test
     void 게시스케줄러_방어검증에서_위험도가_재확인되면_SCHEDULED에서_BLOCKED로_되돌린다() {
         ReplyDraft d = draft("SCHEDULED");
-        d.blockForRisk(List.of("FOOD_POISONING"));
+        d.blockForRisk();
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
-        assertThat(d.getGuardrailFlags()).containsExactly("FOOD_POISONING");
+        // ★ D-5: 구체적인 riskReasons(위생·이물질 등)로 덮어쓰지 않는다. 승인 가능한 단일
+        //   표식 RISK_LEVEL_TOO_HIGH 로만 남겨야 RiskApprovalService 가 사람 승인을 허용한다.
+        assertThat(d.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
     }
 
     @Test

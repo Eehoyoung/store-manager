@@ -99,6 +99,27 @@ class RiskApprovalServiceTest {
         assertThat(d.isHumanApproved()).isTrue();
     }
 
+    /**
+     * ★ D-5: 게시 스케줄러 재검증(PublishScheduler.blockForRisk)으로 차단된 초안도
+     * 사람이 승인할 수 있어야 한다. 이전에는 blockForRisk 가 guardrailFlags 를
+     * riskReasons(FOOD_POISONING 등)로 덮어써 APPROVABLE_FLAG 단일 매칭에 걸려
+     * 영원히 승인할 수 없었다.
+     */
+    @Test
+    void 게시스케줄러_재검증으로_BLOCKED된_초안도_승인할_수_있다() {
+        ReplyDraft d = ReplyDraft.builder().id(1L).publicId(draftPublicId).reviewId(10L).storeId(100L)
+                .content("고객님, 불편을 드려 죄송합니다. 확인 후 연락드리겠습니다.")
+                .status("SCHEDULED").generatedBy("AI").build();
+        d.blockForRisk(); // PublishScheduler 가 게시 직전 재검증에서 호출하는 것과 동일한 경로
+        when(replyDraftRepository.findByPublicId(draftPublicId)).thenReturn(Optional.of(d));
+        when(replyDraftRepository.save(d)).thenReturn(d);
+
+        service.approve(ownerPublicId, draftPublicId, true, null);
+
+        assertThat(d.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(d.isHumanApproved()).isTrue();
+    }
+
     @Test
     void 사람이_고쳐서_승인하면_원문이_남는다() {
         ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");

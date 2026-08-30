@@ -146,13 +146,19 @@ public class ReplyDraft {
                 : flags.toArray(new String[0]);
     }
 
-    /** 게시 스케줄러의 방어적 이중검증(절대규칙 3, S9)에서 risk_level>=3 이 재확인되면 발행 직전 되돌린다. */
-    public void blockForRisk(List<String> riskReasons) {
+    /**
+     * 게시 스케줄러의 방어적 이중검증(절대규칙 3, S9)에서 risk_level>=3 이 재확인되면 발행 직전 되돌린다.
+     *
+     * <p>★ guardrailFlags 는 구체적인 riskReasons(위생·이물질 등)로 채우지 않고 승인 가능한 단일
+     * 표식 {@code RISK_LEVEL_TOO_HIGH} 로만 남긴다({@code DraftService.tryAutoApprove} 의
+     * risk 차단과 동일한 표식). 구체 사유는 이미 {@code review_analysis} 와 리뷰 상세 DTO 로
+     * 제공되므로 여기 중복 저장할 필요가 없고, riskReasons 로 덮어쓰면
+     * {@code RiskApprovalService.APPROVABLE_FLAG} 단일 매칭에 걸려 사람이 영원히 승인할 수 없게 된다.
+     */
+    public void blockForRisk() {
         requireStatus("SCHEDULED");
         this.status = "BLOCKED";
-        if (riskReasons != null && !riskReasons.isEmpty()) {
-            this.guardrailFlags = riskReasons.toArray(new String[0]);
-        }
+        this.guardrailFlags = new String[] {"RISK_LEVEL_TOO_HIGH"};
     }
 
     /**

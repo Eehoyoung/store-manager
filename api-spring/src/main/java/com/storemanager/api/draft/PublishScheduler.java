@@ -98,7 +98,7 @@ public class PublishScheduler {
         //   풀자동 게시는 여전히 risk>=3 을 넘지 못한다.
         boolean humanApproved = draft.isHumanApproved();
         if (riskLevel >= RISK_BLOCK_LEVEL && !humanApproved) {
-            draft.blockForRisk(List.of(analysis.getRiskReasons()));
+            draft.blockForRisk();
             auditBlocked(draft, "DRAFT_BLOCKED_RISK_RECHECK");
             return;
         }

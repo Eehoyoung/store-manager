@@ -89,6 +89,10 @@ class PublishSchedulerTest {
         scheduler.dispatchDuePublishJobs();
 
         assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        // ★ D-5: riskReasons(FOOD_POISONING 등 구체 사유)로 guardrailFlags 를 덮어쓰지 않는다.
+        //   승인 가능한 단일 표식 RISK_LEVEL_TOO_HIGH 로만 남겨야 사람이 승인할 수 있다
+        //   (RiskApprovalService.APPROVABLE_FLAG 단일 매칭).
+        assertThat(draft.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
         verify(stringRedisTemplate, never()).opsForValue();
         verify(auditLogRepository).save(any());
     }
