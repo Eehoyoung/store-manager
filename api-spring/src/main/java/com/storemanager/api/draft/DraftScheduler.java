@@ -32,6 +32,25 @@ public class DraftScheduler {
     private static final Logger log = LoggerFactory.getLogger(DraftScheduler.class);
     private static final int BATCH_SIZE = 20;
 
+    /**
+     * 폴링 주기. <b>프롬프트 캐시 TTL(5분)보다 반드시 짧아야 한다.</b>
+     *
+     * <p>★ 분류 시스템 프롬프트는 매 호출 동일하고 4,096 토큰을 넘겨 캐시된다. 캐시 항목은
+     * 마지막 접근으로부터 5분 뒤 만료되고, 읽기는 기본 입력가의 0.1배로 과금된다. 이 배치가
+     * 20건을 연달아 호출하는 동안은 물론이고, <b>주기 사이 60초도 5분 안</b>이라 처리할 리뷰가
+     * 이어지는 한 캐시가 끊기지 않는다.
+     *
+     * <p>이 값을 5분 이상으로 늘리면 주기마다 캐시 재작성(1.25배)이 일어나 입력 원가가
+     * 약 10배가 된다. 2026-08-30 실측 기준 골든셋 564건이 590원 → 2,200원이 되는 것과 같은 차이다.
+     * {@code DraftSchedulerCacheWindowTest} 가 이 제약을 잠근다.
+     *
+     * <p>배치 크기를 작게 두는 이유는 별개다 — 잘못된 프롬프트 변경이 한꺼번에 반영되는 것을 막는다.
+     */
+    static final long POLL_INTERVAL_MS = 60_000;
+
+    /** Anthropic 프롬프트 캐시의 기본 TTL. 이보다 긴 주기는 캐시를 매번 버린다. */
+    static final long PROMPT_CACHE_TTL_MS = 5 * 60_000;
+
     private final UnifiedReviewRepository unifiedReviewRepository;
     private final StoreRepository storeRepository;
     private final AppUserRepository appUserRepository;
@@ -50,7 +69,7 @@ public class DraftScheduler {
      * 한 건의 실패가 배치 전체를 롤백시키지 않는다. 특히 가드레일 전량 차단은 예외를 던지면서도
      * BLOCKED 행을 남겨야 하는데(절대규칙 3), 바깥 트랜잭션이 있으면 그 기록까지 함께 사라진다.
      */
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedDelay = POLL_INTERVAL_MS)
     public void generatePendingDrafts() {
         List<UnifiedReview> pending = unifiedReviewRepository.findNeedingDraft(PageRequest.of(0, BATCH_SIZE));
         if (pending.isEmpty()) {
