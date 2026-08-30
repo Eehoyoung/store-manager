@@ -21,7 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-PROMPT_VERSION = "v1.6"  # 입력 격리 · 확인되지 않은 운영 약속 금지 · 안전한 추가 지시 반영
+PROMPT_VERSION = "v1.7"  # 위협·리뷰거래·원산지·미성년자주류·개인정보노출 위험 키워드 룰 추가
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -30,7 +30,13 @@ CATEGORY_VALUES = ("PRAISE", "POSITIVE", "IMPROVEMENT", "COMPLAINT", "ABUSIVE", 
 # docs/12 §1.2 는 5종(FOOD_POISONING/FOREIGN_OBJECT/HYGIENE/LEGAL/MEDIA)을 나열하지만,
 # docs/11 §2.4(확정 DB 스키마)와 CLAUDE.md 절대규칙 3("위생·이물질·식중독·법적분쟁")은
 # 4종만 정의한다. DB 가 기준이므로 MEDIA(방송·제보)는 LEGAL 로 흡수한다.
-RISK_REASON_VALUES = ("FOOD_POISONING", "FOREIGN_OBJECT", "HYGIENE", "LEGAL")
+# ★ 2026-08-30 추가: THREAT(협박·영업방해 예고)·REVIEW_TRADE(리뷰 대가 거래)·
+#   ORIGIN_LABEL(원산지 허위표시 주장)·UNDERAGE_ALCOHOL(청소년 주류)·PRIVACY_LEAK(제3자
+#   전화번호 노출). 골든셋 G-0516~0519(협박)가 risk 2 로 방치돼 자동 게시되던 구멍을 막는다.
+RISK_REASON_VALUES = (
+    "FOOD_POISONING", "FOREIGN_OBJECT", "HYGIENE", "LEGAL",
+    "THREAT", "REVIEW_TRADE", "ORIGIN_LABEL", "UNDERAGE_ALCOHOL", "PRIVACY_LEAK",
+)
 
 ISSUE_TAG_DICT = [
     "맛", "양", "온도", "신선도", "조리상태", "간", "매움",
@@ -87,6 +93,9 @@ CLASSIFY_SYSTEM = f"""\
                (다) 반복 불만 — "이걸로 두 번째입니다", "매번 이러네요"
                셋 다 없으면 아무리 불만이 세도 1 이다.
   · 3 심각   : 식중독·이물질·위생·법적조치·언론 제보 언급.
+               위해·영업방해를 예고하는 협박("가만 안 둔다", "찾아가서 따지겠다",
+               "별점 테러 하겠다")과, 리뷰·별점을 대가로 금품·서비스를 요구하거나
+               리뷰 삭제를 흥정하는 경우도 3 이다.
 
 - **1 과 2 를 헷갈리지 마라. 2 는 자동 게시를 막는다.**
   평범한 불만을 2 로 올리면 그 답글은 사장님이 손으로 처리할 때까지 나가지 않는다.
@@ -140,6 +149,17 @@ _RISK_KEYWORDS: dict[str, tuple[str, ...]] = {
         "커뮤니티에 올리", "법적", "손해배상", "위자료", "민원", "경찰", "공정거래",
         "공정위", "국민신문고", "언론", "형사처벌",
     ),
+    # ── 2026-08-30 추가: 골든셋 G-0516~0519(협박)가 risk 2 로 방치되던 구멍. ──────
+    # 위해 예고·영업방해 예고를 "예고된 가해" 한 사유로 묶는다.
+    # 단독 성립해도 충돌 없는 구체적 표현만 넣는다(넓히지 말고 좁힌다).
+    "THREAT": ("가만 안 두", "가만 안 둘", "가만두지 않", "가만 안둘", "별점 테러"),
+    # REVIEW_TRADE·ORIGIN_LABEL·UNDERAGE_ALCOHOL·PRIVACY_LEAK 은 조합·정규식으로만 성립한다
+    # (아래 _RISK_PATTERNS / _hits). 단독 키워드가 없어도 upgrade_risk_level 이 순회할 수
+    # 있도록 빈 튜플로 등록해 둔다.
+    "REVIEW_TRADE": (),
+    "ORIGIN_LABEL": (),
+    "UNDERAGE_ALCOHOL": (),
+    "PRIVACY_LEAK": (),
 }
 
 # ★ 부분문자열로 걸면 일상 표현을 오탐하는 키워드다. 정규식으로 좁힌다.
@@ -170,6 +190,37 @@ _RISK_PATTERNS: dict[str, tuple[str, ...]] = {
     "LEGAL": (
         r"고소(?!해|한|하고|하니|하네|하군|하더|함|했|합니다|하다)",
         r"방송[^가-힣]{0,3}(제보|신고|내보|알리|올리)",
+    ),
+    # ── 2026-08-30 추가 ──────────────────────────────────────────────────
+    # '찾아가서' 뒤에 대치 의도(따지다/보자)가 붙어야 협박이다.
+    # "언젠가 매장으로 직접 찾아가서 먹어보고 싶네요" 는 방문 의사일 뿐이다.
+    "THREAT": (
+        r"찾아가(서)?.{0,6}(따지|따질|따져|보자)",
+        # ★ 잡는 것은 수단(소문·리뷰)이 아니라 **가해 결과**다. "소문 다 내" 를 키워드로
+        #   걸었더니 "맛있어서 소문 다 내고 다닐 맛집" 이 협박으로 잡혔다(2026-08-30 실측).
+        r"(망하게|문\s*닫게|끝장\s*(내|낼))\s*(해|만들|할|내)",
+        r"장사\s*못\s*하게",
+        # "각오해라" 는 상대에게 하는 선언이고 "각오해야" 는 화자 자신의 각오다.
+        # 매운 음식 리뷰의 "각오해야 됩니다" 가 협박으로 잡히던 것을 막는다.
+        r"각오해(?!야)",
+        # "매장 앞에서 시위" 는 영업방해 예고다. 칭찬 리뷰에 쓰이지 않는 단어라 단독으로 건다.
+        # ★ "각오하세요" 는 일부러 넣지 않았다 — "이거 진짜 매우니까 각오하세요" 가 칭찬이다.
+        r"시위(라도)?\s*(할|하겠|한다|하러)",
+    ),
+    # 별점·리뷰를 쓰겠다는 말과 서비스·환불 요구가 근접해야 거래다.
+    # "별점 5점 드립니다 정말 맛있었어요" 는 순수 칭찬이라 걸리지 않는다.
+    "REVIEW_TRADE": (
+        r"별점.{0,20}(써|줄|드릴|올릴).{0,30}(서비스|환불|사은품|증정|챙겨)",
+        r"(환불|보상|사은품).{0,15}(리뷰|후기).{0,10}(지울|내릴|삭제)",
+        # 순서가 반대인 흥정도 같은 거래다: "리뷰 지워줄 테니 상품권 보내주세요"
+        r"(리뷰|후기|별점).{0,20}(지워|지울|내려|내릴|바꿔|바꿀|삭제).{0,25}"
+        r"(상품권|입금|송금|보내|환불|서비스|사은품|계좌)",
+    ),
+    # 원산지 표시가 "다르다/속인다" 는 주장, 또는 국산이라던 것이 중국산·수입산이라는 주장.
+    # "원산지 표기가 잘 되어 있어서 믿음이 가요" 는 칭찬이라 걸리지 않는다.
+    "ORIGIN_LABEL": (
+        r"원산지.{0,12}(속|허위|거짓|위반|다르|바꿔치)",
+        r"(국산|한우|한돈|국내산).{0,6}(이라더니|라고\s*하더니|라며).{0,20}(중국산|수입산)",
     ),
 }
 
@@ -210,6 +261,25 @@ _HYGIENE_PRAISE = ("깔끔", "청결", "철저", "신경", "훌륭", "믿고", "
 _NEGATION = ("않", "안 ", "안하", "안해", "못", "엉망", "심각", "최악", "더럽",
              "불결", "의심", "별로", "아니", "없", "부족", "나쁘", "형편없", "실망")
 
+# ── 2026-08-30 추가: 청소년 주류 판매 주장 ──────────────────────────────────
+# '미성년자' 단독으로 걸면 "미성년자 조카랑 같이 먹었어요" 가 걸린다.
+# 반드시 주류 단어와 함께 나올 때만 성립시킨다(조합이 필요한 것은 조합으로 건다).
+_MINOR_WORDS = ("미성년자", "중학생", "고등학생", "청소년")
+# ★ '술' 을 부분문자열로 걸면 "술술 넘어가요"·"수술 후 회복식" 이 걸린다. 미성년자 단어와
+#   조합이라 더 위험하다 — "고등학생 아들이 술술 잘 먹네요" 가 청소년 주류로 잡혔다(실측).
+_ALCOHOL_RE = re.compile(r"(?<![기예수마술])술(?!술)|주류|소주|맥주|막걸리|와인|위스키|칵테일")
+
+# 제3자(배달기사·다른 손님) 전화번호 노출 — 번호 패턴이 실제로 있을 때만.
+# 이름만으로는 판단하지 않는다(사람 이름은 흔한 단어와 구분이 안 된다).
+_PHONE_PATTERN = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
+# ★ 번호가 리뷰에 찍혀 있지 않아도, 남의 개인정보가 딸려 왔다는 **신고** 자체가 사고다.
+#   "다른 손님 전화번호가 적힌 영수증이 같이 왔어요" — 번호 패턴은 없지만 risk 3 이다.
+_PRIVACY_REPORT = (
+    # "개인정보 유출 걱정 없이 안심하고 시켰어요" 는 칭찬이다(실측 오탐).
+    re.compile(r"개인정보.{0,12}(유출|노출)(?!\s*(걱정|우려|염려|위험)\s*(없|안|적))"),
+    re.compile(r"(다른|타인|남의).{0,8}(손님|사람|고객|분).{0,20}(전화번호|연락처|이름|주소)"),
+)
+
 
 def _hits(body: str, reason: str) -> bool:
     """한 위험 사유가 성립하는지 판단한다."""
@@ -227,6 +297,12 @@ def _hits(body: str, reason: str) -> bool:
         praised = any(p in body for p in _HYGIENE_PRAISE)
         negated = any(n in body for n in _NEGATION)
         return not (praised and not negated)
+    if reason == "UNDERAGE_ALCOHOL":
+        return any(m in body for m in _MINOR_WORDS) and _ALCOHOL_RE.search(body) is not None
+    if reason == "PRIVACY_LEAK":
+        if _PHONE_PATTERN.search(body) is not None:
+            return True
+        return any(p.search(body) for p in _PRIVACY_REPORT)
     return False
 
 
@@ -472,7 +548,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v1.6"
+    assert PROMPT_VERSION == "v1.7"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]
