@@ -354,7 +354,7 @@ def _check_gate() -> str | None:
         return (
             "골든셋 평가가 꺼져 있습니다 (GOLDENSET_EVAL_ENABLED != true). "
             "1회 실행에 reviews.jsonl 전체 LLM 분류 호출이 나갑니다"
-            "(2026-08-30 v1.7 564건 실측 1,888원, 캐시 미적용). "
+            "(2026-08-30 v1.8b 564건 실측 594원, 캐시 적중 98.7%). "
             "켜려면: GOLDENSET_EVAL_ENABLED=true python eval.py"
         )
     stores = _store_count()
