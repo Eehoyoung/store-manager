@@ -141,14 +141,14 @@ def _stub_classify(review: ReviewIn) -> prompts.ClassifyOutput:
     )
 
 
-def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.ClassifyOutput, str, int, int, float]:
+def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.ClassifyOutput, str, int, int, float, int]:
     """(분류결과, 사용모델, token_in, token_out, cost_krw) 를 반환한다."""
     if not review.body.strip():
-        return prompts.ClassifyOutput(category="NOISE", sentiment=0.0, issue_tags=[], risk_level=0, risk_reasons=[]), "rule-noise", 0, 0, 0.0
+        return prompts.ClassifyOutput(category="NOISE", sentiment=0.0, issue_tags=[], risk_level=0, risk_reasons=[]), "rule-noise", 0, 0, 0.0, 0
 
     client = getattr(provider, "client", None)
     if client is None:
-        return _stub_classify(review), "stub", 0, 0, 0.0
+        return _stub_classify(review), "stub", 0, 0, 0.0, 0
 
     sanitized_body, _injection_found, _markers = guardrails.sanitize_review(review.body)
     system, user = prompts.build_classify_messages(sanitized_body, review.rating, review.menus)
@@ -170,14 +170,14 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
             cost = llm.cost_krw(
                 router.CLASSIFY_MODEL, plain_input, token_out, cache_creation, cache_read
             )
-            return parsed, router.CLASSIFY_MODEL, token_in, token_out, cost
+            return parsed, router.CLASSIFY_MODEL, token_in, token_out, cost, cache_read
         except Exception:
             continue
 
     # 재시도도 실패 — 안전측 기본값(문서 12 §2 후처리 1)
     return (
         prompts.ClassifyOutput(category="COMPLAINT", sentiment=-0.3, issue_tags=[], risk_level=2, risk_reasons=[]),
-        router.CLASSIFY_MODEL, 0, 0, 0.0,
+        router.CLASSIFY_MODEL, 0, 0, 0.0, 0,
     )
 
 
@@ -286,7 +286,7 @@ def analyze_and_draft(
     require_internal_token(x_internal_token)
     provider = llm.get_provider()
 
-    classified, classify_model, c_tok_in, c_tok_out, c_cost = _classify(provider, req.review)
+    classified, classify_model, c_tok_in, c_tok_out, c_cost, _c_cache = _classify(provider, req.review)
 
     # 문서 12 §1.2: 키워드 룰이 모델보다 우선(하향 금지)
     risk_level, keyword_reasons = prompts.upgrade_risk_level(req.review.body, classified.risk_level)

@@ -93,12 +93,18 @@ def _try_import_main_classifier():
 
     provider = main.llm.get_provider()
 
+    usage = {"token_in": 0, "token_out": 0, "cost_krw": 0.0, "cache_read": 0, "calls": 0}
+
     def _run(rating: int, body: str) -> dict:
         # 실제 파이프라인의 분류 경로를 그대로 태운다(키가 없으면 StubProvider 로 동작).
-        classified, _model, _tin, _tout, _cost = classify(
+        classified, _model, tin, tout, cost, cache_read = classify(
             provider, review_model(rating=rating, body=body, menus=[], platform="BAEMIN")
         )
+        usage["token_in"] += tin; usage["token_out"] += tout
+        usage["cost_krw"] += cost; usage["cache_read"] += cache_read; usage["calls"] += 1
         return {"category": classified.category, "risk_level": classified.risk_level}
+
+    _run.usage = usage  # type: ignore[attr-defined]
 
     _run.provider_name = type(provider).__name__  # type: ignore[attr-defined]
     return _run
@@ -138,6 +144,7 @@ def predict(row: dict, main_classifier) -> dict:
     return {
         "category": category,
         "risk_level": risk_level,
+        "model_risk_level": model_risk,
         "risk_reasons": risk_reasons,
         "must_block": must_block,
         "guardrail_flags": list(guardrail_flags),
@@ -198,6 +205,13 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
 
     risk_ge2_ids = {r["id"] for r in rows if r["expected"]["riskLevel"] >= 2}
     risk_recall_hits = 0
+    # ★ 게이트는 max(모델, 키워드룰) 을 잰다. 키워드 룰이 확보하는 몫이 섞여 있으면
+    #   프롬프트가 나아졌는지 알 수 없다 — 모델 단독 재현율을 따로 남긴다(Codex 검토 D-3).
+    model_only_hits = 0
+    risk2_ids = {r["id"] for r in rows if r["expected"]["riskLevel"] == 2}
+    risk3_ids = {r["id"] for r in rows if r["expected"]["riskLevel"] >= 3}
+    risk2_hits = risk3_hits = 0
+    reason_stat: dict[str, list[int]] = {}
 
     must_block_ids = {r["id"] for r in rows if r["expected"]["mustBlockAutoPublish"]}
     must_block_misses: list[str] = []
@@ -217,6 +231,16 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
 
         if rid in risk_ge2_ids and pred["risk_level"] >= 2:
             risk_recall_hits += 1
+        if rid in risk_ge2_ids and pred.get("model_risk_level", 0) >= 2:
+            model_only_hits += 1
+        if rid in risk2_ids and pred["risk_level"] >= 2:
+            risk2_hits += 1
+        if rid in risk3_ids:
+            hit = 1 if pred["risk_level"] >= 3 else 0
+            risk3_hits += hit
+            for rsn in row["expected"].get("riskReasons") or ["(사유없음)"]:
+                st = reason_stat.setdefault(rsn, [0, 0])
+                st[0] += hit; st[1] += 1
 
         if rid in must_block_ids and not pred["must_block"]:
             must_block_misses.append(rid)
@@ -243,6 +267,13 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
         "abusive_total": len(abusive_ids),
         "risk_ge2_recall": risk_recall,
         "risk_ge2_total": len(risk_ge2_ids),
+        "risk_ge2_recall_model_only": model_only_hits / len(risk_ge2_ids) if risk_ge2_ids else 1.0,
+        "risk2_recall": risk2_hits / len(risk2_ids) if risk2_ids else 1.0,
+        "risk2_total": len(risk2_ids),
+        "risk3_recall": risk3_hits / len(risk3_ids) if risk3_ids else 1.0,
+        "risk3_total": len(risk3_ids),
+        "risk_reason_recall": {k: (v[0] / v[1], v[1]) for k, v in sorted(reason_stat.items())},
+        "usage": getattr(main_classifier, "usage", None),
         "auto_publish_block_miss_count": len(must_block_misses),
         "auto_publish_block_misses": must_block_misses,
         "guardrail_false_positive_rate": guardrail_fp_rate,
@@ -263,6 +294,17 @@ def _print_report(report: dict) -> None:
           f"({report['abusive_total']}건 중)")
     print(f"  risk_level>=2 재현율   : {report['risk_ge2_recall']:.1%} "
           f"({report['risk_ge2_total']}건 중)")
+    print(f"    └ 모델 단독          : {report['risk_ge2_recall_model_only']:.1%} "
+          f"(키워드 룰 제외 — 프롬프트 개선 여부는 이 값으로 본다)")
+    print(f"    └ risk 2 / risk 3    : {report['risk2_recall']:.1%} ({report['risk2_total']}건) / "
+          f"{report['risk3_recall']:.1%} ({report['risk3_total']}건)")
+    for rsn, (rate, n) in report["risk_reason_recall"].items():
+        print(f"       · {rsn:<18}: {rate:.1%} ({n}건)")
+    u = report.get("usage")
+    if u and u["calls"]:
+        hit = u["cache_read"] / u["token_in"] if u["token_in"] else 0.0
+        print(f"  호출 {u['calls']}건 · 입력 {u['token_in']:,} / 출력 {u['token_out']:,} 토큰")
+        print(f"  캐시 읽기 {u['cache_read']:,} 토큰 (입력의 {hit:.1%}) · 원가 {u['cost_krw']:,.0f}원")
     print(f"  자동게시 차단 누락    : {report['auto_publish_block_miss_count']}건 "
           f"{report['auto_publish_block_misses']}")
     print(f"  가드레일 오탐률        : {report['guardrail_false_positive_rate']:.1%} "
