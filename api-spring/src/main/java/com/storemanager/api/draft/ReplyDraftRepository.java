@@ -7,12 +7,21 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface ReplyDraftRepository extends JpaRepository<ReplyDraft, Long> {
 
     java.util.Optional<ReplyDraft> findByPublicId(java.util.UUID publicId);
 
     boolean existsByReviewIdAndStatusIn(Long reviewId, Collection<String> statuses);
+
+    /** G7 비교용 게시 이력. 조회 장애가 생성 트랜잭션을 롤백시키지 않도록 분리한다. */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    @Query("SELECT d.content FROM ReplyDraft d WHERE d.storeId = :storeId AND d.status = 'PUBLISHED' "
+            + "AND d.publishedAt >= :since ORDER BY d.publishedAt DESC, d.id DESC")
+    List<String> findRecentPublishedContents(@Param("storeId") Long storeId, @Param("since") Instant since,
+            Pageable pageable);
 
     /** 게시 스케줄러(S9) — SCHEDULED 이고 예약 시각이 지난 것을 오래된 순으로 최대 100건. */
     @Query("SELECT d FROM ReplyDraft d WHERE d.status = 'SCHEDULED' AND d.scheduledAt <= :now ORDER BY d.scheduledAt ASC")

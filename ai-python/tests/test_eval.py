@@ -5,6 +5,16 @@ from collections import Counter
 import eval as eval_mod
 
 
+def test_demo_does_not_enter_paid_evaluation(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("자기점검에서 유료 평가 경로에 진입하면 안 된다")
+
+    monkeypatch.setattr(eval_mod, "_try_import_main_classifier", forbidden)
+    monkeypatch.setattr(eval_mod, "main", forbidden)
+    monkeypatch.setattr(eval_mod, "load_goldenset", forbidden)
+    eval_mod.demo()
+
+
 # ── 골든셋 파일 자체의 무결성 (T2 산출물 검증) ───────────────────────────
 
 def test_goldenset_has_no_duplicate_bodies():

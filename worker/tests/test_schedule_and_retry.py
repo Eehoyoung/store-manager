@@ -26,6 +26,14 @@ def test_시간대가_서울로_고정되어_있다():
     assert celery_app.app.conf.enable_utc is False
 
 
+def test_게시_재수용은_삼십초마다_별도_작업으로_등록된다():
+    schedule = celery_app.app.conf.beat_schedule["reclaim-publish-drafts-every-30s"]
+    assert schedule["task"] == "tasks.reclaim_publish_drafts"
+    assert schedule["schedule"] == 30.0
+    assert schedule["schedule"] + tasks.PUBLISH_INFLIGHT_TTL_SECONDS <= 60
+    assert schedule["task"] in tasks.app.tasks
+
+
 def test_재시도는_2회까지다():
     """★ 호출당 과금이다. 3회면 실패 1건에 3회분을 태운다(2026-08-25 결정)."""
     assert dataapi.MAX_ATTEMPTS == 2

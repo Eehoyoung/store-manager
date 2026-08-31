@@ -35,6 +35,10 @@ app.conf.task_routes = {"tasks.publish_drafts": {"queue": "publish"}}
 POLL_HOURS = os.environ.get("COLLECT_POLL_HOURS", "10")
 
 app.conf.beat_schedule = {
+    "reclaim-publish-drafts-every-30s": {
+        "task": "tasks.reclaim_publish_drafts",
+        "schedule": 30.0,
+    },
     "dispatch-polls": {
         "task": "tasks.dispatch_polls",
         "schedule": crontab(hour=POLL_HOURS, minute=0),

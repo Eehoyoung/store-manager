@@ -18,7 +18,7 @@ import secrets
 from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import guardrails
 import llm
@@ -86,6 +86,13 @@ class AnalyzeAndDraftRequest(BaseModel):
     review: ReviewIn
     persona: PersonaIn
     options: OptionsIn = Field(default_factory=OptionsIn)
+    recent_replies: list[str] = Field(default_factory=list, alias="recentReplies")
+
+    @field_validator("recent_replies")
+    @classmethod
+    def limit_recent_replies(cls, replies: list[str]) -> list[str]:
+        # 최근 게시 이력은 G7 전용이다. 오래된 항목은 버리고 계산량을 제한한다.
+        return replies[:20]
 
 
 # ── 응답 스키마 (docs/13 §11.1) ──────────────────────────────────────────
@@ -199,11 +206,12 @@ def _generate_draft(
             seed = (persona.persona_seed or 0) + variant_idx
             content = prompts.render_t0_template(persona.customer_title, seed, persona.use_emoji, persona.signature)
             content = content[: guardrails.MAX_LENGTH]
-            return content, "rule-template", "T0", 0, 0, 0.0, []
+            return content, "rule-template", "T0", 0, 0, 0.0, list(dict.fromkeys(req.recent_replies))
 
         examples = rag.fetch_examples(req.store_id, req.review.body, k=4)
         few_shot_text = prompts.format_few_shot([(e.review_text, e.reply_text) for e in examples])
-        recent_replies = [e.reply_text for e in examples]
+        # 게시 이력은 프롬프트가 아니라 가드레일에만 전달한다(입력 토큰 증가 방지).
+        recent_replies = list(dict.fromkeys(req.recent_replies + [e.reply_text for e in examples]))
         # ★ issue_tags 를 넘긴다. 이게 없으면 '국물이 샜다' 와 '배달이 늦었다' 가 같은
         #   COMPLAINT 지침 한 줄로 뭉뚱그려진다(사장/소비자 관점 검토에서 공통 지적).
         sanitized_body, _injection_found, _markers = guardrails.sanitize_review(req.review.body)

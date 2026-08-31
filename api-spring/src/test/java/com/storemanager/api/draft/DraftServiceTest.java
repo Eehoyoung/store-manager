@@ -78,8 +78,9 @@ class DraftServiceTest {
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 
-    @Test
-    void 자동승인_조건을_모두_만족하면_초안_생성직후_SCHEDULED로_전이한다() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 자동승인_조건을_만족하면_게시이력_조회실패에도_SCHEDULED로_전이한다(boolean historyFailure) {
         UUID reviewPublicId = UUID.randomUUID();
         UnifiedReview review = UnifiedReview.builder().id(20L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-20").rating((short) 5).body("맛있어요").writtenAt(Instant.now())
@@ -92,6 +93,13 @@ class DraftServiceTest {
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
         when(bannedWordQueryRepository.findActiveGlobal())
                 .thenReturn(List.of(new BannedWordIn("치료", "MEDICAL", "CONTAINS")));
+        if (historyFailure) {
+            when(replyDraftRepository.findRecentPublishedContents(any(), any(), any()))
+                    .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("조회 장애 대역"));
+        } else {
+            when(replyDraftRepository.findRecentPublishedContents(any(), any(), any()))
+                    .thenReturn(List.of("최근 게시 답글"));
+        }
 
         AnalysisOut analysisOut = new AnalysisOut("POSITIVE", 0.9f, List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 감사합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
@@ -106,6 +114,13 @@ class DraftServiceTest {
         assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
         ArgumentCaptor<AnalyzeAndDraftRequest> requestCaptor = ArgumentCaptor.forClass(AnalyzeAndDraftRequest.class);
         org.mockito.Mockito.verify(aiClient).analyzeAndDraft(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().recentReplies())
+                .isEqualTo(historyFailure ? List.of() : List.of("최근 게시 답글"));
+        org.mockito.Mockito.verify(replyDraftRepository).findRecentPublishedContents(
+                org.mockito.ArgumentMatchers.eq(100L),
+                org.mockito.ArgumentMatchers.argThat(since -> since.isAfter(Instant.now().minusSeconds(30 * 86400L + 10))
+                        && since.isBefore(Instant.now().minusSeconds(29 * 86400L))),
+                org.mockito.ArgumentMatchers.eq(org.springframework.data.domain.PageRequest.of(0, 20)));
         assertThat(requestCaptor.getValue().persona().globalBannedWords())
                 .containsExactly(new BannedWordIn("치료", "MEDICAL", "CONTAINS"));
         org.mockito.Mockito.verify(auditLogRepository).save(

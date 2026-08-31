@@ -28,7 +28,7 @@ public final class AiClientDtos {
     }
 
     public record AnalyzeAndDraftRequest(String reviewId, String storeId, ReviewIn review, PersonaIn persona,
-            OptionsIn options) {
+            OptionsIn options, List<String> recentReplies) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

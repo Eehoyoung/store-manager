@@ -402,5 +402,15 @@ def main(argv: list[str] | None = None, classifier=AUTO) -> int:
     return 0 if report["passed"] else 1
 
 
+def demo() -> None:
+    """유료 평가와 분리된 자기점검. provider·DB·골든셋 실행 경로를 호출하지 않는다."""
+    classifier = lambda **_: {"category": "COMPLAINT", "risk_level": 0}
+    result = predict({"rating": 1, "body": "국물에서 벌레가 나왔어요"}, classifier)
+    assert result["model_risk_level"] == 0
+    assert result["risk_level"] == 3 and result["must_block"]
+    assert _is_noise("")
+    print("eval demo OK (고정 대역 자기점검, 유료 평가 미실행)")
+
+
 if __name__ == "__main__":
     sys.exit(main())

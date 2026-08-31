@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -35,9 +36,11 @@ COLLECT_LOOKBACK_DAYS = int(os.environ.get("COLLECT_LOOKBACK_DAYS", "2"))
 BACKFILL_DAYS = int(os.environ.get("BACKFILL_DAYS", "90"))
 BACKFILL_CHUNK_DAYS = int(os.environ.get("BACKFILL_CHUNK_DAYS", "7"))
 
-# 게시 큐(Sprint 4) — Spring 이 LPUSH, 워커는 BRPOP 으로 소비하는 평범한 Redis LIST 다.
+# 게시 큐 — Spring 이 LPUSH, 워커는 processing 리스트로 원자 이동한다.
 # ★ Celery 메시지 프로토콜이 아니다(고정계약 참고).
 PUBLISH_QUEUE_KEY = "q:publish"
+PUBLISH_PROCESSING_KEY = "q:publish:processing"
+PUBLISH_INFLIGHT_TTL_SECONDS = 30
 PUBLISH_BATCH_SIZE = int(os.environ.get("PUBLISH_BATCH_SIZE", "20"))
 PUBLISH_BRPOP_TIMEOUT_SECONDS = int(os.environ.get("PUBLISH_BRPOP_TIMEOUT_SECONDS", "1"))
 PUBLISH_RATE_LIMIT_SECONDS = float(os.environ.get("PUBLISH_RATE_LIMIT_SECONDS", "5"))
@@ -267,6 +270,66 @@ def dispatch_polls(account_lister=None) -> dict:
     return {"status": "OK", "dispatched": len(ids)}
 
 
+_PUBLISH_CLAIM_SCRIPT = """
+if not redis.call('LPOS', KEYS[1], ARGV[1]) then return 0 end
+return redis.call('SET', KEYS[2], ARGV[2], 'NX', 'EX', ARGV[3]) and 1 or 0
+"""
+_PUBLISH_RENEW_SCRIPT = """
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+return redis.call('EXPIRE', KEYS[1], ARGV[2])
+"""
+_PUBLISH_ACK_SCRIPT = """
+if redis.call('GET', KEYS[2]) ~= ARGV[2] then return 0 end
+redis.call('LREM', KEYS[1], 1, ARGV[1])
+redis.call('DEL', KEYS[2])
+return 1
+"""
+_PUBLISH_RECLAIM_SCRIPT = """
+if redis.call('EXISTS', KEYS[3]) == 1 then return 0 end
+if redis.call('LREM', KEYS[1], 1, ARGV[1]) == 0 then return 0 end
+redis.call('LPUSH', KEYS[2], ARGV[1])
+return 1
+"""
+
+
+def _renew_publish_lease(rc, key: str, token: str) -> bool:
+    return bool(rc.eval(_PUBLISH_RENEW_SCRIPT, 1, key, token, PUBLISH_INFLIGHT_TTL_SECONDS))
+
+
+def _publish_heartbeat(rc, key: str, token: str, stopped: threading.Event) -> None:
+    # 스로틀·DataAPI·결과 보고가 길어져도 살아 있는 작업을 재수용하지 않는다.
+    while not stopped.wait(PUBLISH_INFLIGHT_TTL_SECONDS / 3):
+        try:
+            if not _renew_publish_lease(rc, key, token):
+                return
+        except Exception:
+            log.warning("게시 작업 락 갱신 실패")
+            return
+
+
+@app.task(name="tasks.reclaim_publish_drafts")
+def reclaim_publish_drafts(redis_client=None) -> int:
+    """만료된 processing 항목을 30초마다 재수용한다. 이동·락 검사 모두 원자적이다.
+
+    ponytail: processing 전체를 읽는다. 초기 100매장 규모를 넘으면 제한 스캔으로 전환한다.
+    중복 재전달은 가능하다. 업체 ERR_MDCOM_MSG00009는 기존 파서와 게시 처리에서
+    ALREADY_REPLIED로 종결한다. 로컬 큐만으로 외부 게시의 정확히 한 번 실행을 보장하지 않는다.
+    """
+    rc = redis_client if redis_client is not None else _redis_client()
+    reclaimed = 0
+    for raw in rc.lrange(PUBLISH_PROCESSING_KEY, 0, -1):
+        try:
+            draft_id = json.loads(raw)["draftId"]
+        except (ValueError, KeyError, TypeError):
+            # 손상된 입력은 외부 호출 없이 제거한다. 본문은 로그에 남기지 않는다.
+            log.warning("게시 processing의 유효하지 않은 입력 제거")
+            rc.lrem(PUBLISH_PROCESSING_KEY, 1, raw)
+            continue
+        reclaimed += rc.eval(_PUBLISH_RECLAIM_SCRIPT, 3, PUBLISH_PROCESSING_KEY,
+                             PUBLISH_QUEUE_KEY, f"publish:inflight:{draft_id}", raw)
+    return reclaimed
+
+
 @app.task(name="tasks.publish_drafts")
 def publish_drafts(
     sleep: Callable[[float], None] = time.sleep,
@@ -281,58 +344,83 @@ def publish_drafts(
     /internal/collect-result 로 보고한다(고정계약 - 새 엔드포인트 추가 금지).
 
     ★ 한 건이 예외로 죽어도 나머지 건은 계속 처리한다(건별 try/except).
-    ★ 한계: BRPOP 으로 큐에서 꺼낸 뒤 처리 중 프로세스가 죽으면 그 잡은 유실된다.
-      Spring 의 'dispatch:draft:{draftId}' 키가 TTL(900초) 만료되면 재디스패치로 복구된다 —
-      워커는 이 키를 지우지 않는다(Spring 이 결과 수신 시 삭제).
+    ★ 기존에는 Spring dispatch 키 TTL(900초) 후 재디스패치에 의존했다.
+      지금은 30초 갱신 락 만료 후 다음 30초 재수용 주기에 복구한다(주기상 최대 약 60초).
+      beat/실행기 정체와 게시 대기시간은 이 산식에 포함되지 않는다.
+      Spring dispatch 키는 여전히 결과 수신 시 Spring만 삭제한다.
     """
     rc = redis_client if redis_client is not None else _redis_client()
     client = client_factory()
     results = []
     for _ in range(batch_size):
-        popped = rc.brpop(PUBLISH_QUEUE_KEY, PUBLISH_BRPOP_TIMEOUT_SECONDS)
-        if not popped:
+        raw = rc.brpoplpush(PUBLISH_QUEUE_KEY, PUBLISH_PROCESSING_KEY, PUBLISH_BRPOP_TIMEOUT_SECONDS)
+        if raw is None:
             break
-        _, raw = popped
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
-
-        payload = None
         try:
             payload = json.loads(raw)
-            if publish.is_risk_blocked(payload):
-                # ★ 절대규칙 3 이중 검증 — DataAPI 호출·계정 조회·스로틀 전부 생략한다.
-                result = publish.blocked_result(payload)
-            elif publish.is_store_inactive(payload):
-                result = publish.blocked_result(payload, "STORE_INACTIVE")
-            elif os.environ.get(WRITE_ENABLED_ENV, "false").lower() != "true":
-                result = publish.blocked_result(payload, "DATAAPI_WRITE_DISABLED")
-            else:
-                account = account_loader(str(payload["accountId"]))
-                publish.throttle(
-                    rc,
-                    str(payload["accountId"]),
-                    PUBLISH_RATE_LIMIT_SECONDS,
-                    PUBLISH_JITTER_MAX_SECONDS,
-                    sleep,
-                    now,
-                    rand,
-                )
-                result = publish.process_publish_job(
-                    payload, account.platform, account.credentials, client.create_comment
-                )
-        except Exception as exc:
-            # ★ 예외 종류만 남기면 원인을 못 찾는다(ModuleNotFoundError 하나로 30분을 썼다).
-            #   메시지까지 남긴다 — 자격증명은 payload 에만 있고 예외 메시지에는 없다.
-            log.warning("publish job 처리 실패 draftId=%s error=%s: %s",
-                        (payload or {}).get("draftId"), type(exc).__name__, exc)
-            result = _publish_error_result(payload if isinstance(payload, dict) else {}, "INTERNAL_ERROR")
-
+            lease_key = f"publish:inflight:{payload['draftId']}"
+        except (ValueError, KeyError, TypeError):
+            log.warning("게시 큐의 유효하지 않은 입력 제거")
+            rc.lrem(PUBLISH_PROCESSING_KEY, 1, raw)
+            continue
+        token = uuid.uuid4().hex
+        if not rc.eval(_PUBLISH_CLAIM_SCRIPT, 2, PUBLISH_PROCESSING_KEY, lease_key,
+                       raw, token, PUBLISH_INFLIGHT_TTL_SECONDS):
+            continue
+        stopped = threading.Event()
+        heartbeat = threading.Thread(target=_publish_heartbeat, args=(rc, lease_key, token, stopped), daemon=True)
+        heartbeat.start()
         try:
-            _post_collect_result(result)
-        except Exception:
-            log.warning("collect-result 보고 실패 draftId=%s", result.get("publish", {}).get("draftId"))
-        results.append(result)
+            result = _run_publish_job(payload, rc, client, account_loader, sleep, now, rand, lease_key, token)
+            try:
+                if not _renew_publish_lease(rc, lease_key, token):
+                    raise RuntimeError("게시 결과 보고 전 락 소유권 만료")
+                if result is not None:
+                    _post_collect_result(result)
+                rc.eval(_PUBLISH_ACK_SCRIPT, 2, PUBLISH_PROCESSING_KEY, lease_key, raw, token)
+            except Exception:
+                log.warning("collect-result 보고 또는 큐 확인 실패 draftId=%s", payload["draftId"])
+            if result is not None:
+                results.append(result)
+        finally:
+            # 보고 실패·프로세스 중단 시 processing에 남기고 TTL 이후 재수용한다.
+            stopped.set()
+            heartbeat.join(timeout=1)
     return results
+
+
+def _publish_dispatch_current(rc, payload) -> bool:
+    token = payload.get("dispatchToken")
+    return isinstance(token, str) and bool(token) and rc.get(f"dispatch:draft:{payload['draftId']}") in (
+        token, token.encode(),
+    )
+
+
+def _run_publish_job(payload, rc, client, account_loader, sleep, now, rand, lease_key, token):
+    try:
+        # 서버가 결과를 반영하고 응답만 유실된 경우, 재전달로 유료 호출을 반복하지 않는다.
+        # 만료·교체된 토큰은 현재 예약이 아니므로 processing에서만 제거한다.
+        if not _publish_dispatch_current(rc, payload):
+            return None
+        if publish.is_risk_blocked(payload):
+            # ★ 절대규칙 3 이중 검증 — DataAPI 호출·계정 조회·스로틀 전부 생략한다.
+            return publish.blocked_result(payload)
+        if publish.is_store_inactive(payload):
+            return publish.blocked_result(payload, "STORE_INACTIVE")
+        if os.environ.get(WRITE_ENABLED_ENV, "false").lower() != "true":
+            return publish.blocked_result(payload, "DATAAPI_WRITE_DISABLED")
+        account = account_loader(str(payload["accountId"]))
+        publish.throttle(rc, str(payload["accountId"]), PUBLISH_RATE_LIMIT_SECONDS,
+                         PUBLISH_JITTER_MAX_SECONDS, sleep, now, rand)
+        if not _renew_publish_lease(rc, lease_key, token):
+            raise RuntimeError("게시 직전 락 소유권 만료")
+        if not _publish_dispatch_current(rc, payload):
+            return None
+        return publish.process_publish_job(payload, account.platform, account.credentials, client.create_comment)
+    except Exception as exc:
+        # 공급자 예외에는 요청 정보가 섞일 수 있으므로 원문·자격증명을 로그에 남기지 않는다.
+        log.warning("게시 작업 처리 실패 draftId=%s error=%s", payload.get("draftId"), type(exc).__name__)
+        return _publish_error_result(payload, "INTERNAL_ERROR")
 
 
 @app.task(name="tasks.backfill")

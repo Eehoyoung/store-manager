@@ -110,6 +110,15 @@ def process_publish_job(
         )
 
 
+_THROTTLE_SCRIPT = """
+local last = tonumber(redis.call('GET', KEYS[1]) or '0')
+local now = tonumber(ARGV[1])
+local wait = math.max(0, last + tonumber(ARGV[2]) - now) + tonumber(ARGV[3])
+redis.call('SET', KEYS[1], string.format('%.6f', now + wait))
+return tostring(wait)
+"""
+
+
 def throttle(
     redis_client,
     account_id: str,
@@ -120,12 +129,20 @@ def throttle(
     rand: Callable[[], float],
 ) -> None:
     """계정당 게시 호출 간격을 min_interval 초 이상으로 두고 0~jitter_max 초 랜덤 지터를 더한다.
-    DataAPI 는 호출당 과금되므로, 정교한 동시성 제어보다 '마지막 호출 시각 1개'만 Redis 에
-    기록하는 단순한 방식으로 충분하다.
-    ponytail: read-then-write 라 두 워커가 동시에 같은 계정을 처리하면 레이스가 날 수 있는
-    근사 스로틀이다(원자성 없음). 게시는 이미 dispatch:draft:{draftId} 락으로 계정별 동시
-    중복 처리를 막고 있어 실질 충돌 가능성은 낮다 — 문제가 되면 Lua 스크립트로 원자화한다."""
+    Lua로 계정별 다음 호출 시각을 원자 예약한다. 초안별 dispatch 락은 계정 락이 아니다.
+    예약은 취소하지 않는다 — 호출 실패 시에도 이미 예약한 간격을 줄이지 않는다."""
     key = f"throttle:publish:{account_id}"
+    if hasattr(redis_client, "eval") or hasattr(redis_client, "evalsha"):
+        args = (1, key, now(), min_interval, rand() * jitter_max)
+        if hasattr(redis_client, "eval"):
+            wait = float(redis_client.eval(_THROTTLE_SCRIPT, *args))
+        else:
+            wait = float(redis_client.evalsha(redis_client.script_load(_THROTTLE_SCRIPT), *args))
+        if wait > 0:
+            sleep(wait)
+        return
+
+    # Lua 미지원 테스트 대역만 기존 비원자 경로를 쓴다. 운영 Lua 오류는 폴백하지 않는다.
     raw_last = redis_client.get(key)
     last = float(raw_last) if raw_last else 0.0
     wait = max(0.0, min_interval - (now() - last)) + rand() * jitter_max

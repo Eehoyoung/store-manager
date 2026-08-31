@@ -28,6 +28,7 @@ import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -248,7 +250,18 @@ public class DraftService {
         // ★ store_id/review_id 는 ai-python 이 pgvector 조회에 BIGINT 로 그대로 쓰므로 public_id 가 아니라
         // 내부 BIGSERIAL id 를 문자열로 넘긴다(ai-python/rag.py: "store_id = %s::bigint").
         return new AiClientDtos.AnalyzeAndDraftRequest(String.valueOf(review.getId()), String.valueOf(review.getStoreId()),
-                reviewIn, personaIn, optionsIn);
+                reviewIn, personaIn, optionsIn, recentReplies(review.getStoreId()));
+    }
+
+    private List<String> recentReplies(Long storeId) {
+        try {
+            return replyDraftRepository.findRecentPublishedContents(
+                    storeId, Instant.now().minus(30, ChronoUnit.DAYS), PageRequest.of(0, 20));
+        } catch (RuntimeException e) {
+            // 별도 트랜잭션의 실패만 무시한다. 답글·SQL·연결정보는 로그에 남기지 않는다.
+            log.warn("최근 게시 답글 조회 실패 storeId={} error={}", storeId, e.getClass().getSimpleName());
+            return List.of();
+        }
     }
 
     private void upsertAnalysis(Long reviewId, AnalyzeAndDraftResponse res) {

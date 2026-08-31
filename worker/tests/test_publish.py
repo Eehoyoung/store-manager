@@ -54,16 +54,61 @@ class FakeClient:
 
 
 class FakeQueueRedis:
-    """BRPOP(list.pop) + GET/SET(스로틀) 만 흉내내는 최소 목."""
+    """게시 큐·락 Lua의 대역. 실제 Lua는 별도 격리 Redis 테스트에서 확인한다."""
 
     def __init__(self, items: list[str]):
         self._items = list(items)
         self.sets: dict[str, str] = {}
+        self.processing = []
+        for raw in items:
+            payload = json.loads(raw)
+            self.sets[f"dispatch:draft:{payload['draftId']}"] = payload.get("dispatchToken", "")
 
-    def brpop(self, key, timeout):
+    def brpoplpush(self, key, destination, timeout):
         if not self._items:
             return None
-        return (key, self._items.pop(0))
+        raw = self._items.pop(0)
+        self.processing.insert(0, raw)
+        return raw
+
+    def lrange(self, key, start, end):
+        return list(self.processing)
+
+    def lrem(self, key, count, raw):
+        if raw not in self.processing:
+            return 0
+        self.processing.remove(raw)
+        return 1
+
+    def eval(self, script, count, *args):
+        if script == tasks._PUBLISH_CLAIM_SCRIPT:
+            _, key, raw, token, ttl = args
+            if raw not in self.processing or key in self.sets:
+                return 0
+            self.sets[key] = token
+            return 1
+        if script == tasks._PUBLISH_RENEW_SCRIPT:
+            key, token, ttl = args
+            return int(self.get(key) == token)
+        if script == tasks._PUBLISH_ACK_SCRIPT:
+            _, key, raw, token = args
+            if self.get(key) != token:
+                return 0
+            self.lrem(tasks.PUBLISH_PROCESSING_KEY, 1, raw)
+            del self.sets[key]
+            return 1
+        if script == tasks._PUBLISH_RECLAIM_SCRIPT:
+            _, _, key, raw = args
+            if key in self.sets or not self.lrem(tasks.PUBLISH_PROCESSING_KEY, 1, raw):
+                return 0
+            self._items.append(raw)
+            return 1
+        if script == publish._THROTTLE_SCRIPT:
+            key, now, interval, jitter = args
+            wait = max(0, float(self.get(key) or 0) + interval - now) + jitter
+            self.sets[key] = str(now + wait)
+            return str(wait)
+        raise AssertionError("예상하지 못한 Lua")
 
     def get(self, key):
         return self.sets.get(key)
@@ -175,7 +220,12 @@ def test_write_disabled_blocks_real_registration(monkeypatch):
 
 
 def test_throttle_waits_remaining_interval_plus_jitter_and_stores_now():
-    rc = FakeQueueRedis([])
+    class NonLuaRedis:
+        get = FakeQueueRedis.get
+        set = FakeQueueRedis.set
+
+    rc = NonLuaRedis()
+    rc.sets = {}
     rc.sets["throttle:publish:1"] = "100.0"
     waited = []
 
@@ -224,6 +274,7 @@ def test_publish_drafts_continues_after_one_item_raises(monkeypatch):
     assert results[1]["publish"]["failReason"] == "INTERNAL_ERROR"
     assert results[2]["status"] == "SUCCESS" and results[2]["publish"]["draftId"] == 3
     assert fake_client.calls  # 정상 건은 실제로 create_comment 가 호출됐다
+    assert rc.processing == []  # 성공·실패 모두 보고가 끝나면 처리 목록에서 제거된다.
 
 
 def test_publish_drafts_skips_dataapi_call_for_blocked_risk_level(monkeypatch):
@@ -251,3 +302,117 @@ def test_publish_drafts_skips_dataapi_call_for_blocked_risk_level(monkeypatch):
     assert results[0]["publish"]["failReason"] == "RISK_LEVEL_TOO_HIGH"
     assert fake_client.calls == []
     assert posted == results
+
+
+def test_processing_ack_only_after_successful_report(monkeypatch):
+    raw = json.dumps(_payload(riskLevel=3))
+    rc = FakeQueueRedis([raw])
+
+    def report(result):
+        assert rc.processing == [raw]
+
+    monkeypatch.setattr(tasks, "_post_collect_result", report)
+    tasks.publish_drafts(redis_client=rc, client_factory=lambda: None, batch_size=1)
+    assert rc.processing == []
+    assert "publish:inflight:501" not in rc.sets
+
+
+@pytest.mark.parametrize("crash", [True, False])
+def test_abandoned_processing_reclaimed_after_lease_expiry(monkeypatch, crash):
+    raw = json.dumps(_payload(riskLevel=3))
+    rc = FakeQueueRedis([raw])
+
+    def failed_report(result):
+        if crash:
+            raise KeyboardInterrupt("프로세스 중단 대역")
+        raise RuntimeError("결과 보고 장애")
+
+    monkeypatch.setattr(tasks, "_post_collect_result", failed_report)
+    if crash:
+        with pytest.raises(KeyboardInterrupt):
+            tasks.publish_drafts(redis_client=rc, client_factory=lambda: None, batch_size=1)
+    else:
+        tasks.publish_drafts(redis_client=rc, client_factory=lambda: None, batch_size=1)
+    assert rc.processing == [raw]
+    assert tasks.reclaim_publish_drafts(redis_client=rc) == 0
+    rc.sets.pop("publish:inflight:501")  # TTL 만료를 흉내낸다.
+    assert tasks.reclaim_publish_drafts(redis_client=rc) == 1
+    assert rc.processing == []
+    assert rc._items == [raw]
+
+
+def test_reclaim_between_move_and_claim_prevents_stale_worker_claim():
+    raw = json.dumps(_payload())
+    rc = FakeQueueRedis([raw])
+    assert rc.brpoplpush(tasks.PUBLISH_QUEUE_KEY, tasks.PUBLISH_PROCESSING_KEY, 1) == raw
+    assert tasks.reclaim_publish_drafts(redis_client=rc) == 1
+    assert not rc.eval(tasks._PUBLISH_CLAIM_SCRIPT, 2, tasks.PUBLISH_PROCESSING_KEY,
+                       "publish:inflight:501", raw, "old-owner", 30)
+
+
+def test_expired_owner_cannot_ack_new_owner():
+    raw = json.dumps(_payload())
+    rc = FakeQueueRedis([])
+    rc.processing = [raw]
+    rc.sets["publish:inflight:501"] = "new-owner"
+    assert not rc.eval(tasks._PUBLISH_ACK_SCRIPT, 2, tasks.PUBLISH_PROCESSING_KEY,
+                       "publish:inflight:501", raw, "old-owner")
+    assert rc.processing == [raw]
+    assert rc.sets["publish:inflight:501"] == "new-owner"
+
+
+@pytest.mark.parametrize("current", [None, "new-dispatch-token"])
+def test_stale_dispatch_does_not_repeat_paid_call_or_callback(monkeypatch, current):
+    rc = FakeQueueRedis([json.dumps(_payload())])
+    rc.sets["dispatch:draft:501"] = current
+
+    def forbidden(*args):
+        pytest.fail("만료·교체된 예약으로 외부 호출을 하면 안 된다")
+
+    monkeypatch.setattr(tasks, "_post_collect_result", forbidden)
+    assert tasks.publish_drafts(redis_client=rc, client_factory=lambda: None,
+                                account_loader=forbidden, batch_size=1) == []
+    assert rc.processing == []
+    assert rc.sets["dispatch:draft:501"] == current
+
+
+def test_committed_callback_with_lost_response_does_not_repeat_publish(monkeypatch):
+    raw = json.dumps(_payload())
+    rc = FakeQueueRedis([raw])
+    fake_client = FakeClient(_fixture_create_comment("create_comment_success.json"))
+    monkeypatch.setenv("DATAAPI_WRITE_ENABLED", "true")
+    callbacks = []
+
+    def accepted_but_response_lost(result):
+        callbacks.append(result)
+        rc.sets.pop("dispatch:draft:501")  # 서버 반영·예약 토큰 삭제는 이미 끝났다.
+        raise RuntimeError("응답 연결 단절 대역")
+
+    monkeypatch.setattr(tasks, "_post_collect_result", accepted_but_response_lost)
+    kwargs = dict(redis_client=rc, client_factory=lambda: fake_client, batch_size=1,
+                  account_loader=lambda _: tasks.AccountInfo("baemin", Credentials("id", "enc")),
+                  sleep=lambda _: None, now=lambda: 100.0, rand=lambda: 0.0)
+    tasks.publish_drafts(**kwargs)
+    assert rc.processing == [raw]
+    rc.sets.pop("publish:inflight:501")
+    assert tasks.reclaim_publish_drafts(redis_client=rc) == 1
+    assert tasks.publish_drafts(**kwargs) == []
+    assert rc.processing == []
+    assert len(fake_client.calls) == len(callbacks) == 1
+
+
+def test_dispatch_expiring_during_throttle_never_calls_dataapi(monkeypatch):
+    rc = FakeQueueRedis([json.dumps(_payload())])
+    fake_client = FakeClient(_fixture_create_comment("create_comment_success.json"))
+    monkeypatch.setenv("DATAAPI_WRITE_ENABLED", "true")
+
+    def expired(*args):
+        rc.sets.pop("dispatch:draft:501")
+
+    monkeypatch.setattr(publish, "throttle", expired)
+    assert tasks.publish_drafts(
+        redis_client=rc, client_factory=lambda: fake_client, batch_size=1,
+        account_loader=lambda _: tasks.AccountInfo("baemin", Credentials("id", "enc")),
+    ) == []
+    assert fake_client.calls == []
+    assert rc.processing == []

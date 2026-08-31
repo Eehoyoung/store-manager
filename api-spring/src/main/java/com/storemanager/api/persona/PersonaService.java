@@ -148,7 +148,7 @@ public class PersonaService {
                 review.getPlatform());
         AiClientDtos.AnalyzeAndDraftRequest aiReq = new AiClientDtos.AnalyzeAndDraftRequest(
                 String.valueOf(review.getId()), String.valueOf(store.getId()), reviewIn, personaIn,
-                new AiClientDtos.OptionsIn(1, null, null));
+                new AiClientDtos.OptionsIn(1, null, null), List.of());
 
         AiClientDtos.AnalyzeAndDraftResponse aiRes = aiClient.analyzeAndDraft(aiReq);
 
