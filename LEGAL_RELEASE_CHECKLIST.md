@@ -65,16 +65,19 @@
 ## Merge Blocker — Anthropic 국외이전
 개인정보 보호법 제28조의8에 따라 실제 상용 API 조건을 기준으로 반드시 확정한다.
 
-- [ ] 계약주체 Anthropic, PBC 확인
-- [ ] 이전 국가 확정
-- [ ] 개인정보 보호 담당 연락처 확인
-- [ ] API 입력 데이터 보유기간 확인
-- [ ] 상용 API 데이터의 모델학습 사용 여부 확인
+- [x] 계약주체 Anthropic, PBC 확인 — 한국 사업자는 Commercial Terms상 Anthropic, PBC와 계약
+- [ ] 이전 국가 확정 — 공개 DPA만으로 단일 처리국가를 확정할 수 없어 Anthropic/Trust Center 확인 필요
+- [x] 개인정보 보호 담당 연락처 확인 — privacy@anthropic.com / dpo@anthropic.com
+- [x] API 입력·출력 표준 보유기간 확인 — 원칙적으로 수신·생성 후 30일 이내 자동 삭제(정책상 예외 존재)
+- [x] 상용 API 데이터의 모델학습 사용 여부 확인 — 기본적으로 학습에 사용하지 않음(명시적 피드백/별도 허용 등 예외)
 - [ ] Zero Data Retention 적용 가능/적용 여부 확인
 - [ ] DPA 체결 필요 여부 및 체결
 - [ ] 국외 처리위탁 법적 근거(계약이행 필요 위탁 등) 확정
-- [ ] 처리방침의 이전 국가·보유기간 placeholder 교체
-- [ ] 리뷰 본문에 불필요한 개인정보가 포함되지 않도록 전처리 필요성 검토
+- [ ] 처리방침의 이전 국가 placeholder 교체
+- [x] 처리방침의 Anthropic 보유기간/모델학습 정책 반영
+- [ ] AI 전송 직전 PII Sanitizer 구현: 전화번호·이메일·주문번호·상세주소 등 불필요 개인정보 최소화
+- [ ] Sanitizer 적용이 분류·위험도·답글 품질을 깨뜨리지 않는 회귀 테스트
+- [ ] Sanitizer 전/후 원문이 로그·예외·트레이싱에 남지 않는지 검증
 
 ## Merge Blocker — Groble/결제
 - [ ] Groble 계약상 실제 결제사업자 법인명
