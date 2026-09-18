@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { useShellStore } from "../layout/AppShell";
 
@@ -46,6 +46,10 @@ export function BillingPage() {
           <p className="field__error" role="alert">결제 링크를 준비 중입니다.</p>
         )}
       </Card>
+      <p className="field__hint">
+        결제 전 <Link to="/terms">이용약관의 구독·해지·환불 기준</Link>과{" "}
+        <Link to="/privacy">개인정보 처리방침</Link>을 확인해 주세요.
+      </p>
       <Card className="billing-page__status" role="status">
         <h2>결제 상태 안내</h2>
         <ol>
