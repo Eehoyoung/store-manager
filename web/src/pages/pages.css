@@ -1620,3 +1620,18 @@
   margin-top: 2px;
   flex: 0 0 auto;
 }
+
+.auth-card__privacy-summary {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.auth-card__privacy-summary strong {
+  color: var(--color-text);
+}
+.auth-card__privacy-summary ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
