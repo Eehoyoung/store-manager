@@ -168,6 +168,16 @@ export function SignupPage() {
             error={fieldErrors.passwordConfirm}
           />
           <div className="auth-card__consents" aria-label="필수 약관 동의">
+            <div className="auth-card__privacy-summary">
+              <strong>회원가입 개인정보 수집·이용</strong>
+              <ul>
+                <li>필수: 이름, 이메일, 비밀번호, 매장명, 매장 주소</li>
+                <li>선택: 휴대전화번호, 가맹코드</li>
+                <li>목적: 회원 인증, 매장 생성·관리, 서비스 제공, 보안·고객지원</li>
+                <li>보유: 회원탈퇴 시까지. 법령상 보존의무가 있는 기록은 해당 기간 별도 보관</li>
+                <li>필수정보 제공을 거부하면 회원가입이 어렵고, 선택정보는 제공하지 않아도 가입할 수 있습니다.</li>
+              </ul>
+            </div>
             <label className="auth-card__consent">
               <input
                 type="checkbox"
