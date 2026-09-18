@@ -252,3 +252,19 @@
     padding: 0 var(--space-4);
   }
 }
+
+
+.shell__legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+.shell__legal a {
+  color: inherit;
+}
