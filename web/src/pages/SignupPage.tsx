@@ -46,6 +46,8 @@ export function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
 
   const update = (key: keyof FormState) => (e: ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -56,6 +58,8 @@ export function SignupPage() {
     if (!form.storeAddress.trim()) errs.storeAddress = "주소를 검색해 선택해 주세요.";
     if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
     if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
+    if (!termsAgreed) errs.terms = "서비스 이용약관에 동의해 주세요.";
+    if (!privacyAgreed) errs.privacy = "개인정보 처리방침을 확인하고 동의해 주세요.";
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -163,6 +167,32 @@ export function SignupPage() {
             onChange={update("passwordConfirm")}
             error={fieldErrors.passwordConfirm}
           />
+          <div className="auth-card__consents" aria-label="필수 약관 동의">
+            <label className="auth-card__consent">
+              <input
+                type="checkbox"
+                checked={termsAgreed}
+                onChange={(e) => setTermsAgreed(e.target.checked)}
+                required
+              />
+              <span>
+                [필수] <Link to="/terms" target="_blank">서비스 이용약관</Link>에 동의합니다.
+              </span>
+            </label>
+            {fieldErrors.terms ? <p className="field__error">{fieldErrors.terms}</p> : null}
+            <label className="auth-card__consent">
+              <input
+                type="checkbox"
+                checked={privacyAgreed}
+                onChange={(e) => setPrivacyAgreed(e.target.checked)}
+                required
+              />
+              <span>
+                [필수] <Link to="/privacy" target="_blank">개인정보 처리방침</Link>을 확인하고 동의합니다.
+              </span>
+            </label>
+            {fieldErrors.privacy ? <p className="field__error">{fieldErrors.privacy}</p> : null}
+          </div>
           {error ? (
             <p className="auth-card__error" role="alert">
               {error}
