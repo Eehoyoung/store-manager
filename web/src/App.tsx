@@ -21,6 +21,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { AdminPage } from "./pages/AdminPage";
 import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 import { AdminFailures } from "./pages/AdminFailures";
+import { TermsPage } from "./pages/TermsPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 
 // 라우트 표 (문서 14 §2). 전자계약은 보류이므로 온보딩 안에서 '준비 중' 으로만 표시한다.
 // /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
@@ -31,6 +33,9 @@ function App() {
       <ToastProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+
             <Route element={<PublicOnlyRoute />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />

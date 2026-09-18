@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { storesApi } from "../api/stores";
 import { hqApi } from "../api/hq";
@@ -128,6 +128,11 @@ export function AppShell() {
           <Outlet context={{ storeId, setStoreId } satisfies ShellContext} />
         </main>
       </div>
+      <footer className="shell__legal">
+        <Link to="/terms">이용약관</Link>
+        <Link to="/privacy">개인정보 처리방침</Link>
+        <span>© {new Date().getFullYear()} 소담랩스</span>
+      </footer>
     </div>
   );
 }
