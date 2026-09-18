@@ -1527,3 +1527,96 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
 }
+
+
+/* ── 약관·개인정보 처리방침 ───────────────────────────── */
+.legal-page {
+  width: min(920px, calc(100% - var(--space-5) * 2));
+  margin: 0 auto;
+  padding: var(--space-7) 0;
+}
+.legal-page__header {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.legal-page__eyebrow {
+  color: var(--color-primary);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.legal-page__document {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.legal-page__document section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.legal-page__document h2,
+.legal-page__document h3,
+.legal-page__document p,
+.legal-page__document ul,
+.legal-page__document ol,
+.legal-page__document dl {
+  margin-top: 0;
+}
+.legal-page__document li + li {
+  margin-top: var(--space-2);
+}
+.legal-page__document dt {
+  font-weight: 700;
+}
+.legal-page__document dd {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}
+.legal-table-wrap {
+  overflow-x: auto;
+}
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-small);
+}
+.legal-table th,
+.legal-table td {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+.legal-table th {
+  background: var(--color-surface);
+  white-space: nowrap;
+}
+.legal-page__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.auth-card__consents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-rule);
+}
+.auth-card__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  line-height: 1.5;
+}
+.auth-card__consent input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
