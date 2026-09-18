@@ -12,8 +12,11 @@ export const LEGAL_INFO = {
   dataApiProcessor: "[출시 전 입력: DataAPI 계약서상 수탁사 법인명]",
   paymentProvider: "[출시 전 입력: Groble 결제 서비스 계약서상 법인명]",
   cloudProvider: "[출시 전 입력: 프로덕션 클라우드 수탁사]",
-  anthropicTransferCountry: "[출시 전 확인: Anthropic DPA 기준 이전 국가]",
-  anthropicRetention: "[출시 전 확인: Anthropic API 계약 기준 보유기간]",
+  anthropicTransferCountry: "[출시 전 확인: Anthropic 실제 처리·재수탁 국가]",
+  anthropicRetention:
+    "입력·출력은 원칙적으로 수신·생성 후 30일 이내 자동 삭제(Usage Policy 위반 조사, 법적 의무, 별도 계약·서비스 설정 등 예외)",
+  anthropicTraining:
+    "상용 API 입력·출력은 기본적으로 모델 학습에 사용하지 않음(명시적 피드백 제공 또는 별도 허용 등 예외)",
 } as const;
 
 export const LEGAL_INFO_HAS_PLACEHOLDERS = Object.values(LEGAL_INFO).some((value) =>
