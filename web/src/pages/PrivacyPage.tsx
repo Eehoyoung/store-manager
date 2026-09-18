@@ -133,13 +133,19 @@ export function PrivacyPage() {
                 <tr><th>이전 항목</th><td>리뷰 본문, 평점, 주문메뉴, 답글 스타일·금칙어·생성에 필요한 컨텍스트</td></tr>
                 <tr><th>이전 목적</th><td>리뷰 분류·위험도 분석 및 사장님 답글 초안 생성</td></tr>
                 <tr><th>보유기간</th><td>{LEGAL_INFO.anthropicRetention}</td></tr>
+                <tr><th>모델 학습</th><td>{LEGAL_INFO.anthropicTraining}</td></tr>
               </tbody>
             </table>
           </div>
           <p>
-            <strong>출시 전 확인:</strong> 실제 Anthropic 상용 API 계약/DPA와 사용 모델의 데이터 보유정책을
-            확인하여 이전 국가·보유기간을 확정해야 하며, 개인정보 보호법상 필요한 고지·동의 또는 계약이행에
-            필요한 처리위탁 근거를 갖춘 뒤 AI 기능을 운영해야 합니다.
+            Anthropic 상용 API의 표준 정책상 입력·출력은 원칙적으로 30일 이내 삭제되고, 기본적으로 모델
+            학습에 사용되지 않습니다. 다만 Usage Policy 위반 조사, 법적 의무, 별도 계약 또는 특정 기능의
+            보유설정 등 예외가 적용될 수 있습니다.
+          </p>
+          <p>
+            <strong>출시 전 확인:</strong> Anthropic 공개 DPA는 Customer Personal Data의 구체적인 단일
+            처리국가를 특정하지 않고 하위처리자 사용을 허용하므로, 실제 계정·계약 기준 처리국가 및
+            재수탁 국가 목록을 Anthropic에 확인한 뒤 위 “이전 국가” 항목을 확정해야 합니다.
           </p>
         </section>
 
