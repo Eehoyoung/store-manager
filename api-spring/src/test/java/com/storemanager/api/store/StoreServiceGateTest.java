@@ -60,6 +60,19 @@ class StoreServiceGateTest {
     }
 
     @Test
+    void OPEN30_체험은_종료전만_서비스한다() {
+        when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
+                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status("TRIAL")
+                        .promotionCode("OPEN30").trialEndsAt(Instant.now().plusSeconds(3600)).build()));
+        assertThat(gate.isServiceable(store())).isTrue();
+
+        when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
+                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status("TRIAL")
+                        .promotionCode("OPEN30").trialEndsAt(Instant.now().minusSeconds(1)).build()));
+        assertThat(gate.isServiceable(store())).isFalse();
+    }
+
+    @Test
     void 구독을_상태_지정_없이_만들면_서비스되지_않는다() {
         // 엔티티 기본값이 ACTIVE 이던 시절, 상태를 적지 않은 구독이 곧바로 서비스 가능이 됐다.
         Subscription created = Subscription.builder().storeId(1L)

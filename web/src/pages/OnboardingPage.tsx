@@ -12,15 +12,17 @@ interface Step {
 
 // 가입·서비스 이용 동의 → Groble 결제 → 계정 등록 → 백필 → 자동 운영.
 // DataAPI 검증/백필은 외부 규격 대기 상태다.
-function steps(storeId: string | null): Step[] {
+function steps(storeId: string | null, promotionApplied: boolean): Step[] {
   return [
   { title: "1. 가입", description: "계정을 만들고 로그인했습니다.", state: "done" },
   { title: "2. 서비스 이용 동의", description: "가입할 때 이용약관과 개인정보 수집·이용을 확인했습니다.", state: "done" },
   {
     title: "3. 구독 결제",
-    description: "Groble의 안전한 결제창에서 원하는 결제수단을 선택합니다.",
-    state: "available",
-    action: { label: "결제하러 가기", to: storeId ? `/stores/${storeId}/billing` : "/stores" },
+    description: promotionApplied
+      ? "OPEN30 첫 1개월 무료체험이 적용되었습니다. 무료기간에는 이용료를 청구하지 않습니다."
+      : "Groble의 안전한 결제창에서 원하는 결제수단을 선택합니다.",
+    state: promotionApplied ? "done" : "available",
+    action: promotionApplied ? undefined : { label: "결제하러 가기", to: storeId ? `/stores/${storeId}/billing` : "/stores" },
   },
   {
     title: "4. 배달앱 계정 등록",
@@ -36,7 +38,7 @@ function steps(storeId: string | null): Step[] {
 export function OnboardingPage() {
   const { storeId } = useShellStore();
   const location = useLocation();
-  const signupState = location.state as { affiliationRequested?: boolean; franchiseCodeEntered?: boolean } | null;
+  const signupState = location.state as { affiliationRequested?: boolean; franchiseCodeEntered?: boolean; promotionApplied?: boolean } | null;
   return (
     <div className="onboarding-page">
       <h1>시작하기</h1>
@@ -44,7 +46,7 @@ export function OnboardingPage() {
       {signupState?.affiliationRequested ? <p role="status"><strong>가맹본부 소속 신청이 접수되었습니다.</strong> 저희가 확인한 뒤 승인되면 본부에서 매장 리뷰를 볼 수 있게 됩니다. <strong>승인 전까지는 본부에 아무 정보도 제공되지 않습니다.</strong></p> : null}
       {signupState?.franchiseCodeEntered && !signupState.affiliationRequested ? <p role="status">제3자 제공에 동의하지 않아 가맹코드가 적용되지 않았습니다. 서비스는 그대로 이용할 수 있습니다.</p> : null}
       <ol className="onboarding-page__steps">
-        {steps(storeId).map((step) => (
+        {steps(storeId, Boolean(signupState?.promotionApplied)).map((step) => (
           <li key={step.title}>
             <Card className="onboarding-step">
               <div className="onboarding-step__head">

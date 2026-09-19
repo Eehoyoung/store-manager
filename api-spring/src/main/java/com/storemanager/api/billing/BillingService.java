@@ -18,6 +18,7 @@ import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -54,6 +55,8 @@ public class BillingService {
     private static final long OVERDUE_NOTIFY_D7 = 7;
     private static final long PAST_DUE_DAYS = 14;
     private static final long SUSPEND_DAYS = 21;
+    public static final String LAUNCH_PROMOTION_CODE = "OPEN30";
+    private static final int LAUNCH_PROMOTION_LIMIT = 30;
 
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentRepository paymentRepository;
@@ -62,6 +65,7 @@ public class BillingService {
     private final NotificationLogRepository notificationLogRepository;
     private final Notifier notifier;
     private final AuditLogRepository auditLogRepository;
+    private final EntityManager entityManager;
     private final String bankName;
     private final String accountNo;
     private final String accountHolder;
@@ -69,7 +73,7 @@ public class BillingService {
     public BillingService(SubscriptionRepository subscriptionRepository, PaymentRepository paymentRepository,
             StoreRepository storeRepository, AppUserRepository appUserRepository,
             NotificationLogRepository notificationLogRepository, Notifier notifier,
-            AuditLogRepository auditLogRepository,
+            AuditLogRepository auditLogRepository, EntityManager entityManager,
             @Value("${app.billing.bank-name}") String bankName,
             @Value("${app.billing.account-no}") String accountNo,
             @Value("${app.billing.account-holder}") String accountHolder) {
@@ -80,12 +84,45 @@ public class BillingService {
         this.notificationLogRepository = notificationLogRepository;
         this.notifier = notifier;
         this.auditLogRepository = auditLogRepository;
+        this.entityManager = entityManager;
         this.bankName = bankName;
         this.accountNo = accountNo;
         this.accountHolder = accountHolder;
     }
 
     // ── 구독 ─────────────────────────────────────────────────────────────
+
+    /** 가입 트랜잭션 안에서 OPEN30 한 달 무료체험을 원자적으로 귀속한다. */
+    @Transactional
+    public Subscription startLaunchTrial(Store store, String rawPromotionCode) {
+        String code = rawPromotionCode == null ? "" : rawPromotionCode.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!LAUNCH_PROMOTION_CODE.equals(code)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "INVALID_PROMOTION_CODE"));
+        }
+        if (subscriptionRepository.findByStoreIdAndStatusNot(store.getId(), "CANCELED").isPresent()) {
+            throw new ApiException(ErrorCode.DUPLICATE_RESOURCE);
+        }
+
+        // 동시에 여러 가입이 들어와도 30개를 넘지 않도록 프로모션 코드 단위 트랜잭션 락을 잡는다.
+        entityManager.createNativeQuery("select pg_advisory_xact_lock(hashtext(?1))")
+                .setParameter(1, code)
+                .getSingleResult();
+        if (subscriptionRepository.countByPromotionCode(code) >= LAUNCH_PROMOTION_LIMIT) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "PROMOTION_SOLD_OUT"));
+        }
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        Instant trialEnd = now.atZone(KST).plusMonths(1).toInstant();
+        return subscriptionRepository.save(Subscription.builder()
+                .storeId(store.getId())
+                .priceKrw(PRICE_KRW)
+                .status("TRIAL")
+                .promotionCode(code)
+                .trialEndsAt(trialEnd)
+                .currentPeriodStart(now)
+                .currentPeriodEnd(trialEnd)
+                .build());
+    }
 
     /**
      * 구독 시작(B1). 이번 범위는 명시적 시작 API 만 제공한다 —
@@ -166,6 +203,11 @@ public class BillingService {
     @Transactional
     public void runDailyInvoiceBatch() {
         Instant now = Instant.now();
+        for (Subscription sub : subscriptionRepository.findExpiredTrialsAwaitingInvoice(now)) {
+            Instant paidStart = sub.getTrialEndsAt();
+            issueInvoiceIfAbsent(sub, paidStart, now);
+            sub.openFirstPaidPeriodAfterTrial(paidStart.atZone(KST).plusMonths(1).toInstant());
+        }
         List<Subscription> due = subscriptionRepository.findByStatusAndCurrentPeriodEndLessThanEqual("ACTIVE", now);
         for (Subscription sub : due) {
             Instant newStart = sub.getCurrentPeriodEnd();

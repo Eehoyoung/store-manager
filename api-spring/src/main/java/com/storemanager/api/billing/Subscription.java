@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * subscription 테이블 매핑 (docs/11 §2.7). Groble 공식 스키마 수령 전 기존 결제 필드를 임의 재사용하지 않는다.
- * ★ TRIAL 은 이번 범위가 아니다. DDL 기본값은 TRIAL 이지만 이 서비스는 구독 생성 시 항상 ACTIVE 를 명시적으로 넣는다.
+ * ★ 일반 TRIAL 은 입금 대기라 서비스하지 않는다. 단, 서버가 검증해 promotion_code 와
+ * trial_ends_at 을 함께 기록한 OPEN30 체험은 종료 시각 전까지만 서비스한다.
  * 상태 전이는 반드시 이 클래스의 메서드를 통해서만 한다(ReplyDraft 와 동일한 원칙).
  */
 @Entity
@@ -58,6 +59,12 @@ public class Subscription {
     @Column(name = "current_period_end")
     private Instant currentPeriodEnd;
 
+    @Column(name = "trial_ends_at")
+    private Instant trialEndsAt;
+
+    @Column(name = "promotion_code")
+    private String promotionCode;
+
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
@@ -78,10 +85,30 @@ public class Subscription {
         this.currentPeriodEnd = newEnd;
     }
 
+    /** 유효한 프로모션 체험만 TRIAL 상태에서 서비스한다. 일반 입금 대기 TRIAL은 열지 않는다. */
+    public boolean isServiceableAt(Instant now) {
+        return "ACTIVE".equals(this.status)
+                || ("TRIAL".equals(this.status)
+                        && this.promotionCode != null
+                        && this.trialEndsAt != null
+                        && now.isBefore(this.trialEndsAt));
+    }
+
+    /** 체험 종료 뒤 첫 유료기간을 연다. 반복 배치에서도 기간이 계속 밀리지 않게 한 번만 전이한다. */
+    public void openFirstPaidPeriodAfterTrial(Instant paidPeriodEnd) {
+        if (this.trialEndsAt != null
+                && (this.currentPeriodStart == null || this.currentPeriodStart.isBefore(this.trialEndsAt))) {
+            this.currentPeriodStart = this.trialEndsAt;
+            this.currentPeriodEnd = paidPeriodEnd;
+            this.updatedAt = Instant.now();
+        }
+    }
+
     /** 미납 D+14(B4). ACTIVE 에서만 전이한다 — 이미 PAST_DUE/SUSPENDED 면 아무 것도 하지 않는다(멱등). */
     public void markPastDue() {
-        if ("ACTIVE".equals(this.status)) {
+        if ("ACTIVE".equals(this.status) || "TRIAL".equals(this.status)) {
             this.status = "PAST_DUE";
+            this.updatedAt = Instant.now();
         }
     }
 
@@ -118,8 +145,9 @@ public class Subscription {
 
     /** 입금 확인(B6)으로 PAST_DUE/SUSPENDED 였던 구독을 ACTIVE 로 복구한다. 그 외 상태는 건드리지 않는다. */
     public void restoreActiveIfOverdue() {
-        if ("PAST_DUE".equals(this.status) || "SUSPENDED".equals(this.status)) {
+        if ("TRIAL".equals(this.status) || "PAST_DUE".equals(this.status) || "SUSPENDED".equals(this.status)) {
             this.status = "ACTIVE";
+            this.updatedAt = Instant.now();
         }
     }
 

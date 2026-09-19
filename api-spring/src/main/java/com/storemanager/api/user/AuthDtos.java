@@ -24,7 +24,9 @@ record SignupRequest(
         boolean agreedTerms,
         boolean agreedPrivacy,
         Boolean agreedHqDataSharing,
-        @NotBlank @Size(max = 20) String docVersion) {
+        @NotBlank @Size(max = 20) String docVersion,
+        @Pattern(regexp = "^$|^[A-Za-z0-9]{4,32}$", message = "프로모션 코드 형식이 올바르지 않습니다.")
+        @Size(max = 32) String promoCode) {
 }
 
 record LoginRequest(

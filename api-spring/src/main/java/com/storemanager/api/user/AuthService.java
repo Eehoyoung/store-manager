@@ -3,6 +3,7 @@ package com.storemanager.api.user;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.billing.BillingService;
 import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.StoreService;
@@ -30,10 +31,11 @@ public class AuthService {
     private final StoreService storeService;
     private final FranchiseService franchiseService;
     private final AgreementService agreementService;
+    private final BillingService billingService;
 
     public AuthService(AppUserRepository appUserRepository, PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider, StringRedisTemplate redisTemplate, StoreService storeService,
-            FranchiseService franchiseService, AgreementService agreementService) {
+            FranchiseService franchiseService, AgreementService agreementService, BillingService billingService) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -41,6 +43,7 @@ public class AuthService {
         this.storeService = storeService;
         this.franchiseService = franchiseService;
         this.agreementService = agreementService;
+        this.billingService = billingService;
     }
 
     @Transactional
@@ -67,6 +70,9 @@ public class AuthService {
                 .build();
         appUserRepository.save(user);
         var store = storeService.createStore(user, req.storeName(), req.storeAddress());
+        if (req.promoCode() != null && !req.promoCode().isBlank()) {
+            billingService.startLaunchTrial(store, req.promoCode());
+        }
         agreementService.record(user.getId(), null, AgreementService.TERMS, true, ip, userAgent);
         agreementService.record(user.getId(), null, AgreementService.PRIVACY, true, ip, userAgent);
         boolean hasCode = req.franchiseCode() != null && !req.franchiseCode().isBlank();

@@ -104,7 +104,7 @@ class ConsentSignupIT {
     private SignupRequest request(String email, String code, boolean terms, boolean privacy, Boolean hq,
             String version) {
         return new SignupRequest(email, "password1234", "사장님", null, code, "테스트매장", "서울",
-                terms, privacy, hq, version);
+                terms, privacy, hq, version, null);
     }
 
     private String hash(String code) throws Exception {

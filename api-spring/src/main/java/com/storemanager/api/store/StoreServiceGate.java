@@ -1,6 +1,7 @@
 package com.storemanager.api.store;
 
 import com.storemanager.api.billing.SubscriptionRepository;
+import java.time.Instant;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
@@ -25,11 +26,10 @@ import org.springframework.stereotype.Component;
 public class StoreServiceGate {
 
     /**
-     * 비용을 써도 되는 구독 상태. ACTIVE 하나뿐이다.
+     * 상시 비용을 써도 되는 구독 상태. ACTIVE 하나뿐이다.
      *
-     * ★ 2026-08-23 결정: 입금을 확인한 뒤에만 서비스한다. 그래서 TRIAL(가입 직후 기본값)도
-     *   여기 넣지 않는다 — 무상 체험을 열려면 이 집합에 TRIAL 을 추가하는 한 줄이면 되지만,
-     *   그건 사업 결정이므로 코드가 임의로 하지 않는다.
+     * ★ 일반 TRIAL(입금 대기)은 서비스하지 않는다. OPEN30은 상태명만 보고 열지 않고,
+     *   서버가 저장한 프로모션 코드와 trial_ends_at 을 함께 검사해 종료 전까지만 허용한다.
      * ★ PAST_DUE(연체)·SUSPENDED(정지)·CANCELED(해지)에 LLM 비용을 계속 쓰면 못 받을 돈을
      *   우리가 대신 내는 셈이다.
      */
@@ -53,7 +53,7 @@ public class StoreServiceGate {
     public boolean isSubscriptionServiceable(Long storeId) {
         return storeId != null
                 && subscriptionRepository.findByStoreIdAndStatusNot(storeId, "CANCELED")
-                        .map(sub -> SERVICEABLE_SUBSCRIPTION_STATUSES.contains(sub.getStatus()))
+                        .map(sub -> sub.isServiceableAt(Instant.now()))
                         .orElse(false);
     }
 

@@ -82,6 +82,36 @@ class BillingServiceIT {
                 .status(status).method("BANK_TRANSFER").depositCode(idempotencyKey).dueAt(dueAt).build());
     }
 
+    @Test
+    void OPEN30은_한달체험을_열고_첫청구서를_즉시_만들지_않는다() {
+        매장픽스처 f = 매장을_만든다("open30-owner@example.com");
+        Store store = storeRepository.findById(f.storeId()).orElseThrow();
+
+        Subscription sub = billingService.startLaunchTrial(store, "open30");
+
+        assertThat(sub.getStatus()).isEqualTo("TRIAL");
+        assertThat(sub.getPromotionCode()).isEqualTo("OPEN30");
+        assertThat(sub.getTrialEndsAt()).isAfter(Instant.now().plus(Duration.ofDays(27)));
+        assertThat(paymentRepository.findAll()).filteredOn(p -> p.getSubscriptionId().equals(sub.getId())).isEmpty();
+    }
+
+    @Test
+    void 종료된_OPEN30은_첫유료기간_청구서를_한번만_만든다() {
+        매장픽스처 f = 매장을_만든다("expired-open30@example.com");
+        Instant trialEnd = Instant.now().minus(Duration.ofHours(1)).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        Subscription sub = subscriptionRepository.save(Subscription.builder().storeId(f.storeId())
+                .priceKrw(BigDecimal.valueOf(30000)).status("TRIAL").promotionCode("OPEN30")
+                .trialEndsAt(trialEnd).currentPeriodStart(trialEnd.minus(Duration.ofDays(30)))
+                .currentPeriodEnd(trialEnd).build());
+
+        billingService.runDailyInvoiceBatch();
+        billingService.runDailyInvoiceBatch();
+
+        assertThat(paymentRepository.findAll()).filteredOn(p -> p.getSubscriptionId().equals(sub.getId())).hasSize(1);
+        assertThat(subscriptionRepository.findById(sub.getId()).orElseThrow().getCurrentPeriodStart())
+                .isEqualTo(trialEnd);
+    }
+
     // ── (a) B3: 배치 두 번 실행해도 같은 달 청구는 1건만 ──────────────────
 
     @Test

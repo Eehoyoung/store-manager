@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.billing.BillingService;
 import com.storemanager.api.franchise.FranchiseService;
 import com.storemanager.api.security.JwtTokenProvider;
 import com.storemanager.api.store.StoreService;
@@ -46,20 +47,22 @@ class AuthServiceTest {
     private FranchiseService franchiseService;
     @Mock
     private AgreementService agreementService;
+    @Mock
+    private BillingService billingService;
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(appUserRepository, passwordEncoder, jwtTokenProvider, redisTemplate, storeService,
-                franchiseService, agreementService);
+                franchiseService, agreementService, billingService);
     }
 
     @Test
     void 회원가입후_로그인_해피패스() {
         SignupRequest signupReq = new SignupRequest("owner@store.com", "password1234", "홍사장", "010-1234-5678",
                 "SODM-TEST-CODE", "판교점", "경기 성남시 분당구 판교역로 166",
-                true, true, true, AgreementService.CURRENT_VERSION);
+                true, true, true, AgreementService.CURRENT_VERSION, null);
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(signupReq.email()))
                 .thenReturn(Optional.empty());
         when(passwordEncoder.encode(signupReq.password())).thenReturn("bcrypt-hash");
@@ -94,7 +97,7 @@ class AuthServiceTest {
     void 이메일이_이미_존재하면_회원가입은_409_DUPLICATE_RESOURCE() {
         SignupRequest req = new SignupRequest("dup@store.com", "password1234", "김사장", null,
                 "SODM-TEST-CODE", "강남점", "서울 강남구 테헤란로 1",
-                true, true, true, AgreementService.CURRENT_VERSION);
+                true, true, true, AgreementService.CURRENT_VERSION, null);
         AppUser existing = AppUser.builder().email(req.email()).name("기존회원").passwordHash("hash").build();
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email()))
                 .thenReturn(Optional.of(existing));
@@ -109,7 +112,7 @@ class AuthServiceTest {
     void 일반사용자는_가맹코드없이_브랜드없는_매장으로_가입한다() {
         SignupRequest req = new SignupRequest("solo@store.com", "password1234", "일반사장", null,
                 null, "개인매장", "서울 종로구 종로 1",
-                true, true, null, AgreementService.CURRENT_VERSION);
+                true, true, null, AgreementService.CURRENT_VERSION, null);
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email())).thenReturn(Optional.empty());
         when(passwordEncoder.encode(req.password())).thenReturn("bcrypt-hash");
         when(appUserRepository.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -123,9 +126,25 @@ class AuthServiceTest {
     }
 
     @Test
+    void OPEN30_가입은_생성된_매장에_무료체험을_귀속한다() {
+        SignupRequest req = new SignupRequest("open30@store.com", "password1234", "체험사장", null,
+                null, "체험매장", "서울", true, true, null, AgreementService.CURRENT_VERSION, "OPEN30");
+        when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email())).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(req.password())).thenReturn("hash");
+        when(appUserRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        Store store = Store.builder().id(30L).ownerId(1L).name("체험매장").build();
+        when(storeService.createStore(any(), anyString(), anyString())).thenReturn(store);
+        stubTokenIssuance();
+
+        authService.signup(req, null, null);
+
+        verify(billingService).startLaunchTrial(store, "OPEN30");
+    }
+
+    @Test
     void 필수동의가_빠지면_사용자와_매장을_만들지_않는다() {
         SignupRequest req = new SignupRequest("no@consent.com", "password1234", "미동의", null, null,
-                "매장", "서울", false, true, null, AgreementService.CURRENT_VERSION);
+                "매장", "서울", false, true, null, AgreementService.CURRENT_VERSION, null);
         ApiException ex = assertThrows(ApiException.class, () -> authService.signup(req, null, null));
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONSENT_REQUIRED);
         verify(appUserRepository, never()).save(any());
@@ -135,7 +154,7 @@ class AuthServiceTest {
     @Test
     void 가맹코드가_있어도_본부제공_미동의면_가입만_하고_거부를_기록한다() {
         SignupRequest req = new SignupRequest("hq-no@consent.com", "password1234", "미동의", null,
-                "SODM-TEST-CODE", "매장", "서울", true, true, false, AgreementService.CURRENT_VERSION);
+                "SODM-TEST-CODE", "매장", "서울", true, true, false, AgreementService.CURRENT_VERSION, null);
         when(appUserRepository.findByEmailIgnoreCaseAndDeletedAtIsNull(req.email())).thenReturn(Optional.empty());
         when(passwordEncoder.encode(req.password())).thenReturn("hash");
         when(appUserRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

@@ -17,7 +17,7 @@ import { Skeleton } from "../components/Skeleton";
 
 const SUB_LABEL: Record<string, { tone: "success" | "danger" | "warning" | "neutral"; text: string }> = {
   ACTIVE: { tone: "success", text: "이용 중" },
-  TRIAL: { tone: "warning", text: "입금 대기" },
+  TRIAL: { tone: "warning", text: "무료체험 또는 입금 대기" },
   PAST_DUE: { tone: "danger", text: "연체" },
   SUSPENDED: { tone: "danger", text: "정지" },
   CANCELED: { tone: "neutral", text: "해지" },

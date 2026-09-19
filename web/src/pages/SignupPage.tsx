@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/client";
 import { Field } from "../components/Field";
@@ -19,6 +19,7 @@ interface FormState {
   franchiseCode: string;
   storeName: string;
   storeAddress: string;
+  promoCode: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -30,6 +31,7 @@ const INITIAL_FORM: FormState = {
   franchiseCode: "",
   storeName: "",
   storeAddress: "",
+  promoCode: "",
 };
 
 declare global {
@@ -41,9 +43,13 @@ declare global {
 }
 
 export function SignupPage() {
+  const [searchParams] = useSearchParams();
   const { signup } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [form, setForm] = useState<FormState>(() => ({
+    ...INITIAL_FORM,
+    promoCode: (searchParams.get("promo") ?? "").trim().toUpperCase().slice(0, 32),
+  }));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,7 +83,7 @@ export function SignupPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const affiliationRequested = await signup({
+      const signupResult = await signup({
         name: form.name,
         email: form.email,
         password: form.password,
@@ -89,8 +95,13 @@ export function SignupPage() {
         agreedPrivacy,
         agreedHqDataSharing: form.franchiseCode ? agreedHq : undefined,
         docVersion,
+        promoCode: form.promoCode || undefined,
       });
-      navigate("/onboarding", { replace: true, state: { affiliationRequested, franchiseCodeEntered: Boolean(form.franchiseCode) } });
+      navigate("/onboarding", { replace: true, state: {
+        affiliationRequested: signupResult.affiliationRequested,
+        franchiseCodeEntered: Boolean(form.franchiseCode),
+        promotionApplied: signupResult.promotionApplied,
+      } });
     } catch (err) {
       if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.fields) {
         setFieldErrors(err.details.fields as Record<string, string>);
@@ -98,6 +109,10 @@ export function SignupPage() {
         setError("이미 가입된 이메일입니다.");
       } else if (err instanceof ApiError && err.code === "INVALID_FRANCHISE_CODE") {
         setFieldErrors((current) => ({ ...current, franchiseCode: "가맹코드를 다시 확인해 주세요." }));
+      } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "INVALID_PROMOTION_CODE") {
+        setFieldErrors((current) => ({ ...current, promoCode: "프로모션 코드를 다시 확인해 주세요." }));
+      } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "PROMOTION_SOLD_OUT") {
+        setFieldErrors((current) => ({ ...current, promoCode: "OPEN30 선착순 신청이 마감되었습니다." }));
       } else {
         setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       }
@@ -131,6 +146,14 @@ export function SignupPage() {
             value={form.phone}
             onChange={(e) => setForm((c) => ({ ...c, phone: formatPhone(e.target.value) }))}
             error={fieldErrors.phone}
+          />
+          <Field
+            label="프로모션 코드 (선택)"
+            hint="OPEN30 안내를 보고 오셨다면 코드가 자동으로 입력됩니다."
+            autoCapitalize="characters"
+            value={form.promoCode}
+            onChange={(e) => setForm((c) => ({ ...c, promoCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32) }))}
+            error={fieldErrors.promoCode}
           />
           <Field
             label="가맹코드 (선택)"

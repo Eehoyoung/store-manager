@@ -21,4 +21,10 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     /** 청구 배치(B3) 대상 — 기간이 끝난 ACTIVE 구독. */
     List<Subscription> findByStatusAndCurrentPeriodEndLessThanEqual(String status, Instant now);
+
+    long countByPromotionCode(String promotionCode);
+
+    @Query("select s from Subscription s where s.status = 'TRIAL' and s.trialEndsAt <= :now "
+            + "and (s.currentPeriodStart is null or s.currentPeriodStart < s.trialEndsAt)")
+    List<Subscription> findExpiredTrialsAwaitingInvoice(@Param("now") Instant now);
 }
