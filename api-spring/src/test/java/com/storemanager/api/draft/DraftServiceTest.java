@@ -101,7 +101,7 @@ class DraftServiceTest {
                     .thenReturn(List.of("최근 게시 답글"));
         }
 
-        AnalysisOut analysisOut = new AnalysisOut("POSITIVE", 0.9f, List.of(), 0, List.of(), "local-7b", "v1");
+        AnalysisOut analysisOut = new AnalysisOut("POSITIVE", "CALM", 0.9f, List.of(), List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 감사합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
         AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of());
         when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
@@ -142,7 +142,7 @@ class DraftServiceTest {
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
 
-        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", -0.2f, List.of(), 1, List.of(), "local-7b", "v1");
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", "CALM", -0.2f, List.of(), List.of(), 1, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("불편을 드려 죄송합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
         AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of());
         when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
@@ -175,7 +175,7 @@ class DraftServiceTest {
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
 
-        AnalysisOut analysisOut = new AnalysisOut("IMPROVEMENT", 0.0f, List.of(), 0, List.of(), "local-7b", "v1");
+        AnalysisOut analysisOut = new AnalysisOut("IMPROVEMENT", "CALM", 0.0f, List.of(), List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 의견 감사합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
         AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of());
         when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
@@ -200,7 +200,7 @@ class DraftServiceTest {
         when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
-        AnalysisOut analysis = new AnalysisOut("POSITIVE", 1f, List.of(), 0, List.of(), "stub", "v1");
+        AnalysisOut analysis = new AnalysisOut("POSITIVE", "CALM", 1f, List.of(), List.of(), 0, List.of(), "stub", "v1");
         when(aiClient.analyzeAndDraft(any())).thenReturn(new AnalyzeAndDraftResponse(analysis,
                 List.of(new DraftOut("고객님, 감사합니다", "T1", "stub", "v1", List.of(), 0.1f, 0, 0, 0)),
                 false, List.of()));
@@ -225,7 +225,7 @@ class DraftServiceTest {
         when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
 
-        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", -0.9f, List.of(), 1, List.of(), "local-7b", "v1");
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", "CALM", -0.9f, List.of(), List.of(), 1, List.of(), "local-7b", "v1");
         AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut, List.of(), true,
                 List.of("G3_COMPENSATION"));
         when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
@@ -238,6 +238,43 @@ class DraftServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
         org.mockito.Mockito.verify(replyDraftRepository).save(
                 org.mockito.ArgumentMatchers.argThat((ReplyDraft d) -> "BLOCKED".equals(d.getStatus())));
+    }
+
+    @Test
+    void 위험초안은_내용을_지우지_않고_승인가능한_플래그로_BLOCKED_된다() {
+        // ★ 2026-09-19: blocked=true 라고 초안이 없는 것이 아니다. risk>=3 은 "권장 답글을
+        //   만들어 두고 자동 게시만 하지 않는" 경로(2026-08-27)인데, 여기서 내용을 빈 문자열로
+        //   덮어쓰고 있었다. RiskApprovalService 가 "내용이 없는 초안은 승인할 수 없습니다" 로
+        //   거부하므로 AI 경로로 만들어진 위험 초안은 단 한 건도 승인될 수 없었다.
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(23L).publicId(reviewPublicId).storeId(100L).linkId(1L)
+                .platform("BAEMIN").platformReviewId("r-23").rating((short) 1)
+                .body("씹는데 이상한 게 걸려서 뱉어보니 플라스틱 같더라고요").writtenAt(Instant.now())
+                .collectedAt(Instant.now()).build();
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY").publishWindows("[]")
+                .personaSeed(1).build();
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+
+        String recommended = "놀라셨을 텐데 죄송합니다. 어떤 상황이었는지 확인하고 바로 연락드리겠습니다.";
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", "CALM", -0.9f, List.of("이물질"), List.of(), 3,
+                List.of("FOREIGN_OBJECT"), "claude-haiku-4-5", "v2.2");
+        AnalyzeAndDraftResponse aiResponse = new AnalyzeAndDraftResponse(analysisOut,
+                List.of(new DraftOut(recommended, "T3", "claude-opus-5", "v2.2", List.of(), 0.1f, 10, 5, 1.0)),
+                true, List.of("G8_RISK"));
+        when(aiClient.analyzeAndDraft(any())).thenReturn(aiResponse);
+        when(reviewAnalysisRepository.findById(23L)).thenReturn(Optional.empty());
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
+
+        ArgumentCaptor<ReplyDraft> captor = ArgumentCaptor.forClass(ReplyDraft.class);
+        org.mockito.Mockito.verify(replyDraftRepository).save(captor.capture());
+        ReplyDraft saved = captor.getValue();
+        assertThat(saved.getContent()).isEqualTo(recommended);   // 내용이 살아 있어야 승인 화면이 산다
+        assertThat(saved.getStatus()).isEqualTo("BLOCKED");      // 절대규칙 3 — 자동 게시는 여전히 금지
+        assertThat(saved.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
     }
 
 }

@@ -29,14 +29,24 @@ public class ReviewAnalysis {
     private Long reviewId;
 
     @Column(nullable = false)
-    private String category; // PRAISE|POSITIVE|IMPROVEMENT|COMPLAINT|ABUSIVE|NOISE
+    private String category; // PRAISE|POSITIVE|IMPROVEMENT|COMPLAINT|ABUSIVE|OFF_TOPIC|NOISE
+
+    /** 응대 강도 CALM|DISAPPOINTED|ANGRY (v2.0). 카테고리와 따로 매긴다. */
+    @Builder.Default
+    @Column(nullable = false)
+    private String tone = "CALM";
 
     @Column(nullable = false)
     private float sentiment; // -1..1
 
+    /** ★ v2.0 부터 **문제로 지적된 태그만** 담는다. 칭찬은 praisedTags 로 간다. */
     @Builder.Default
     @Column(name = "issue_tags", nullable = false)
     private String[] issueTags = new String[0];
+
+    @Builder.Default
+    @Column(name = "praised_tags", nullable = false)
+    private String[] praisedTags = new String[0];
 
     @Column(name = "risk_level", nullable = false)
     private short riskLevel;
@@ -56,11 +66,16 @@ public class ReviewAnalysis {
     private Instant analyzedAt = Instant.now();
 
     /** AI 재분석 결과로 덮어쓴다 (PK 고정 UPSERT, docs/11 §2.4). */
-    public void applyIncoming(String category, float sentiment, String[] issueTags, short riskLevel,
+    public void applyIncoming(String category, String tone, float sentiment, String[] issueTags,
+            String[] praisedTags, short riskLevel,
             String[] riskReasons, String model, String promptVersion) {
         this.category = category;
+        // ★ 구버전 AI 응답에는 tone 이 없다. 빠지면 가장 약한 강도로 떨어뜨린다 —
+        //   강도를 과하게 잡는 것보다 약하게 잡는 쪽이 답글 사고가 적다.
+        this.tone = tone == null || tone.isBlank() ? "CALM" : tone;
         this.sentiment = sentiment;
         this.issueTags = issueTags == null ? new String[0] : issueTags;
+        this.praisedTags = praisedTags == null ? new String[0] : praisedTags;
         this.riskLevel = riskLevel;
         this.riskReasons = riskReasons == null ? new String[0] : riskReasons;
         this.model = model;

@@ -32,7 +32,10 @@ public final class AiClientDtos {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record AnalysisOut(String category, float sentiment, List<String> issueTags, int riskLevel,
+    // ★ tone·praisedTags 는 프롬프트 v2.0 에서 추가됐다. 구버전 AI 응답에는 없으므로
+    //   역직렬화 시 null 이 올 수 있다 — 소비하는 쪽에서 기본값을 채운다.
+    public record AnalysisOut(String category, String tone, float sentiment, List<String> issueTags,
+            List<String> praisedTags, int riskLevel,
             List<String> riskReasons, String model, String promptVersion) {
     }
 

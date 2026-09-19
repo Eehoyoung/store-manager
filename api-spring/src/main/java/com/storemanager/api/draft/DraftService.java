@@ -126,7 +126,14 @@ public class DraftService {
         upsertAnalysis(reviewId, aiRes);
 
         List<ReplyDraft> saved = new ArrayList<>();
-        if (aiRes.blocked()) {
+        boolean hasDrafts = aiRes.drafts() != null && !aiRes.drafts().isEmpty();
+        // ★ blocked 라고 초안이 없는 것이 아니다. risk>=3 은 2026-08-27 부터 "권장 답글을
+        //   만들어 두고 자동 게시만 하지 않는" 경로다(위험 리뷰 사람 승인). 여기서 초안이
+        //   있는데도 빈 콘텐츠로 덮어쓰면 RiskApprovalService.requireApprovable 의
+        //   "내용이 없는 초안은 승인할 수 없습니다" 에 걸려 승인 화면이 통째로 죽는다.
+        //   초안이 있으면 아래 정상 경로로 내려보낸다 — tryAutoApprove 가 risk>=3 을
+        //   RISK_LEVEL_TOO_HIGH 로 BLOCKED 처리하므로 자동 게시는 그대로 막힌다.
+        if (aiRes.blocked() && !hasDrafts) {
             // 전량 차단 — 실제 내용이 없으므로 감사 목적의 빈 콘텐츠로 BLOCKED 행을 남긴다(내용 생성이 아니라 "생성 시도 기록").
             ReplyDraft blocked = ReplyDraft.builder()
                     .reviewId(reviewId)
@@ -270,8 +277,9 @@ public class DraftService {
         }
         ReviewAnalysis analysis = reviewAnalysisRepository.findById(reviewId)
                 .orElseGet(() -> ReviewAnalysis.builder().reviewId(reviewId).build());
-        analysis.applyIncoming(res.analysis().category(), res.analysis().sentiment(),
+        analysis.applyIncoming(res.analysis().category(), res.analysis().tone(), res.analysis().sentiment(),
                 res.analysis().issueTags() == null ? new String[0] : res.analysis().issueTags().toArray(new String[0]),
+                res.analysis().praisedTags() == null ? new String[0] : res.analysis().praisedTags().toArray(new String[0]),
                 (short) res.analysis().riskLevel(),
                 res.analysis().riskReasons() == null ? new String[0] : res.analysis().riskReasons().toArray(new String[0]),
                 res.analysis().model(), res.analysis().promptVersion());
