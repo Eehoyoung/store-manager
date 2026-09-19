@@ -536,7 +536,9 @@ _RISK_PATTERNS: dict[str, tuple[str, ...]] = {
         #   불만)가 risk 3 으로 올라가 T3(opus)로 라우팅됐다(실측 2026-09-17).
         r"손톱(?!만)",
         # ★ 위 주석의 '벌레' 규칙. 키워드(부분문자열) 목록에서 여기로 옮겼다.
-        r"벌레(?!(\s*한\s*마리)?(\s*하나)?[가는]?\s*(도\s*)?없)",
+        # ★ '없이' 를 '업시' 로 쓰는 손님이 있다(실측 2026-09-20 — 오탐 발생).
+        #   관용구 방어가 표기 흔들림에 뚫리면 방어가 아니라 구멍이 된다.
+        r"벌레(?!(\s*한\s*마리)?(\s*하나)?[가는]?\s*(도\s*)?[없업])",
     ),
     "HYGIENE": (
         r"(?<!기분이 )(?<!기분 )(?<!감정이 )(?<!심기가 )(?<![이속손정])상[한했]", r"쉰\s*냄새", r"쉰\s*맛",
@@ -973,7 +975,9 @@ def _hits(body: str, reason: str) -> bool:
         #   T3(opus, T1 의 5배)로 라우팅되고 검수 큐에 쌓였다.
         #   물건 이름을 지운 뒤에도 위생이 남을 때만 주장으로 본다.
         stripped = _HYGIENE_ITEM.sub("", body)
-        if "위생" not in stripped:
+        # ★ '위ㅅㅐㅇ' 처럼 자모가 분리돼도 위생 주장이다(실측 2026-09-20).
+        #   이 분기는 음절 단위 검사라 위 자모 매칭이 닿지 않는다 — 여기서 따로 받는다.
+        if "위생" not in stripped and not _jamo_contains(*jamo_key(stripped), jamo_key("위생")[0]):
             return False
         praised = any(p in stripped for p in _HYGIENE_PRAISE)
         negated = any(n in stripped for n in _NEGATION)
@@ -1014,10 +1018,19 @@ _VISIT_PLACE = (
     r"컵", r"물컵", r"접시", r"의자", r"바닥", r"벽", r"주방", r"홀",
 )
 _VISIT_FILTH = (
-    r"더럽", r"더러", r"불결", r"끈적", r"얼룩", r"곰팡이", r"먼지", r"기름때", r"찌든",
+    r"더럽", r"더러", r"불결",
+    # ★ 소리나는 대로 쓴 형태. 어미를 좁혀 '드러나다'(드러나·드러내)를 피한다 —
+    #   "주방이 훤히 드러나 보여요" 는 칭찬이다(실측 2026-09-20).
+    r"드러[워운웠]", r"드럽", r"끈적", r"얼룩", r"곰팡이", r"먼지", r"기름때", r"찌든",
     r"때가", r"악취", r"쉰내", r"머리카락", r"오물", r"청소.{0,4}안", r"안\s*치우",
     r"립스틱", r"말라붙", r"묻어\s*있", r"벌레", r"바퀴", r"날파리", r"초파리",
 )
+# 자모 색인은 순한글 단어만 만든다(정규식 조각은 자모로 펼 수 없다).
+_VISIT_PLACE_JAMO = tuple(dict.fromkeys(
+    jamo_key(w)[0] for w in _VISIT_PLACE if w.isalpha() and jamo_key(w)[0]))
+_VISIT_FILTH_JAMO = tuple(dict.fromkeys(
+    jamo_key(w)[0] for w in _VISIT_FILTH if w.isalpha() and len(w) >= 2 and jamo_key(w)[0]))
+
 _VISIT_HYGIENE = re.compile(
     f"({'|'.join(_VISIT_PLACE)}).{{0,12}}({'|'.join(_VISIT_FILTH)})"
     f"|({'|'.join(_VISIT_FILTH)}).{{0,12}}({'|'.join(_VISIT_PLACE)})"
@@ -1045,13 +1058,31 @@ _VISIT_SPOILED = (r"썩", r"곰팡이", r"상한", r"상했", r"쉰\s*내", r"�
 _VISIT_HYGIENE_SEVERE = re.compile(f"({'|'.join(_VISIT_KITCHEN + _VISIT_SPOILED)})")
 
 
+def _visit_hygiene_jamo(body: str) -> bool:
+    """장소 단어와 더러움 단어가 자모 수준에서 **함께** 잡히는가.
+
+    ★ 원본 정규식의 12자 근접 조건은 여기서 재현하지 않는다 — 자모 인덱스로 거리를
+      재면 음절마다 길이가 달라 기준이 흔들린다. 대신 **둘 다 있을 때만** 성립시킨다.
+      방문 리뷰에서 장소어와 더러움어가 같이 나오면 사실상 위생 지적이다.
+    ★ 여기서 나오는 등급은 2 다(visit_risk 가 조리공간·부패일 때만 3 으로 올린다).
+    """
+    key, roles = jamo_key(body)
+    if not key:
+        return False
+    return (any(_jamo_contains(key, roles, k) for k in _VISIT_PLACE_JAMO)
+            and any(_jamo_contains(key, roles, k) for k in _VISIT_FILTH_JAMO))
+
+
 def visit_risk(text: str) -> tuple[int, list[str]]:
     """방문 리뷰에만 적용하는 추가 판정. (level, reasons) 를 돌려준다. 승격만 한다.
 
     ★ 배달 경로는 이 함수를 절대 타지 않는다(upgrade_risk_level 의 platform 게이트).
       배달 리뷰에 '화장실' 이 나오면 대개 매장 이야기가 아니라 손님 사정이다."""
     body = text or ""
-    if _VISIT_HYGIENE.search(body):
+    # ★ 방문 위생 룰은 정규식이라 위 자모 매칭이 닿지 않는다(실측 2026-09-20 —
+    #   "화장실이 너무 드러워요" 를 놓쳤다). 자모 평문에도 한 번 더 걸어 준다.
+    #   장소·더러움 단어가 **함께** 있어야 하는 구조는 그대로 유지한다.
+    if _VISIT_HYGIENE.search(body) or _visit_hygiene_jamo(body):
         # 조리 공간이나 부패가 함께 언급되면 급이 다르다.
         severe = _VISIT_HYGIENE_SEVERE.search(body) is not None
         return (3 if severe else 2), ["HYGIENE"]
