@@ -19,4 +19,12 @@ public interface StyleSampleQueryRepository extends JpaRepository<ReplyStyleSamp
 
     @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(:storeId)) locked", nativeQuery = true)
     long lockStore(@Param("storeId") Long storeId);
+
+    /** 유형별 슬롯 1건. 조건부 유니크 인덱스(uq_style_manual_slot)가 중복을 구조적으로 막는다. */
+    java.util.Optional<ReplyStyleSample> findByStoreIdAndSourceAndSampleType(
+            Long storeId, String source, String sampleType);
+
+    default java.util.Optional<ReplyStyleSample> findManualSlot(Long storeId, String sampleType) {
+        return findByStoreIdAndSourceAndSampleType(storeId, "MANUAL", sampleType);
+    }
 }

@@ -173,7 +173,7 @@ public class PersonaService {
         Store store = loadOwnedStore(owner, storePublicId);
         Page<ReplyStyleSample> result = styleSampleQueryRepository.findByStoreId(store.getId(), PageRequest.of(page, size));
         List<StyleSampleResponse> items = result.getContent().stream()
-                .map(s -> new StyleSampleResponse(String.valueOf(s.getId()), s.getReviewText(), s.getReplyText(),
+                .map(s -> new StyleSampleResponse(String.valueOf(s.getId()), s.getSampleType(), s.getReviewText(), s.getReplyText(),
                         s.getRating() == null ? null : s.getRating().intValue(), s.getSource(),
                         s.getCreatedAt() == null ? null : s.getCreatedAt().toString()))
                 .toList();
@@ -181,22 +181,36 @@ public class PersonaService {
                 styleSampleQueryRepository.countByStoreIdAndSource(store.getId(), "MANUAL"));
     }
 
-    /** 가맹점주가 직접 등록하는 답글 형식은 매장당 최대 3건이다. */
+    /**
+     * 답글 형식을 유형별로 저장한다 — 감사·사과·기타 3슬롯, 유형당 1건.
+     *
+     * <p>★ 같은 유형을 다시 보내면 <b>덮어쓴다</b>. 이전에는 '최대 3건' 을 COUNT 로 세서
+     * 꽉 차면 거절했고, 사장님은 고치려면 지웠다가 다시 넣어야 했다. 슬롯 구조에서는
+     * 그냥 다시 적으면 된다.
+     *
+     * <p>★ 유형을 고정한 이유: 예전에는 감사 답글만 3개 적어 두면 불만 리뷰에도 그 문체가
+     * 예시로 붙었다. 유형이 있어야 리뷰에 맞는 예시를 고를 수 있다.
+     */
     @Transactional
     public StyleSampleResponse addStyleSample(UUID ownerPublicId, UUID storePublicId, StyleSampleRequest req) {
         AppUser owner = resolveUser(ownerPublicId);
         Store store = loadOwnedStore(owner, storePublicId);
         styleSampleQueryRepository.lockStore(store.getId());
-        if (styleSampleQueryRepository.countByStoreIdAndSource(store.getId(), "MANUAL") >= 3) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("styleSamples", "답글 형식은 최대 3건까지 등록할 수 있습니다."));
-        }
         // ★ 이 코퍼스는 ai-python 이 few-shot 예시로 Anthropic 에 보낸다(ai-python/rag.py).
         //   사장님이 답글 형식에 가게 전화번호를 적어 두는 일이 실제로 있어, 적재 시점에 지운다.
-        ReplyStyleSample sample = styleSampleQueryRepository.save(ReplyStyleSample.builder()
-                .storeId(store.getId()).reviewText("")
-                .replyText(PersonalIdentifierMasker.mask(req.replyText())).source("MANUAL").build());
-        return new StyleSampleResponse(String.valueOf(sample.getId()), sample.getReviewText(), sample.getReplyText(),
-                null, sample.getSource(), sample.getCreatedAt().toString());
+        String masked = PersonalIdentifierMasker.mask(req.replyText());
+        ReplyStyleSample sample = styleSampleQueryRepository
+                .findManualSlot(store.getId(), req.sampleType())
+                .map(existing -> {
+                    existing.replaceManualText(masked);
+                    return existing;
+                })
+                .orElseGet(() -> ReplyStyleSample.builder()
+                        .storeId(store.getId()).reviewText("")
+                        .replyText(masked).source("MANUAL").sampleType(req.sampleType()).build());
+        sample = styleSampleQueryRepository.save(sample);
+        return new StyleSampleResponse(String.valueOf(sample.getId()), sample.getSampleType(), sample.getReviewText(),
+                sample.getReplyText(), null, sample.getSource(), sample.getCreatedAt().toString());
     }
 
     /**

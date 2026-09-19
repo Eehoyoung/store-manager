@@ -45,7 +45,25 @@ public class ReplyStyleSample {
     @Column(nullable = false)
     private String source = "RC_LIST";
 
+    /** MANUAL 전용 슬롯 유형 THANKS|APOLOGY|GENERAL. 그 외 source 는 null. */
+    @Column(name = "sample_type")
+    private String sampleType;
+
+    /** 이 예시가 붙은 리뷰의 카테고리. 없으면 null(RC_LIST 는 분석을 돌리지 않는다). */
+    @Column(name = "category")
+    private String category;
+
+    /** 이 예시가 붙은 리뷰의 이슈 태그. few-shot 을 고를 때 겹침으로 정렬한다. */
+    @Builder.Default
+    @Column(name = "issue_tags", nullable = false)
+    private String[] issueTags = new String[0];
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    /** 같은 슬롯에 다시 적은 경우 본문만 갈아끼운다. 유형·매장은 슬롯의 정체성이라 바뀌지 않는다. */
+    public void replaceManualText(String maskedReplyText) {
+        this.replyText = maskedReplyText;
+    }
 }

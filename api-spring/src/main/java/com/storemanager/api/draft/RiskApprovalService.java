@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.storemanager.api.review.ReplyStyleSample;
+import com.storemanager.api.review.ReplyStyleSampleRepository;
 
 /**
  * 위험 리뷰 초안의 사람 승인 (2026-08-27 신설).
@@ -56,11 +58,13 @@ public class RiskApprovalService {
     private final AppUserRepository appUserRepository;
     private final AuditLogRepository auditLogRepository;
     private final StoreServiceGate serviceGate;
+    private final ReplyStyleSampleRepository replyStyleSampleRepository;
 
     public RiskApprovalService(ReplyDraftRepository replyDraftRepository,
             UnifiedReviewRepository unifiedReviewRepository, ReviewAnalysisRepository reviewAnalysisRepository,
             StoreRepository storeRepository, StorePersonaRepository storePersonaRepository,
-            AppUserRepository appUserRepository, AuditLogRepository auditLogRepository, StoreServiceGate serviceGate) {
+            AppUserRepository appUserRepository, AuditLogRepository auditLogRepository, StoreServiceGate serviceGate,
+            ReplyStyleSampleRepository replyStyleSampleRepository) {
         this.replyDraftRepository = replyDraftRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
@@ -69,6 +73,7 @@ public class RiskApprovalService {
         this.appUserRepository = appUserRepository;
         this.auditLogRepository = auditLogRepository;
         this.serviceGate = serviceGate;
+        this.replyStyleSampleRepository = replyStyleSampleRepository;
     }
 
     /**
@@ -155,9 +160,55 @@ public class RiskApprovalService {
 
         Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
                 PublishScheduleCalculator.parseWindows(persona.getPublishWindows()));
+        // ★ 학습 루프: 사장님이 **고친** 답글만 코퍼스로 돌려보낸다.
+        //   AI 초안을 그대로 승인한 건은 넣지 않는다 — 자기 출력을 예시로 되먹이면
+        //   문체가 자기 자신으로 수렴하고 오류가 증폭된다.
+        captureEditedReply(store.getId(), review, draft, content);
+
         draft.approveByHuman(approverId, Instant.now(), content, scheduledAt);
         replyDraftRepository.save(draft);
         return review;
+    }
+
+    /**
+     * 사장님이 손댄 답글을 말투 코퍼스에 적재한다. 이 시스템에서 신호가 가장 강한 데이터다 —
+     * AI 가 쓴 것과 사람이 고친 것의 차이가 곧 "이 매장이 원하는 답글" 이기 때문이다.
+     *
+     * <p>★ 넣지 않는 경우가 셋이다. (1) 고치지 않고 그대로 승인 — 그건 AI 출력이라
+     * 되먹이면 안 된다. (2) 이미 같은 문장이 코퍼스에 있음. (3) 본문이 빈 경우.
+     *
+     * <p>★ 적재 전에 식별자를 지운다. 이 코퍼스는 ai-python 이 직접 읽어 few-shot 으로
+     * Anthropic 에 보내므로, 마스킹하지 않으면 개인정보가 국외로 나간다
+     * (CollectResultService.saveStyleSample 과 같은 이유).
+     */
+    private void captureEditedReply(Long storeId, UnifiedReview review, ReplyDraft draft, String editedContent) {
+        if (editedContent == null || editedContent.isBlank()) {
+            return;   // 고치지 않고 승인 — AI 출력이므로 학습하지 않는다
+        }
+        if (editedContent.equals(draft.getContent())) {
+            return;   // 화면에서 전문을 되보냈을 뿐 실제로는 같은 문장이다
+        }
+        String maskedReply = PersonalIdentifierMasker.mask(editedContent);
+        if (replyStyleSampleRepository.existsByStoreIdAndReplyText(storeId, maskedReply)) {
+            return;
+        }
+        // 검색 축은 이미 계산해 둔 분석 결과에서 가져온다. 없으면 비워 두고 최신순 폴백에 맡긴다.
+        String category = null;
+        String[] issueTags = new String[0];
+        ReviewAnalysis analysis = reviewAnalysisRepository.findById(review.getId()).orElse(null);
+        if (analysis != null) {
+            category = analysis.getCategory();
+            issueTags = analysis.getIssueTags() == null ? new String[0] : analysis.getIssueTags();
+        }
+        replyStyleSampleRepository.save(ReplyStyleSample.builder()
+                .storeId(storeId)
+                .reviewText(PersonalIdentifierMasker.mask(review.getBody() == null ? "" : review.getBody()))
+                .replyText(maskedReply)
+                .rating(review.getRating())
+                .source("EDITED")
+                .category(category)
+                .issueTags(issueTags)
+                .build());
     }
 
     /** 게시하지 않기로 한다. BLOCKED 로 남되 누가 판단했는지 기록한다. */

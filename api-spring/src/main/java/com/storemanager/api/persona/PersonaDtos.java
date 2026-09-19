@@ -68,11 +68,15 @@ final class PersonaDtos {
             List<String> guardrailFlags) {
     }
 
-    record StyleSampleResponse(String id, String reviewText, String replyText, Integer rating, String source,
+    record StyleSampleResponse(String id, String sampleType, String reviewText, String replyText, Integer rating, String source,
             String createdAt) {
     }
 
-    record StyleSampleRequest(@NotBlank @Size(max = 280) String replyText) {
+    /** 답글 형식은 유형별 1건씩 — 감사(THANKS)·사과(APOLOGY)·기타(GENERAL) 3슬롯이다. */
+    record StyleSampleRequest(
+            @NotBlank @Pattern(regexp = "THANKS|APOLOGY|GENERAL",
+                    message = "형식 유형은 THANKS·APOLOGY·GENERAL 중 하나여야 합니다.") String sampleType,
+            @NotBlank @Size(max = 280) String replyText) {
     }
 
     record StyleSampleListResponse(List<StyleSampleResponse> items, boolean hasMore, long manualCount) {

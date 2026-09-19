@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -97,15 +98,44 @@ class PersonaServiceTest {
     }
 
     @Test
-    void 직접_입력한_답글_형식은_최대_3건이다() {
+    void 같은_유형을_다시_적으면_덮어쓴다() {
+        // ★ 이전에는 '최대 3건' 을 COUNT 로 세서 꽉 차면 거절했다. 사장님은 고치려면
+        //   지웠다가 다시 넣어야 했다. 슬롯 구조에서는 그냥 다시 적으면 된다.
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
-        when(styleSampleQueryRepository.countByStoreIdAndSource(100L, "MANUAL")).thenReturn(3L);
+        ReplyStyleSample existing = ReplyStyleSample.builder().id(9L).storeId(100L).reviewText("")
+                .replyText("예전 문장").source("MANUAL").sampleType("APOLOGY").build();
+        when(styleSampleQueryRepository.findManualSlot(100L, "APOLOGY")).thenReturn(Optional.of(existing));
+        when(styleSampleQueryRepository.save(any(ReplyStyleSample.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ApiException ex = assertThrows(ApiException.class,
-                () -> personaService.addStyleSample(ownerPublicId, storePublicId, new StyleSampleRequest("감사합니다.")));
+        personaService.addStyleSample(ownerPublicId, storePublicId,
+                new StyleSampleRequest("APOLOGY", "늦어져 죄송합니다. 출고 전 확인을 다시 챙기겠습니다."));
 
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
-        verify(styleSampleQueryRepository, never()).save(any(ReplyStyleSample.class));
+        ArgumentCaptor<ReplyStyleSample> captor = ArgumentCaptor.forClass(ReplyStyleSample.class);
+        verify(styleSampleQueryRepository).save(captor.capture());
+        // 새 행을 만들지 않고 기존 슬롯을 갈아끼운다
+        assertThat(captor.getValue().getId()).isEqualTo(9L);
+        assertThat(captor.getValue().getReplyText()).contains("출고 전 확인");
+        assertThat(captor.getValue().getSampleType()).isEqualTo("APOLOGY");
+    }
+
+    @Test
+    void 빈_슬롯에_적으면_새로_만든다() {
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
+        when(styleSampleQueryRepository.findManualSlot(100L, "THANKS")).thenReturn(Optional.empty());
+        when(styleSampleQueryRepository.save(any(ReplyStyleSample.class))).thenAnswer(inv -> {
+            ReplyStyleSample v = inv.getArgument(0);
+            return ReplyStyleSample.builder().id(11L).storeId(v.getStoreId()).reviewText(v.getReviewText())
+                    .replyText(v.getReplyText()).source(v.getSource()).sampleType(v.getSampleType()).build();
+        });
+
+        personaService.addStyleSample(ownerPublicId, storePublicId,
+                new StyleSampleRequest("THANKS", "맛있게 드셨다니 기쁩니다. 또 뵙겠습니다. 010-1234-5678"));
+
+        ArgumentCaptor<ReplyStyleSample> captor = ArgumentCaptor.forClass(ReplyStyleSample.class);
+        verify(styleSampleQueryRepository).save(captor.capture());
+        assertThat(captor.getValue().getSampleType()).isEqualTo("THANKS");
+        // ★ 이 코퍼스는 ai-python 이 Anthropic 으로 보낸다 — 전화번호는 적재 시점에 지워야 한다
+        assertThat(captor.getValue().getReplyText()).doesNotContain("010-1234-5678");
     }
 
     // ── X2-a: bean validation ────────────────────────────────────────────
@@ -259,7 +289,7 @@ class PersonaServiceTest {
         UnifiedReview review = UnifiedReview.builder().id(30L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-30").rating((short) 1).body("이물질이 나왔어요").build();
         when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
-        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", -0.9f, List.of("이물질"), 3, List.of("FOREIGN_OBJECT"),
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", "CALM", -0.9f, List.of("이물질"), List.of(), 3, List.of("FOREIGN_OBJECT"),
                 "m", "v1");
         when(aiClient.analyzeAndDraft(any()))
                 .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(), false, List.of()));
@@ -281,7 +311,7 @@ class PersonaServiceTest {
         UnifiedReview review = UnifiedReview.builder().id(31L).publicId(reviewPublicId).storeId(100L).linkId(1L).platform("BAEMIN")
                 .platformReviewId("r-31").rating((short) 5).body("맛있어요").build();
         when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
-        AnalysisOut analysisOut = new AnalysisOut("PRAISE", 0.9f, List.of(), 0, List.of(), "local-7b", "v1");
+        AnalysisOut analysisOut = new AnalysisOut("PRAISE", "CALM", 0.9f, List.of(), List.of(), 0, List.of(), "local-7b", "v1");
         DraftOut draftOut = new DraftOut("고객님, 감사합니다 :)", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
         when(aiClient.analyzeAndDraft(any()))
                 .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of()));

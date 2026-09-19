@@ -49,6 +49,7 @@ class RiskApprovalServiceTest {
     @Mock private AppUserRepository appUserRepository;
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private StoreServiceGate serviceGate;
+    @Mock private com.storemanager.api.review.ReplyStyleSampleRepository replyStyleSampleRepository;
 
     private RiskApprovalService service;
 
@@ -58,7 +59,8 @@ class RiskApprovalServiceTest {
     @BeforeEach
     void setUp() {
         service = new RiskApprovalService(replyDraftRepository, unifiedReviewRepository, reviewAnalysisRepository,
-                storeRepository, storePersonaRepository, appUserRepository, auditLogRepository, serviceGate);
+                storeRepository, storePersonaRepository, appUserRepository, auditLogRepository, serviceGate,
+                replyStyleSampleRepository);
 
         AppUser owner = AppUser.builder().id(7L).publicId(ownerPublicId).email("o@t.com").name("사장").build();
         Store store = Store.builder().id(100L).ownerId(7L).name("시연점").build();
