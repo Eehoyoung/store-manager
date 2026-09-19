@@ -39,7 +39,8 @@ public class StorePersona {
 
     @Builder.Default
     @Column(name = "emoji_level", nullable = false)
-    private short emojiLevel = 1;
+    // 0=사용 안 함 · 1=1개 이하 · 2=2~3개(기본) · 3=자유 — V34 에서 기본값을 2 로 올렸다.
+    private short emojiLevel = 2;
 
     @Builder.Default
     @Column(name = "customer_title", nullable = false)

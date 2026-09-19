@@ -17,6 +17,16 @@ import { useToast } from "../components/Toast";
 import { describeGeneratedBy, describeGuardrailFlag, describeRiskReason } from "../lib/labels";
 import { useShellStore } from "../layout/AppShell";
 
+
+// 0~3 숫자만 보여주면 사장님이 무슨 뜻인지 알 수 없다(docs/14 — 40~60대 설계 원칙).
+// ★ 기본값은 2 다(V34, 2026-09-17). 라벨 문구는 ai-python 의 _EMOJI_LABELS 와 같은 뜻이어야 한다.
+const EMOJI_LEVELS: ReadonlyArray<readonly [number, string]> = [
+  [0, "0 — 사용 안 함"],
+  [1, "1 — 1개까지만"],
+  [2, "2 — 2~3개 (기본)"],
+  [3, "3 — 자유롭게"],
+];
+
 const TONE_OPTIONS: { value: PersonaRequest["tone"]; label: string }[] = [
   { value: "POLITE", label: "정중한" },
   { value: "FRIENDLY", label: "친근한" },
@@ -200,9 +210,9 @@ export function PersonaPage() {
           disabled={!persona.useEmoji}
           error={fieldErrors.emojiLevel}
         >
-          {[0, 1, 2, 3].map((n) => (
+          {EMOJI_LEVELS.map(([n, label]) => (
             <option key={n} value={n}>
-              {n === 0 ? "0 (사용 안 함)" : n}
+              {label}
             </option>
           ))}
         </Select>
