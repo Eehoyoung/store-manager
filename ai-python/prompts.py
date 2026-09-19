@@ -27,7 +27,9 @@ from pydantic import BaseModel, Field
 # ★ v1.9 는 **생성 프롬프트만** 바꿨다. CLASSIFY_SYSTEM 은 한 글자도 건드리지 않았다 —
 #   캐시 임계(4,096토큰)를 넘긴 분류 프롬프트에 손대면 원가가 4배로 돌아간다.
 #   버전 문자열은 CLASSIFY_SYSTEM 안에 들어가지 않으므로 이 값을 올려도 캐시는 유지된다.
-PROMPT_VERSION = "v2.2"  # 비꼼을 조롱에서 분리 — 반어 리뷰가 ABUSIVE 로 새어 초안이 사라졌다
+# ★ v2.3 (2026-09-20) — 표기 흔들림을 두 층에서 함께 받는다. 결정론 룰은 자모 수준
+#   매칭으로(연음·자모분리·된소리), 모델은 "뜻으로 읽어라" 지침으로.
+PROMPT_VERSION = "v2.3"  # 소리나는 대로 쓴 리뷰가 위험 룰을 통째로 비껴가고 있었다
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -143,7 +145,7 @@ def issue_tags_for(platform: str | None) -> list[str]:
 #   자백 금지' 바구니에서 빼고(모델이 7건 중 5건에서 지침을 무시했는데 모델이 옳았다),
 #   교육·징계 약속 금지에서 '특정 직원 지목' 조건절을 떼고, PRAISE 근거에 방문 예시를 넣었다.
 #   그리고 방문 경로는 카테고리로 초안을 막지 않는다 — 네이버는 전건 사람 승인이다.
-NAVER_PROMPT_VERSION = "naver-v0.4"
+NAVER_PROMPT_VERSION = "naver-v0.5"
 
 
 def prompt_version_for(platform: str | None) -> str:
@@ -331,6 +333,15 @@ COMPLAINT -0.8~-0.2 · ABUSIVE -1.0~-0.6 · NOISE 0.0 을 기준으로 삼는다
   · 판단 기준은 표현의 세기가 아니다. **공격 대상이 사람·매장 자체인가**로 가른다.
     거칠어도 음식 이야기면 COMPLAINT, 공격이면 ABUSIVE, 매장 이야기가 아니면 OFF_TOPIC.
 - 별점이 낮아도 내용이 정중한 개선 제안이면 IMPROVEMENT
+
+[표기가 흔들려도 뜻으로 읽어라]
+손님은 휴대폰으로 급히 쓴다. 맞춤법이 아니라 **하려던 말**을 보고 판단하라.
+· 소리나는 대로: "마시써요"=맛있어요 · "조아요"=좋아요 · "써근"=썩은 · "이물찌리"=이물질이
+· 자모가 분리됨: "냄ㅅㅔ"=냄새 · "위ㅅㅐㅇ"=위생
+· 된소리로 씀: "식중똑"=식중독 · "법쩍"=법적
+· 자모만 반복: "ㅠㅠ"·"ㅡㅡ"·"ㅋㅋ" 는 감정 표시다. 내용이 없다고 NOISE 로 보내지 마라 —
+  앞뒤에 내용이 있으면 그 내용으로 판단한다.
+★ 표기가 틀렸다고 위험도를 낮추지 마라. "써근 내가 나요" 는 "썩은 냄새가 나요" 와 같다.
 
 [출력 직전 점검 — 위에서부터 순서대로 확인한다]
 ★ 순서가 중요하다. 아래를 뒤에서부터 보면 거친 불만이 전부 COMPLAINT 로 새어나간다.
@@ -841,9 +852,110 @@ def _risk3_demands(body: str) -> list[str]:
     return found
 
 
+# ── 표기 흔들림 흡수 (2026-09-20) ────────────────────────────────────────
+#
+# ★ 룰이 전부 정확 문자열 매칭이라 **손님이 소리나는 대로 쓰면 통째로 무력화**됐다.
+#   실측 — 받침으로 끝나는 키워드 뒤에 모음 조사가 붙으면 연음 표기로 키워드가 깨진다:
+#       이물질이 → 이물찌리      risk3 → risk0
+#       썩은     → 써근          risk3 → risk0
+#       머리카락이 → 머리카라기   risk3 → risk0
+#       상했어요 → 상해써요       risk3 → risk0
+#   받침이 없으면 멀쩡하다(구더기가 → 구더기가 ✅). **무작위가 아니라 규칙적이다.**
+#   자모 분리 입력(위ㅅㅐㅇ·이물ㅈㅣㄹ)과 된소리 표기(식중똑)도 같은 자리에서 샌다.
+#
+# ★ 음절 경계를 지우고 자모로 펴서 보면 세 유형이 한 번에 풀린다.
+#   - 초성 ㅇ 은 소리가 없다 → 빼면 '썩은'(ㅆㅓㄱ|ㅇㅡㄴ)과 '써근'(ㅆㅓ|ㄱㅡㄴ)이 같아진다
+#   - 된소리를 예사소리로 → '식중똑'이 '식중독'과 같아진다
+#   - 자모 분리 문자(ㅅㅐㅇ)는 그대로 이어 붙는다
+#
+# ★★ **평문 키워드에만 적용한다.** `_RISK_PATTERNS` 의 정규식은 건드리지 않는다 —
+#   거기 있는 것들(고소·상한·벌레·손톱)은 전방탐색으로 칭찬 관용구를 피하도록 손으로
+#   다듬은 것이고, 자모로 펴면 그 방어가 통째로 날아간다("참기름 향이 고소해요").
+#   실측: 골든셋 저위험 503건 + 함정 관용구 28건에 **신규 오탐 0건**.
+#   `tests/test_risk_rule.py` 의 회수/오탐방지 세트가 함께 통과해야 한다.
+#
+# ★ 1글자 키워드에는 걸지 않는다. 자모 2~3개짜리는 아무 데나 들어맞는다
+#   (한 글자 모호어는 2026-08-25 에 이미 목록에서 뺐다 — 같은 이유다).
+_CHO = tuple("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
+_JUNG = tuple("ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ")
+_JONG = ("",) + tuple("ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ")
+_TENSE = {"ㄲ": "ㄱ", "ㄸ": "ㄷ", "ㅃ": "ㅂ", "ㅆ": "ㅅ", "ㅉ": "ㅈ"}
+# 한글이 아닌 자리(공백·문장부호)를 나타내는 표식. 키워드에 절대 나오지 않는 문자여야 한다.
+_BOUNDARY = "\u0001"
+
+
+def jamo_key(text: str) -> tuple[str, str]:
+    """(자모 평문, 역할 문자열). 역할은 C=초성 V=중성 T=종성.
+
+    묵음 초성 ㅇ 은 빼고, 된소리는 예사소리로 접는다."""
+    out: list[str] = []
+    roles: list[str] = []
+    for ch in text or "":
+        code = ord(ch) - 0xAC00
+        if 0 <= code < 11172:
+            cho, jung, jong = _CHO[code // 588], _JUNG[(code % 588) // 28], _JONG[code % 28]
+            if cho != "ㅇ":
+                out.append(_TENSE.get(cho, cho))
+                roles.append("C")
+            out.append(jung)
+            roles.append("V")
+            if jong:
+                out.append(_TENSE.get(jong, jong))
+                roles.append("T")
+        elif "\u3131" <= ch <= "\u3163":  # 자모 분리 입력
+            out.append(_TENSE.get(ch, ch))
+            roles.append("V" if ch in _JUNG else "C")
+        else:
+            # ★ 공백·문장부호는 경계로 남긴다. 지우면 **단어를 가로질러** 매치된다 —
+            #   실측 오탐: 고발 ⊂ "보고 발견했어요"(…ㅂㅗ|ㄱㅗ|ㅂㅏㄹㄱㅕㄴ…).
+            #   연음은 공백을 넘지 않으므로 이 경계를 세워도 회수에는 손해가 없다.
+            if out and out[-1] != _BOUNDARY:
+                out.append(_BOUNDARY)
+                roles.append("X")
+    return "".join(out), "".join(roles)
+
+
+def _jamo_contains(body_key: str, body_roles: str, needle: str) -> bool:
+    """자모 평문 부분문자열 검색 + **음절 경계 조건**.
+
+    ★ 경계 조건이 없으면 짧은 단어가 긴 음절 안에 박힌다 — 실측 오탐:
+          담배(ㄷㅏㅁㅂㅐ) ⊂ 담백(ㄷㅏㅁㅂㅐㄱ)  → "담백하고 깔끔한 맛이에요"
+      음절을 반토막 내고 종성만 남긴 경우다.
+
+    ★ 반대로 연음은 **항상 매치 뒤에 중성이 온다**. 받침이 다음 음절 초성으로
+      넘어간 자리라 그렇다:
+          이물질 ⊂ 이물찌리 → 뒤가 ㅣ(V)  ✅
+          머리카락 ⊂ 머리카라기 → 뒤가 ㅣ(V) ✅
+      그래서 **매치 직후가 종성(T)이면 거부**한다. 이 한 줄이 두 경우를 가른다.
+
+    ★ 앞쪽도 같다 — 초성 뒤에서 시작하면 그 음절의 첫소리를 잘라먹은 것이다.
+    """
+    start = body_key.find(needle)
+    while start >= 0:
+        end = start + len(needle)
+        cut_tail = end < len(body_roles) and body_roles[end] == "T"
+        cut_head = start > 0 and body_roles[start - 1] == "C"
+        if not cut_tail and not cut_head:
+            return True
+        start = body_key.find(needle, start + 1)
+    return False
+
+
+# 키워드 자모는 모듈 로드 때 한 번만 편다(리뷰마다 다시 펴면 낭비다).
+_JAMO_KEYWORDS: dict[str, tuple[str, ...]] = {
+    reason: tuple(dict.fromkeys(jamo_key(kw)[0] for kw in kws if len(kw) >= 2 and jamo_key(kw)[0]))
+    for reason, kws in _RISK_KEYWORDS.items()
+}
+
+
 def _hits(body: str, reason: str) -> bool:
     """한 위험 사유가 성립하는지 판단한다."""
     if any(kw in body for kw in _RISK_KEYWORDS.get(reason, ())):
+        return True
+    # ★ 표기 흔들림 흡수. 원문에서 못 찾았을 때만 본다 — 승격만 하므로 안전하다.
+    body_key, body_roles = jamo_key(body)
+    if body_key and any(_jamo_contains(body_key, body_roles, k)
+                        for k in _JAMO_KEYWORDS.get(reason, ())):
         return True
     if any(re.search(p, body) for p in _RISK_PATTERNS.get(reason, ())):
         return True
@@ -1870,7 +1982,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v2.2"
+    assert PROMPT_VERSION == "v2.3"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]
