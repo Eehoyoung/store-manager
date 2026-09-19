@@ -70,6 +70,56 @@ ISSUE_TAG_DICT = [
     "청결", "이물질",
 ]
 
+# ── 네이버 스마트플레이스(방문 리뷰) 지원 (2026-09-19) ───────────────────────
+# ★ 배달 3사 경로는 바이트 단위로 그대로 둔다(tests/test_naver_prompt_isolation.py 가
+#   스냅샷으로 잠근다). 네이버는 platform 인자로만 갈라지는 별도 상수/함수로 추가한다.
+
+
+def is_visit_platform(platform: str | None) -> bool:
+    """'NAVER' 만 방문 리뷰 경로다. 그 외(None·빈 문자열·미확인 값)는 fail-safe 하게
+    배달 경로를 탄다 — 새 플랫폼이 추가돼도 이 함수를 고치기 전까지는 안전한 쪽으로 떨어진다."""
+    return platform == "NAVER"
+
+
+# 배달 전용 6종(배달지연·배달빠름·기사응대·오배송·용기·최소주문금액)을 빼고
+# 방문 전용 4종(대기시간·주차·좌석·소음)을 더한다. 공통 태그는 순서까지 그대로 가져온다.
+_DELIVERY_ONLY_TAGS = frozenset({"배달지연", "배달빠름", "기사응대", "오배송", "용기", "최소주문금액"})
+ISSUE_TAG_DICT_NAVER: list[str] = [t for t in ISSUE_TAG_DICT if t not in _DELIVERY_ONLY_TAGS] + [
+    "대기시간", "주차", "좌석", "소음",
+]
+
+
+def issue_tags_for(platform: str | None) -> list[str]:
+    """분류·생성이 써도 되는 태그 사전. 배달은 기존 목록 그대로(순서까지 동일), 네이버는 방문판."""
+    return ISSUE_TAG_DICT_NAVER if is_visit_platform(platform) else ISSUE_TAG_DICT
+
+
+# 네이버(방문 리뷰) 프롬프트의 **독립 버전 라인**.
+#
+# ★ 왜 "v2.2-naver" 가 아닌가 — 배달의 2.2 는 골든셋 564건 실측, risk 1/2 경계 튜닝,
+#   캐시 임계 작업을 거쳐 붙은 숫자다. 네이버 분기는 **측정을 한 번도 하지 않았다.**
+#   같은 번호를 붙이면 DB 에서 prompt_version 을 읽는 사람이 같은 검증 이력을 가정한다.
+#   0.x 는 "아직 평가셋이 없다" 를 버전 자체로 말한다.
+# ★ 두 라인은 독립으로 움직인다. 배달이 v2.3 이 돼도 네이버 지침을 안 고쳤으면
+#   이 값은 그대로다. 반대도 마찬가지다.
+#
+# ★★ 올려야 하는 때가 두 가지다. 두 번째를 놓치기 쉽다.
+#   1) 네이버 전용 지침(CLASSIFY_SYSTEM_NAVER 치환·ISSUE_TAG_DICT_NAVER·
+#      SITUATION_GUIDE_NAVER)을 고쳤을 때.
+#   2) **배달 CLASSIFY_SYSTEM 을 고쳤을 때.** 네이버 프롬프트는 그 상수에서 문자열
+#      치환으로 파생되므로 내용이 함께 바뀐다. 이때 버전을 안 올리면 같은 값이
+#      서로 다른 프롬프트를 가리키게 된다.
+#      → tests/test_naver_prompt_isolation.py 의 배달 스냅샷 테스트가 트립와이어다.
+#        그게 깨지면 픽스처만 갱신하지 말고 이 값도 함께 올려라.
+NAVER_PROMPT_VERSION = "naver-v0.1"
+
+
+def prompt_version_for(platform: str | None) -> str:
+    """응답에 기록할 prompt_version. 배달과 네이버는 서로 다른 버전 라인을 쓴다.
+    PROMPT_VERSION 상수 자체는 바꾸지 않는다 — 네이버 분기가 배달 전용 골든셋
+    평가 이력과 섞이면 안 된다."""
+    return NAVER_PROMPT_VERSION if is_visit_platform(platform) else PROMPT_VERSION
+
 
 class ClassifyOutput(BaseModel):
     """client.messages.parse(output_format=ClassifyOutput) 의 구조화 출력 스키마."""
@@ -271,12 +321,75 @@ COMPLAINT -0.8~-0.2 · ABUSIVE -1.0~-0.6 · NOISE 0.0 을 기준으로 삼는다
 """
 
 
-def build_classify_messages(review_body: str, rating: int, menus: list[str] | None = None) -> tuple[str, str]:
-    """(system, user) 프롬프트 쌍을 만든다. review_body 는 <review> 태그로 격리한다."""
+# ── 네이버(방문 리뷰) 분류 프롬프트 (2026-09-19) ─────────────────────────────
+# ★ CLASSIFY_SYSTEM 을 문자열 치환으로 파생시킨다 — 판정 순서·risk 척도·ABUSIVE 정의·
+#   (가)(나)(다) 조건은 그대로 두고, 배달 전제인 자리만 바꾼다(전략 변경 금지).
+#   CLASSIFY_SYSTEM 자체는 이 파일 어디서도 이 파생을 위해 수정되지 않는다 —
+#   tests/test_naver_prompt_isolation.py 가 바이트 단위로 잠근다.
+_NAVER_TAG_LINE = ", ".join(ISSUE_TAG_DICT_NAVER)
+_DELIVERY_TAG_LINE = ", ".join(ISSUE_TAG_DICT)
+
+# 배달앱 3사 도메인 예시 3개만 방문 맥락으로 치환한다(조리·응대·간·매움 등 공통 예시는 그대로).
+#   "주문한 지 한 시간 뒤 도착" → risk 1 예시. "빠르시네요 두 시간 만에"·"한 시간 반 만에
+#   식은 치킨" → tone 비꼼 예시. 배달원 도착시각을 말하는 문장이라 방문 리뷰에 쓸 수 없다.
+_NAVER_EXAMPLE_SWAPS = (
+    ("주문한 지 한 시간이 넘어서 도착했어요", "예약 시간보다 한 시간이나 늦게 자리 안내를 받았어요"),
+    (
+        "우와 진짜 대단하네요 한 시간 반 만에 식은 치킨 받아보긴 처음이에요",
+        "우와 진짜 대단하네요 예약하고도 한 시간 반을 서서 기다려보긴 처음이에요",
+    ),
+    ("빠르시네요 두 시간 만에 오셨어요", "여유로우시네요 예약하고도 40분이나 기다리게 하시고"),
+    ("빠르시네요 두 시간 만에", "여유로우시네요 예약하고도 40분이나"),
+)
+
+CLASSIFY_SYSTEM_NAVER = CLASSIFY_SYSTEM
+for _old, _new in (
+    ("너는 배달앱 리뷰를 분석하는 분류기다.", "너는 네이버 플레이스에 남겨진 매장 방문 리뷰를 분석하는 분류기다."),
+    (_DELIVERY_TAG_LINE, _NAVER_TAG_LINE),
+    (
+        "2. 이 글이 이 매장의 음식·배달·응대 이야기가 맞는가? 아니면 OFF_TOPIC 이다.",
+        "2. 이 글이 이 매장에서의 방문 경험(음식·응대·대기·웨이팅·주차·좌석·매장 분위기·"
+        "소음·청결·접근성 포함) 이야기가 맞는가? 아니면 OFF_TOPIC 이다.",
+    ),
+    (
+        "· COMPLAINT   음식·배달·응대의 문제를 지적하고, **공격 표현이 하나도 없다.**",
+        "· COMPLAINT   음식·응대·매장 환경(대기·주차·좌석·소음 등)의 문제를 지적하고,"
+        " **공격 표현이 하나도 없다.**",
+    ),
+    (
+        "· COMPLAINT: 음식·배달·응대의 문제를 지적하되 공격 표현이 없으면 COMPLAINT 다.",
+        "· COMPLAINT: 음식·응대·매장 환경의 문제를 지적하되 공격 표현이 없으면 COMPLAINT 다.",
+    ),
+    (
+        "맛·양·온도·배달지연·누락·오배송·포장상태를 **감정 표현 없이 사실만**",
+        "맛·양·온도·대기시간·주차·좌석·소음을 **감정 표현 없이 사실만**",
+    ),
+    *_NAVER_EXAMPLE_SWAPS,
+) :
+    CLASSIFY_SYSTEM_NAVER = CLASSIFY_SYSTEM_NAVER.replace(_old, _new)
+
+CLASSIFY_SYSTEM_NAVER += """
+
+[네이버 방문 리뷰에서 자주 나오는 것 — OFF_TOPIC 이 아니다]
+아래는 음식·응대 이야기가 아니어도 이 매장에서의 방문 경험이므로 OFF_TOPIC 으로 빼지 마라.
+예) "주차하기 너무 불편해요"  "웨이팅이 40분 넘게 걸렸어요"
+    "매장이 좁고 시끄러워서 정신없었어요"  "자리가 부족해서 한참 서서 기다렸어요"
+    "찾아가기 어려운 위치였어요"
+광고·홍보나 매장과 무관한 신변잡담·시사 논평만 OFF_TOPIC 이다(위 카테고리 절 참조).
+"""
+
+
+def build_classify_messages(
+    review_body: str, rating: int, menus: list[str] | None = None, platform: str | None = None,
+) -> tuple[str, str]:
+    """(system, user) 프롬프트 쌍을 만든다. review_body 는 <review> 태그로 격리한다.
+
+    platform 기본값(None)은 **배달 경로**다 — 인자를 안 넘기는 기존 호출부가 그대로 돌아야 한다."""
+    system = CLASSIFY_SYSTEM_NAVER if is_visit_platform(platform) else CLASSIFY_SYSTEM
     menu_str = html.escape(", ".join(menus) if menus else "", quote=True)
     body = html.escape(review_body or "", quote=True)
     user = f'<review rating="{rating}" menus="{menu_str}">\n{body}\n</review>'
-    return CLASSIFY_SYSTEM, user
+    return system, user
 
 
 # ── risk_level 키워드 룰 (docs/12 §1.2) ─────────────────────────────────────
@@ -869,11 +982,61 @@ def blame_line(issue_tags: list[str] | None) -> str:
     )
 
 
-def situation_lines(issue_tags: list[str] | None) -> str:
+# ── 네이버(방문) 상황 지침 (2026-09-19) ──────────────────────────────────────
+# ★ SITUATION_GUIDE(배달)는 여기서 한 글자도 바꾸지 않는다 — 배달 경로 생성 프롬프트가
+#   바이트 단위로 그대로여야 한다(tests/test_naver_prompt_isolation.py).
+# 배달 전용 안내 문구만 방문 맥락으로 바꾸고, 나머지 지침은 그대로 물려받는다.
+_NAVER_GUIDE_PHRASE_SWAPS = (
+    ("주문하신 앱으로 문의해 달라는", "매장으로 연락 주시거나 방문하실 때 말씀해 주시면 된다는"),
+    ("주문하신 앱으로 문의해 달라고", "매장으로 연락 주시거나 방문하실 때 말씀해 주시면 된다고"),
+    ("주문 요청사항에 적어 달라고", "주문하실 때 직원에게 말씀해 주시면 된다고"),
+    ("주문 요청사항에 적어 주시면", "주문하실 때 직원에게 말씀해 주시면"),
+    ("요청사항 칸에 적어 주시면", "주문하실 때 직원에게 말씀해 주시면"),
+)
+
+# 방문 전용 4종. ★ 확정하지 않은 시설 개선(주차공간 확충·좌석 교체·방음 공사)을 약속하지
+# 않는다([절대 규칙] 8번) — 확정한 적 없는 조치이고, 돈이 드는 공사는 절대규칙 4 와도 겹친다.
+# ★ 금전 표현(환불·보상·할인·쿠폰·무료 등)은 긍정으로도 부정으로도 쓰지 않는다 —
+#   모델은 부정문도 그대로 따라 쓴다(tests/test_situation_guide.py 금지어 검사 참고).
+_SITUATION_GUIDE_VISIT_EXTRA: dict[str, str] = {
+    "대기시간": "대기·웨이팅이 길었다는 지적이다. 얼마나 기다리셨는지 손님이 쓴 그대로 짚어"
+                " 사과하라. 확정하지 않은 인력·시스템 변경을 약속하지 말고 확인해 보겠다는"
+                " 선에서 끝내라.",
+    "주차": "주차가 불편했다는 지적이다. 어떤 점이 불편하셨는지 그대로 인정하고 사과하라."
+            " 확정하지 않은 주차공간 확충을 약속하지 마라.",
+    "좌석": "좌석이 불편하거나 부족했다는 지적이다. 손님이 겪은 상황을 그대로 인정하고"
+            " 사과하라. 확정하지 않은 좌석 교체·증설을 약속하지 마라.",
+    "소음": "매장이 시끄러웠다는 지적이다. 불편하셨던 점을 인정하고 사과하라. 확정하지 않은"
+            " 방음 공사나 좌석 배치 변경을 약속하지 마라.",
+}
+
+
+def _build_situation_guide_naver() -> dict[str, str]:
+    guide: dict[str, str] = {}
+    for tag, text in SITUATION_GUIDE.items():
+        if tag not in ISSUE_TAG_DICT_NAVER:
+            continue  # 배달 전용 태그(기사응대·오배송 등)는 애초에 방문 태그 사전에 없다
+        for old, new in _NAVER_GUIDE_PHRASE_SWAPS:
+            text = text.replace(old, new)
+        guide[tag] = text
+    guide.update(_SITUATION_GUIDE_VISIT_EXTRA)
+    return guide
+
+
+SITUATION_GUIDE_NAVER: dict[str, str] = _build_situation_guide_naver()
+
+
+def situation_guide_for(platform: str | None) -> dict[str, str]:
+    """이 플랫폼에서 쓸 상황 지침 사전. 배달은 SITUATION_GUIDE 그대로."""
+    return SITUATION_GUIDE_NAVER if is_visit_platform(platform) else SITUATION_GUIDE
+
+
+def situation_lines(issue_tags: list[str] | None, platform: str | None = None) -> str:
     """리뷰에 붙은 태그 중 상황별 지침이 있는 것만 모아 준다. 없으면 빈 문자열."""
     if not issue_tags:
         return ""
-    lines = [f"- {SITUATION_GUIDE[tag]}" for tag in issue_tags if tag in SITUATION_GUIDE]
+    guide = situation_guide_for(platform)
+    lines = [f"- {guide[tag]}" for tag in issue_tags if tag in guide]
     return "\n".join(lines)
 
 
@@ -1132,7 +1295,7 @@ def style_hint(category: str, risk_reasons: list[str] | None, persona, review_id
 def build_generate_messages(
     category: str, review, persona, few_shot_text: str, issue_tags: list[str] | None = None,
     instruction: str | None = None, risk_reasons: list[str] | None = None, review_id: str = "",
-    tone: str = "CALM", praised_tags: list[str] | None = None,
+    tone: str = "CALM", praised_tags: list[str] | None = None, platform: str | None = None,
 ) -> tuple[str, str]:
     """(system, user) 프롬프트 쌍을 만든다. category 는 PRAISE/POSITIVE/IMPROVEMENT/COMPLAINT
     중 하나여야 한다(ABUSIVE·NOISE 는 main.py 가 이 함수를 호출하지 않는다).
@@ -1151,11 +1314,11 @@ def build_generate_messages(
     #   v2.0 부터 issue_tags 자체가 **문제로 지적된 것만** 담으므로 카테고리 게이트를 뗀다.
     #   덕분에 "맛있는데 늦게 왔어요"(PRAISE + 배달지연) 같은 혼재 리뷰도 지침을 받는다 —
     #   게이트가 있던 동안에는 이런 건이 통째로 지침 없이 생성됐다.
-    situation_text = situation_lines(issue_tags)
+    situation_text = situation_lines(issue_tags, platform)
     # ★ 칭찬받은 태그는 지침이 아니라 **사실**로 넘긴다. 칭찬에 붙일 지침은 따로 없고,
     #   모델이 "무엇이 좋았는지" 를 정확히 집어 호응하게 하는 것이 목적이다.
     praised_text = ", ".join(
-        html.escape(t, quote=True) for t in (praised_tags or []) if t in ISSUE_TAG_DICT
+        html.escape(t, quote=True) for t in (praised_tags or []) if t in issue_tags_for(platform)
     )
     # ★ 길이 지침 3중 충돌을 없앤다(2026-09-17). 이전에는 "짧고 담백하게 / 길게 늘이지 마라"
     #   (POSITIVE 지침) 와 "60~150자" 와 "2~3문장" 이 한 프롬프트에 같이 있었다.

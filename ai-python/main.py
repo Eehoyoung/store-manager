@@ -168,7 +168,7 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
         return _stub_classify(review), "stub", 0, 0, 0.0, 0
 
     sanitized_body, _injection_found, _markers = guardrails.sanitize_review(review.body)
-    system, user = prompts.build_classify_messages(sanitized_body, review.rating, review.menus)
+    system, user = prompts.build_classify_messages(sanitized_body, review.rating, review.menus, review.platform)
     for _attempt in range(2):  # 문서 12 §2 후처리 1: JSON 파싱 실패 시 1회 재시도
         try:
             resp = client.messages.parse(
@@ -246,7 +246,7 @@ def _generate_draft(
             category, safe_review, persona, few_shot_text, issue_tags, req.options.instruction,
             # ★ review_id 는 머리말·맺음말을 리뷰마다 흩는 씨앗이다. 빼면 한 매장의
             #   모든 답글이 같은 인사말로 시작한다(실측 v1.9: 도입부 상위 6문형이 69%).
-            risk_reasons, req.review_id, tone, praised_tags,
+            risk_reasons, req.review_id, tone, praised_tags, req.review.platform,
         )
         model_id = router.TIER_MODELS[attempt_tier]
         try:
@@ -300,7 +300,7 @@ def _produce_variant(
 
         if not content_flags:
             draft = DraftOut(
-                content=content, tier=used_tier, model=gen_model, promptVersion=prompts.PROMPT_VERSION,
+                content=content, tier=used_tier, model=gen_model, promptVersion=prompts.prompt_version_for(req.review.platform),
                 guardrailFlags=[], similarityMax=flags.similarity_max,
                 tokenIn=total_token_in, tokenOut=total_token_out, costKrw=round(total_cost, 4),
             )
@@ -312,7 +312,7 @@ def _produce_variant(
             return None, content_flags
         # RETRY 대상만 있으면 한 번 더 시도(루프 계속)하되, 마지막 것을 들고 간다.
         last_retry_draft = DraftOut(
-            content=content, tier=used_tier, model=gen_model, promptVersion=prompts.PROMPT_VERSION,
+            content=content, tier=used_tier, model=gen_model, promptVersion=prompts.prompt_version_for(req.review.platform),
             guardrailFlags=content_flags, similarityMax=flags.similarity_max,
             tokenIn=total_token_in, tokenOut=total_token_out, costKrw=round(total_cost, 4),
         )
@@ -345,12 +345,13 @@ def analyze_and_draft(
     risk_reasons = sorted(
         (set(classified.risk_reasons) | set(keyword_reasons)) & set(prompts.RISK_REASON_VALUES)
     )
-    # 사전 외 태그 제거(문서 12 §2 후처리 2)
-    issue_tags = [t for t in classified.issue_tags if t in prompts.ISSUE_TAG_DICT]
+    # 사전 외 태그 제거(문서 12 §2 후처리 2). 태그 사전은 플랫폼별이다(배달/네이버 방문).
+    platform_tags = prompts.issue_tags_for(req.review.platform)
+    issue_tags = [t for t in classified.issue_tags if t in platform_tags]
     # ★ 같은 태그가 양쪽에 들어오면 문제 쪽을 남긴다. 답글에서 사과를 빠뜨리는 것보다
     #   칭찬 호응을 빠뜨리는 쪽이 사고가 작다.
     praised_tags = [
-        t for t in classified.praised_tags if t in prompts.ISSUE_TAG_DICT and t not in issue_tags
+        t for t in classified.praised_tags if t in platform_tags and t not in issue_tags
     ]
     # ★ 모델 tone 위에 결정론 룰을 덮어쓴다. 올리기만 한다 — 실측에서 모델이 낸 tone 은
     #   54건 중 50건이 CALM 이었다(2026-09-17). 같은 어휘가 risk 2 의 (가) 조건이기도 해서
@@ -368,7 +369,7 @@ def analyze_and_draft(
         riskLevel=risk_level,
         riskReasons=risk_reasons,
         model=classify_model,
-        promptVersion=prompts.PROMPT_VERSION,
+        promptVersion=prompts.prompt_version_for(req.review.platform),
     )
 
     # 문서 12 §3.1: 답글을 만들지 않는 카테고리는 사람에게 넘긴다.

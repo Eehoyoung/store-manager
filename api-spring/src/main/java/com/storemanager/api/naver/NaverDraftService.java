@@ -118,6 +118,11 @@ public class NaverDraftService {
         short riskLevel = aiRes.analysis() == null ? 0 : (short) aiRes.analysis().riskLevel();
         String category = aiRes.analysis() == null ? null : aiRes.analysis().category();
         String[] flagsArray = guardrailFlags.toArray(new String[0]);
+        // ★ 프롬프트 계보를 남긴다. 네이버는 배달(v2.x)과 다른 라인(naver-v0.x)이고 아직 골든셋이
+        //   없다 — 나중에 품질을 되짚을 때 "그때 어느 프롬프트였나" 를 답할 수 있어야 한다.
+        //   차단되어 초안이 없는 건도 분석은 돌았으므로 analysis 쪽 값을 남긴다.
+        String promptVersion = aiRes.analysis() == null ? null : aiRes.analysis().promptVersion();
+        String model = aiRes.analysis() == null ? null : aiRes.analysis().model();
 
         NaverReviewEvent event;
         if (existing == null) {
@@ -130,10 +135,13 @@ public class NaverDraftService {
                     .draftContent(draftContent)
                     .guardrailFlags(flagsArray)
                     .blocked(aiRes.blocked())
+                    .promptVersion(promptVersion)
+                    .model(model)
                     .draftedAt(Instant.now())
                     .build();
         } else {
-            existing.refreshDraft(rating, category, riskLevel, draftContent, flagsArray, aiRes.blocked());
+            existing.refreshDraft(rating, category, riskLevel, draftContent, flagsArray, aiRes.blocked(),
+                    promptVersion, model);
             event = existing;
         }
         naverReviewEventRepository.save(event);

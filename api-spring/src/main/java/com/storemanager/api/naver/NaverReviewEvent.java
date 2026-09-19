@@ -73,6 +73,18 @@ public class NaverReviewEvent {
     @Column(name = "draft_content")
     private String draftContent;
 
+    /**
+     * 이 초안을 만든 프롬프트 버전. 네이버는 배달(v2.x)과 <b>다른 라인</b>(naver-v0.x)을 쓴다 — 배달
+     * 프롬프트는 골든셋 564건으로 검증됐지만 네이버 라인은 아직 평가셋이 없으므로 같은 번호를 쓰면
+     * 벌지 않은 신뢰를 빌리는 셈이 된다. 나중에 품질을 되짚으려면 이 값이 남아 있어야 한다.
+     */
+    @Column(name = "prompt_version")
+    private String promptVersion;
+
+    /** 초안 생성에 쓰인 LLM 모델 id. {@code stub} 이면 실모델 없이 만든 초안이다. */
+    @Column(name = "model")
+    private String model;
+
     @Builder.Default
     @Column(name = "guardrail_flags", nullable = false)
     private String[] guardrailFlags = new String[0];
@@ -113,7 +125,7 @@ public class NaverReviewEvent {
 
     /** AI 재호출로 초안 내용을 갱신한다. 이미 사람이 확정(APPROVED/POSTED)한 건은 덮어쓰지 않는다. */
     public void refreshDraft(Short rating, String category, short riskLevel, String draftContent,
-            String[] guardrailFlags, boolean blocked) {
+            String[] guardrailFlags, boolean blocked, String promptVersion, String model) {
         if ("APPROVED".equals(status) || "POSTED".equals(status)) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
                     Map.of("currentStatus", status, "reason", "이미 확정된 항목은 다시 생성할 수 없습니다."));
@@ -124,6 +136,8 @@ public class NaverReviewEvent {
         this.draftContent = draftContent;
         this.guardrailFlags = guardrailFlags == null ? new String[0] : guardrailFlags;
         this.blocked = blocked;
+        this.promptVersion = promptVersion;
+        this.model = model;
         this.draftedAt = Instant.now();
     }
 
