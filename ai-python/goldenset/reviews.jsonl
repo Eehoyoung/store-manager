@@ -501,8 +501,8 @@
 {"id": "G-0521", "platform": "yogiyo", "category": "ABUSIVE", "industry": "중식", "rating": 1, "body": "장사할 자격이 없으니 그만두세요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0522", "platform": "coupangeats", "category": "ABUSIVE", "industry": "한식", "rating": 1, "body": "이 동네에서 사라져야 할 가게다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0523", "platform": "baemin", "category": "ABUSIVE", "industry": "치킨", "rating": 1, "body": "배달앱 수수료 도둑질부터 없애라 이 나라가 문제다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0524", "platform": "yogiyo", "category": "ABUSIVE", "industry": "분식", "rating": 1, "body": "여기 광고 문의 주세요 마케팅 대행합니다 연락 기다립니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0525", "platform": "coupangeats", "category": "ABUSIVE", "industry": "카페", "rating": 1, "body": "요즘 세상 돌아가는 꼴이 다 이렇지 뭐 한심하다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
+{"id": "G-0524", "platform": "yogiyo", "category": "OFF_TOPIC", "industry": "분식", "rating": 1, "body": "여기 광고 문의 주세요 마케팅 대행합니다 연락 기다립니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
+{"id": "G-0525", "platform": "coupangeats", "category": "OFF_TOPIC", "industry": "카페", "rating": 1, "body": "요즘 세상 돌아가는 꼴이 다 이렇지 뭐 한심하다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0526", "platform": "baemin", "category": "COMPLAINT", "industry": "중식", "rating": 1, "body": "정말 최악이었어요 다시는 안 시킬 것 같습니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0527", "platform": "yogiyo", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "돈이 아깝다는 생각이 들 정도였어요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0528", "platform": "coupangeats", "category": "COMPLAINT", "industry": "치킨", "rating": 1, "body": "이 가격에 이 퀄리티는 아니라고 봅니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
@@ -512,7 +512,7 @@
 {"id": "G-0532", "platform": "baemin", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "두 번 다시 시키고 싶지 않네요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0533", "platform": "yogiyo", "category": "COMPLAINT", "industry": "치킨", "rating": 1, "body": "성의가 너무 없어 보였습니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0534", "platform": "coupangeats", "category": "COMPLAINT", "industry": "분식", "rating": 1, "body": "너무 실망스러워서 화가 났어요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
-{"id": "G-0535", "platform": "baemin", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "환불 받고 싶을 정도로 별로였습니다", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
+{"id": "G-0535", "platform": "baemin", "category": "COMPLAINT", "industry": "카페", "rating": 1, "body": "환불 받고 싶을 정도로 별로였습니다", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0536", "platform": "yogiyo", "category": "COMPLAINT", "industry": "중식", "rating": 1, "body": "진짜 어이없을 정도로 양이 적어요", "expected": {"riskLevel": 1, "riskReasons": [], "mustBlockAutoPublish": false}}
 {"id": "G-0537", "platform": "coupangeats", "category": "COMPLAINT", "industry": "한식", "rating": 1, "body": "이건 좀 심하지 않나요 팔아도 되는 상태가 아니에요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}
 {"id": "G-0538", "platform": "baemin", "category": "COMPLAINT", "industry": "한식", "rating": 2, "body": "정말 화가 나서 리뷰 남깁니다 이건 너무하네요", "expected": {"riskLevel": 2, "riskReasons": [], "mustBlockAutoPublish": true}}

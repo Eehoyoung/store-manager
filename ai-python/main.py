@@ -58,7 +58,8 @@ class PersonaIn(BaseModel):
 
     tone: str = "FRIENDLY"
     use_emoji: bool = Field(default=True, alias="useEmoji")
-    emoji_level: int = Field(default=1, alias="emojiLevel")
+    # 0=사용 안 함 · 1=1개 · 2=2~3개(기본) · 3=자유 — DB 기본값도 V34 에서 2 로 올렸다.
+    emoji_level: int = Field(default=2, alias="emojiLevel")
     customer_title: str = Field(default="고객님", alias="customerTitle")
     signature: str | None = None
     # 사장님이 직접 입력한 답글 시작 스타일. 있으면 시드 기반 인사말보다 우선한다.
@@ -100,8 +101,10 @@ class AnalysisOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     category: str
+    tone: str = "CALM"
     sentiment: float
     issue_tags: list[str] = Field(default_factory=list, alias="issueTags")
+    praised_tags: list[str] = Field(default_factory=list, alias="praisedTags")
     risk_level: int = Field(alias="riskLevel")
     risk_reasons: list[str] = Field(default_factory=list, alias="riskReasons")
     model: str
@@ -135,23 +138,30 @@ class AnalyzeAndDraftResponse(BaseModel):
 def _stub_classify(review: ReviewIn) -> prompts.ClassifyOutput:
     """ANTHROPIC_API_KEY 가 없는 환경(CI 포함)용 rating 기반 결정적 분류.
     기존 스텁과 동일한 계약을 유지해 회귀를 막는다."""
+    # tone 은 전부 CALM 이다 — 스텁은 문장을 읽지 않으므로 감정을 짐작할 근거가 없다.
+    # 모르면 낮은 쪽이 안전하다(강도를 과하게 잡으면 가벼운 리뷰에 사죄문이 나간다).
     if review.rating >= 4:
         return prompts.ClassifyOutput(
-            category="POSITIVE", sentiment=1.0 if review.rating == 5 else 0.6,
-            issue_tags=[], risk_level=0, risk_reasons=[],
+            category="POSITIVE", tone="CALM", sentiment=1.0 if review.rating == 5 else 0.6,
+            issue_tags=[], praised_tags=[], risk_level=0, risk_reasons=[],
         )
     if review.rating == 3:
-        return prompts.ClassifyOutput(category="IMPROVEMENT", sentiment=0.0, issue_tags=[], risk_level=0, risk_reasons=[])
+        return prompts.ClassifyOutput(
+            category="IMPROVEMENT", tone="CALM", sentiment=0.0,
+            issue_tags=[], praised_tags=[], risk_level=0, risk_reasons=[],
+        )
     return prompts.ClassifyOutput(
-        category="COMPLAINT", sentiment=-0.6 if review.rating == 2 else -1.0,
-        issue_tags=[], risk_level=1, risk_reasons=[],
+        category="COMPLAINT", tone="CALM", sentiment=-0.6 if review.rating == 2 else -1.0,
+        issue_tags=[], praised_tags=[], risk_level=1, risk_reasons=[],
     )
 
 
 def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.ClassifyOutput, str, int, int, float, int]:
     """(분류결과, 사용모델, token_in, token_out, cost_krw) 를 반환한다."""
     if not review.body.strip():
-        return prompts.ClassifyOutput(category="NOISE", sentiment=0.0, issue_tags=[], risk_level=0, risk_reasons=[]), "rule-noise", 0, 0, 0.0, 0
+        return (prompts.ClassifyOutput(category="NOISE", tone="CALM", sentiment=0.0, issue_tags=[],
+                                       praised_tags=[], risk_level=0, risk_reasons=[]),
+                "rule-noise", 0, 0, 0.0, 0)
 
     client = getattr(provider, "client", None)
     if client is None:
@@ -191,7 +201,8 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
 # ── 생성 ────────────────────────────────────────────────────────────────
 def _generate_draft(
     provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
-    issue_tags: list[str] | None = None,
+    issue_tags: list[str] | None = None, risk_reasons: list[str] | None = None,
+    tone: str = "CALM", praised_tags: list[str] | None = None,
 ) -> tuple[str | None, str, str, int, int, float, list[str]]:
     """(content, 사용모델, 사용티어, token_in, token_out, cost_krw) 를 반환한다.
     content 가 None 이면 두 티어(원래 티어 + 폴백 1회) 모두 실패한 것이다."""
@@ -202,14 +213,29 @@ def _generate_draft(
         tiers_to_try.append(fb)
 
     for attempt_tier in tiers_to_try:
+        if attempt_tier == "T0" and not prompts.t0_template_allowed(category):
+            # 감사 템플릿을 불만 리뷰에 붙이지 않는다. 초안 없이 사람에게 넘긴다.
+            continue
         if attempt_tier == "T0":
             seed = (persona.persona_seed or 0) + variant_idx
             content = prompts.render_t0_template(persona.customer_title, seed, persona.use_emoji, persona.signature)
             content = content[: guardrails.MAX_LENGTH]
             return content, "rule-template", "T0", 0, 0, 0.0, list(dict.fromkeys(req.recent_replies))
 
-        examples = rag.fetch_examples(req.store_id, req.review.body, k=4)
-        few_shot_text = prompts.format_few_shot([(e.review_text, e.reply_text) for e in examples])
+        # ★ 분류 축을 검색에 넘긴다. 이게 없으면 배달 지연 리뷰에 칭찬 답글 4건이 예시로 붙는다.
+        slot = prompts.style_slot_for(category)
+        examples = rag.fetch_examples(
+            req.store_id, req.review.body, k=4, category=category, issue_tags=issue_tags,
+            slot_wanted=slot,
+        )
+        # ★ 슬롯 유형을 같이 넘긴다. 리뷰가 없는 형식 예시는 유형이 곧 맥락이다 —
+        #   없으면 감사 형식이 불만 리뷰의 본보기로 읽힌다.
+        pairs = [(e.review_text, e.reply_text, getattr(e, "sample_type", None)) for e in examples]
+        # ★ 사장님이 그 슬롯을 비워 뒀으면 우리 기본 형식을 맨 앞에 넣는다.
+        #   비워 둔 매장이 예시 없이 생성되면 답글이 업종 표준 톤으로 흘러간다.
+        if not any(getattr(e, "sample_type", None) == slot for e in examples):
+            pairs.insert(0, ("", prompts.default_style_sample(slot, persona.persona_seed), slot))
+        few_shot_text = prompts.format_few_shot(pairs)
         # 게시 이력은 프롬프트가 아니라 가드레일에만 전달한다(입력 토큰 증가 방지).
         recent_replies = list(dict.fromkeys(req.recent_replies + [e.reply_text for e in examples]))
         # ★ issue_tags 를 넘긴다. 이게 없으면 '국물이 샜다' 와 '배달이 늦었다' 가 같은
@@ -217,7 +243,10 @@ def _generate_draft(
         sanitized_body, _injection_found, _markers = guardrails.sanitize_review(req.review.body)
         safe_review = req.review.model_copy(update={"body": sanitized_body})
         system, user = prompts.build_generate_messages(
-            category, safe_review, persona, few_shot_text, issue_tags, req.options.instruction
+            category, safe_review, persona, few_shot_text, issue_tags, req.options.instruction,
+            # ★ review_id 는 머리말·맺음말을 리뷰마다 흩는 씨앗이다. 빼면 한 매장의
+            #   모든 답글이 같은 인사말로 시작한다(실측 v1.9: 도입부 상위 6문형이 69%).
+            risk_reasons, req.review_id, tone, praised_tags,
         )
         model_id = router.TIER_MODELS[attempt_tier]
         try:
@@ -233,7 +262,8 @@ def _generate_draft(
 
 def _produce_variant(
     provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
-    risk_level: int, issue_tags: list[str] | None = None,
+    risk_level: int, issue_tags: list[str] | None = None, risk_reasons: list[str] | None = None,
+    tone: str = "CALM", praised_tags: list[str] | None = None,
 ) -> tuple[DraftOut | None, list[str]]:
     """초안 1건을 생성하고 가드레일을 통과시킨다. (draft, 최종 실패 플래그) 를 반환한다.
 
@@ -244,12 +274,13 @@ def _produce_variant(
     RETRY_FLAGS 만 걸리면(G1_LENGTH_MIN 등) 문서 12 §4 대로 1회 재생성한다.
     """
     last_flags: list[str] = []
+    last_retry_draft: DraftOut | None = None
     total_token_in = 0
     total_token_out = 0
     total_cost = 0.0
     for _regen in range(2):  # 최초 생성 1회 + RETRY 시 재생성 1회
         content, gen_model, used_tier, tok_in, tok_out, cost, recent_replies = _generate_draft(
-            provider, tier, category, req, variant_idx, issue_tags
+            provider, tier, category, req, variant_idx, issue_tags, risk_reasons, tone, praised_tags
         )
         total_token_in += tok_in
         total_token_out += tok_out
@@ -261,7 +292,9 @@ def _produce_variant(
         banned_rules.extend((word, "STORE", "CONTAINS") for word in req.persona.banned_words)
         flags = guardrails.check(
             content, risk_level, review_body=req.review.body, recent_replies=recent_replies,
-            extra_banned_words=banned_rules
+            extra_banned_words=banned_rules,
+            # ★ 하한은 카테고리별이다. 짧은 호평에 60자를 요구하면 초안이 통째로 사라진다.
+            min_length=guardrails.min_length_for(category, tone),
         )
         content_flags = [f for f in flags if f != "G8_RISK"]
 
@@ -275,10 +308,21 @@ def _produce_variant(
 
         last_flags = content_flags
         if any(f in guardrails.BLOCK_FLAGS for f in content_flags):
-            break  # 진짜 콘텐츠 문제(BLOCK) — 재시도해도 소용없다
-        # RETRY 대상만 있으면 한 번 더 시도(루프 계속)
+            # 진짜 콘텐츠 문제 — 내용 자체가 규칙을 어겼다. 재시도도 보존도 하지 않는다.
+            return None, content_flags
+        # RETRY 대상만 있으면 한 번 더 시도(루프 계속)하되, 마지막 것을 들고 간다.
+        last_retry_draft = DraftOut(
+            content=content, tier=used_tier, model=gen_model, promptVersion=prompts.PROMPT_VERSION,
+            guardrailFlags=content_flags, similarityMax=flags.similarity_max,
+            tokenIn=total_token_in, tokenOut=total_token_out, costKrw=round(total_cost, 4),
+        )
 
-    return None, last_flags
+    # ★ RETRY 를 소진했다. 마지막 초안을 버리지 않고 플래그와 함께 넘긴다.
+    #   플래그가 남아 있으면 호출부가 blocked=True 로 돌려주므로 자동 게시는 막히고,
+    #   검수 화면에는 사장님이 고쳐 쓸 문장이 남는다. 빈손보다 55자짜리가 낫다.
+    #   실측(2026-09-19) C-L-012 "두 시간 걸려서 왔는데 다 식었고 일부 금액 환불 요청드려요"
+    #   가 2회 모두 60자 미만이라 통째로 사라졌다 — 분류·위험도는 전부 정확했는데도.
+    return last_retry_draft, last_flags
 
 
 @app.get("/health")
@@ -303,25 +347,51 @@ def analyze_and_draft(
     )
     # 사전 외 태그 제거(문서 12 §2 후처리 2)
     issue_tags = [t for t in classified.issue_tags if t in prompts.ISSUE_TAG_DICT]
+    # ★ 같은 태그가 양쪽에 들어오면 문제 쪽을 남긴다. 답글에서 사과를 빠뜨리는 것보다
+    #   칭찬 호응을 빠뜨리는 쪽이 사고가 작다.
+    praised_tags = [
+        t for t in classified.praised_tags if t in prompts.ISSUE_TAG_DICT and t not in issue_tags
+    ]
+    # ★ 모델 tone 위에 결정론 룰을 덮어쓴다. 올리기만 한다 — 실측에서 모델이 낸 tone 은
+    #   54건 중 50건이 CALM 이었다(2026-09-17). 같은 어휘가 risk 2 의 (가) 조건이기도 해서
+    #   _is_risk2 와 한 벌을 쓴다.
+    tone = prompts.upgrade_tone(
+        req.review.body, classified.tone if classified.tone in prompts.TONE_VALUES else "CALM"
+    )
 
     analysis = AnalysisOut(
         category=classified.category,
+        tone=tone,
         sentiment=classified.sentiment,
         issueTags=issue_tags,
+        praisedTags=praised_tags,
         riskLevel=risk_level,
         riskReasons=risk_reasons,
         model=classify_model,
         promptVersion=prompts.PROMPT_VERSION,
     )
 
-    # 문서 12 §3.1: ABUSIVE 는 자동 생성 대상이 아니다 — 사람 검수로 직행한다.
-    if classified.category == "ABUSIVE":
-        return AnalyzeAndDraftResponse(
-            analysis=analysis, drafts=[], blocked=True, blockReasons=["ABUSIVE_MANUAL_REVIEW"]
+    # 문서 12 §3.1: 답글을 만들지 않는 카테고리는 사람에게 넘긴다.
+    # ★ 사유를 갈라서 돌려준다(v2.0). 둘 다 생성은 안 하지만 사장님이 할 일이 다르다 —
+    #   ABUSIVE 는 읽고 판단해야 하고, OFF_TOPIC(광고·시사)은 읽을 것도 없이 넘기면 된다.
+    # ★ 단, ABUSIVE 밑에 실체 있는 위험 사유가 깔려 있으면 초안을 만든다(prompts 참고).
+    #   ABUSIVE 오판은 받쳐 주는 것이 하나도 없는 유일한 축이고, 하필 손해가 가장 크다.
+    draft_category = classified.category
+    if classified.category in prompts.NO_DRAFT_CATEGORIES:
+        rescued = (
+            prompts.abusive_draft_category(risk_reasons)
+            if classified.category == "ABUSIVE" and risk_level >= guardrails.RISK_BLOCK_THRESHOLD
+            else None
         )
+        if rescued is None:
+            reason = "ABUSIVE_MANUAL_REVIEW" if classified.category == "ABUSIVE" else "OFF_TOPIC_NO_REPLY"
+            return AnalyzeAndDraftResponse(
+                analysis=analysis, drafts=[], blocked=True, blockReasons=[reason]
+            )
+        draft_category = rescued
 
     tier = router.route(
-        req.review.rating, req.review.body, classified.category, risk_level,
+        req.review.rating, req.review.body, draft_category, risk_level,
         req.options.force_tier, issue_tag_count=len(issue_tags),
     )
 
@@ -331,12 +401,15 @@ def analyze_and_draft(
 
     for variant_idx in range(n_variants):
         draft, flags = _produce_variant(
-            provider, tier, classified.category, req, variant_idx, risk_level, issue_tags
+            provider, tier, draft_category, req, variant_idx, risk_level, issue_tags,
+            risk_reasons, tone, praised_tags,
         )
+        # ★ 초안이 있어도 플래그가 남아 있으면 블록 사유다(RETRY 소진분).
+        #   여기서 빠뜨리면 가드레일에 걸린 초안이 blocked=False 로 자동 게시된다.
+        for f in flags:
+            if f not in block_reasons:
+                block_reasons.append(f)
         if draft is None:
-            for f in flags:
-                if f not in block_reasons:
-                    block_reasons.append(f)
             continue
         drafts.append(draft)
 
@@ -352,8 +425,10 @@ def analyze_and_draft(
 
     # 절대규칙 3 + 문서 12 §4 G8(guardrails.RISK_BLOCK_THRESHOLD): risk_level 이 임계값 이상이면
     # 콘텐츠 자체는 통과했더라도 자동 게시 금지 → 사람 검수 큐로 표시(초안은 유지해 검수 화면에 보여준다).
-    if risk_level >= guardrails.RISK_BLOCK_THRESHOLD:
-        return AnalyzeAndDraftResponse(analysis=analysis, drafts=drafts, blocked=True, blockReasons=["G8_RISK"])
+    if risk_level >= guardrails.RISK_BLOCK_THRESHOLD and "G8_RISK" not in block_reasons:
+        block_reasons.append("G8_RISK")
+    if block_reasons:
+        return AnalyzeAndDraftResponse(analysis=analysis, drafts=drafts, blocked=True, blockReasons=block_reasons)
 
     return AnalyzeAndDraftResponse(analysis=analysis, drafts=drafts, blocked=False, blockReasons=[])
 

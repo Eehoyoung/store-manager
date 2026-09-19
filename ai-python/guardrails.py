@@ -22,6 +22,29 @@ import re
 
 MAX_LENGTH = 280  # 문서 12 §4 G1 상한 (CLAUDE.md #8: 플랫폼 300자보다 여유를 둔 하드 제한)
 MIN_LENGTH = 60  # 문서 12 §4 G1 하한 — 미달은 BLOCK 이 아니라 재생성 대상
+
+# ★ 하한을 카테고리별로 나눈다 (2026-09-17).
+#   60 자 일률 적용은 **가장 쉬운 리뷰를 무응답으로 만들었다.** "좋아요 감사합니다" 에
+#   60 자를 채울 내용이 없어 재생성까지 실패하고 초안이 통째로 사라진다(실측 3건/48건).
+#   사장님이 직접 쓴 기준 답글 30건은 전부 60자 미만(평균 32.5자)이었다.
+#   ★ 불만(IMPROVEMENT·COMPLAINT)은 60 을 유지한다 — 짧은 사과는 성의 없어 보인다.
+#     이 구분을 없애고 전역으로 내리지 말 것.
+MIN_LENGTH_BY_CATEGORY: dict[str, int] = {"PRAISE": 20, "POSITIVE": 20, "NOISE": 20}
+
+
+def min_length_for(category: str | None, tone: str | None = None) -> int:
+    """카테고리별 G1 하한. 모르는 카테고리는 보수적으로 기본값(60)을 쓴다.
+
+    ★ 담담하게 알려준 지적에는 60자 사과문이 과잉이다(실측 2026-09-17, 80건 중 8건).
+      "국밥 진짜 진하고 좋았는데 앞접시가 없어서 아쉬웠어요" 는 따진 게 아니라 알려준 것이다.
+    ★ v2.0 부터 별점이 아니라 tone 으로 가른다. 별점은 대리 지표였다 —
+      별 5개를 주고도 화내는 손님과 별 1개를 주고도 담담한 손님을 가르지 못한다.
+    ★ COMPLAINT 는 tone 과 무관하게 60 이다. 담담한 불만이라도 사과가 짧으면 성의 없어 보인다."""
+    if category in MIN_LENGTH_BY_CATEGORY:
+        return MIN_LENGTH_BY_CATEGORY[category or ""]
+    if category == "IMPROVEMENT" and tone == "CALM":
+        return MIN_LENGTH_BY_CATEGORY["PRAISE"]
+    return MIN_LENGTH
 RISK_BLOCK_THRESHOLD = 2  # 문서 12 §4 G8: risk_level >= 2 부터 자동 게시 차단
 REVIEW_QUOTE_MIN_RUN = 15  # 문서 12 §4 G6: 리뷰 본문과 15자 이상 연속 일치
 DUPLICATE_SIMILARITY_THRESHOLD = 0.90  # 문서 12 §4 G7
@@ -46,8 +69,14 @@ _ADDRESS_PATTERN = re.compile(
 )
 
 # 문서 12 §4 G9 — 리뷰 본문에서 감지할 지시성 문구
+# ★ 마커는 "정상 답글에 나올 일이 없는 문구" 여야 한다. 흔한 한국어 단어를 넣으면
+#   인젝션을 막는 게 아니라 멀쩡한 답글을 폐기한다(G9 는 BLOCK 이라 재생성도 없다).
+#   실측(2026-09-17) — "양념치킨 **대신** 다른 구성이 나간 점 죄송합니다" 가 오배송·누락
+#   답글에서 통째로 폐기됐다. "역할을" 도 "제 역할을 다하겠습니다" 로 걸린다.
+#   둘 다 지운 게 아니라 지시문 형태로 좁혔다.
 INJECTION_MARKERS: list[str] = [
-    "무시하고", "대신", "system", "프롬프트", "너는 이제", "instructions", "역할을",
+    "무시하고", "system", "프롬프트", "너는 이제", "instructions",
+    "역할을 잊", "역할을 무시", "지시를 무시", "이전 지시",
 ]
 
 RETRY_FLAGS = {"G1_LENGTH_MIN", "G6_REVIEW_QUOTE", "G7_DUPLICATE"}
@@ -159,6 +188,7 @@ def check(
     review_body: str | None = None,
     recent_replies: list[str] | None = None,
     extra_banned_words: list[tuple[str, str, str]] | None = None,
+    min_length: int | None = None,
 ) -> GuardrailFlags:
     """답글 텍스트를 검사해 위반한 가드레일 플래그 목록을 반환한다 (문서 12 §4 G1~G9).
 
@@ -170,7 +200,8 @@ def check(
     text = text or ""
 
     # G1 — 길이. 미달은 재생성 대상, 초과는 즉시 차단.
-    if len(text) < MIN_LENGTH:
+    # min_length 를 주지 않으면 기본 하한(60)이다 — 호출부가 카테고리를 모를 때 안전한 쪽.
+    if len(text) < (MIN_LENGTH if min_length is None else min_length):
         flags.append("G1_LENGTH_MIN")
     if len(text) > MAX_LENGTH:
         flags.append("G1_LENGTH_MAX")

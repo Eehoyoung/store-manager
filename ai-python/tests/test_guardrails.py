@@ -213,6 +213,18 @@ def test_g9_clean_reply_not_blocked():
     assert "G9_INJECTION" not in check(CLEAN, risk_level=0)
 
 
+def test_g9_common_korean_words_not_blocked():
+    """마커가 흔한 단어면 멀쩡한 답글을 폐기한다 — 실측 오탐(2026-09-17).
+
+    오배송·누락 답글에는 '대신' 이, 다짐 문장에는 '역할을' 이 거의 반드시 나온다.
+    G9 는 BLOCK 이라 재생성도 없이 초안이 사라진다."""
+    for reply in (
+        "고객님, 양념치킨 대신 다른 구성이 나간 점 죄송합니다. 출고 전 확인 절차를 다시 점검하겠습니다.",
+        "고객님, 저희가 제 역할을 다하지 못했습니다. 조리 순서부터 다시 챙기겠습니다. 죄송합니다.",
+    ):
+        assert "G9_INJECTION" not in check(reply, risk_level=0), reply
+
+
 # ── 복합 케이스 ────────────────────────────────────────────────────────
 
 def test_multiple_violations_all_reported():

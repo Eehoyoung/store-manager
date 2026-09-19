@@ -139,7 +139,9 @@ def predict(row: dict, main_classifier) -> dict:
         "더 나은 모습 보여드리도록 노력하겠습니다."
     )
     guardrail_flags = guardrails.check(template_reply, risk_level)
-    must_block = category == "ABUSIVE" or guardrail_flags.blocking
+    # ★ OFF_TOPIC 도 자동 게시 금지다(v2.0). ABUSIVE 에서 떼어냈을 뿐 처리는 같다 —
+    #   여기서 빠뜨리면 광고 리뷰가 "차단 대상 아님" 으로 집계돼 게이트가 헐거워진다.
+    must_block = category in prompts.NO_DRAFT_CATEGORIES or guardrail_flags.blocking
 
     return {
         "category": category,
@@ -188,7 +190,30 @@ def evaluate_high_risk(rows: list[dict], classifier=AUTO) -> dict:
     }
 
 
-def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) -> dict:
+def dump_predictions(rows: list[dict], preds: dict[str, dict], path: Path) -> None:
+    """행별 예측을 파일로 남긴다.
+
+    ★ 왜 필요한가: 2026-09-17 에 골든셋 564건을 815원 주고 돌렸는데 예측을 저장하지 않아
+      "카테고리 정확도가 왜 2.7%p 떨어졌는지" 를 다시 보려면 또 815원을 써야 했다.
+      유료 실행의 산출물은 요약 숫자가 아니라 **행별 예측**이다. 한 번 내고 여러 번 읽는다."""
+    with open(path, "w", encoding="utf-8") as f:
+        for row in rows:
+            p = preds.get(row["id"], {})
+            f.write(json.dumps({
+                "id": row["id"], "body": row.get("body", ""),
+                "rating": row.get("rating"),
+                "exp_category": row["category"], "got_category": p.get("category"),
+                "category_ok": p.get("category") == row["category"],
+                "exp_risk": row["expected"]["riskLevel"], "got_risk": p.get("risk_level"),
+                "model_risk": p.get("model_risk_level"),
+                "risk_reasons": p.get("risk_reasons"),
+                "exp_block": row["expected"]["mustBlockAutoPublish"], "got_block": p.get("must_block"),
+                "guardrail_flags": p.get("guardrail_flags"),
+            }, ensure_ascii=False) + "\n")
+
+
+def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO,
+             dump_path: Path | None = None) -> dict:
     """골든셋 rows 에 대해 문서 12 §6.1 지표를 계산한다.
 "
 
@@ -201,6 +226,9 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
     category_correct = 0
 
     abusive_ids = {r["id"] for r in rows if r["category"] == "ABUSIVE"}
+    # OFF_TOPIC 은 별도 지표로 본다. ABUSIVE 재현율에 섞으면 두 실패가 서로를 가린다.
+    offtopic_ids = {r["id"] for r in rows if r["category"] == "OFF_TOPIC"}
+    offtopic_hits = 0
     abusive_recall_hits = 0
 
     risk_ge2_ids = {r["id"] for r in rows if r["expected"]["riskLevel"] >= 2}
@@ -219,15 +247,19 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
     normal_ids = {r["id"] for r in rows if not r["expected"]["mustBlockAutoPublish"]}
     guardrail_false_positives: list[str] = []
 
+    predictions: dict[str, dict] = {}
     for row in rows:
         pred = predict(row, main_classifier)
         rid = row["id"]
+        predictions[rid] = pred
 
         if pred["category"] == row["category"]:
             category_correct += 1
 
         if rid in abusive_ids and pred["category"] == "ABUSIVE":
             abusive_recall_hits += 1
+        if rid in offtopic_ids and pred["category"] == "OFF_TOPIC":
+            offtopic_hits += 1
 
         if rid in risk_ge2_ids and pred["risk_level"] >= 2:
             risk_recall_hits += 1
@@ -248,6 +280,9 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
         if rid in normal_ids and pred["guardrail_blocking"]:
             guardrail_false_positives.append(rid)
 
+    if dump_path is not None:
+        dump_predictions(rows, predictions, dump_path)
+
     category_accuracy = category_correct / total if total else 0.0
     abusive_recall = abusive_recall_hits / len(abusive_ids) if abusive_ids else 1.0
     risk_recall = risk_recall_hits / len(risk_ge2_ids) if risk_ge2_ids else 1.0
@@ -265,6 +300,8 @@ def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO) 
         "category_accuracy": category_accuracy,
         "abusive_recall": abusive_recall,
         "abusive_total": len(abusive_ids),
+        "offtopic_recall": offtopic_hits / len(offtopic_ids) if offtopic_ids else 1.0,
+        "offtopic_total": len(offtopic_ids),
         "risk_ge2_recall": risk_recall,
         "risk_ge2_total": len(risk_ge2_ids),
         "risk_ge2_recall_model_only": model_only_hits / len(risk_ge2_ids) if risk_ge2_ids else 1.0,
@@ -292,6 +329,8 @@ def _print_report(report: dict) -> None:
     print(f"  카테고리 정확도       : {report['category_accuracy']:.1%}")
     print(f"  ABUSIVE 재현율         : {report['abusive_recall']:.1%} "
           f"({report['abusive_total']}건 중)")
+    print(f"  OFF_TOPIC 재현율       : {report['offtopic_recall']:.1%} "
+          f"({report['offtopic_total']}건 중)")
     print(f"  risk_level>=2 재현율   : {report['risk_ge2_recall']:.1%} "
           f"({report['risk_ge2_total']}건 중)")
     print(f"    └ 모델 단독          : {report['risk_ge2_recall_model_only']:.1%} "
@@ -379,6 +418,9 @@ def main(argv: list[str] | None = None, classifier=AUTO) -> int:
     parser.add_argument("--goldenset", type=Path, default=GOLDENSET_DEFAULT)
     parser.add_argument("--threshold-recall", type=float, default=0.95)
     parser.add_argument("--high-risk", action="store_true")
+    parser.add_argument("--dump", type=Path, default=None,
+                        help="행별 예측을 JSONL 로 남긴다. 유료 실행이면 반드시 쓸 것 — "
+                             "안 남기면 재분석에 같은 돈을 또 쓴다")
     args = parser.parse_args(argv)
 
     if not args.force:
@@ -397,7 +439,15 @@ def main(argv: list[str] | None = None, classifier=AUTO) -> int:
         return 0 if report["passed"] else 1
 
     rows = load_goldenset(args.goldenset)
-    report = evaluate(rows, threshold_recall=args.threshold_recall, classifier=classifier)
+    # ★ 유료 실행(실모델)이면 --dump 를 안 줘도 기본 경로에 남긴다. 잊어버려서 돈을 두 번
+    #   쓰는 일이 실제로 있었다(2026-09-17). 스텁 실행은 비용이 0 이라 남기지 않는다.
+    dump_path = args.dump
+    if dump_path is None and os.environ.get("ANTHROPIC_API_KEY"):
+        dump_path = args.goldenset.with_name(args.goldenset.stem + "_predictions.jsonl")
+    report = evaluate(rows, threshold_recall=args.threshold_recall, classifier=classifier,
+                      dump_path=dump_path)
+    if dump_path is not None:
+        print(f"  예측 저장: {dump_path}")
     _print_report(report)
     return 0 if report["passed"] else 1
 

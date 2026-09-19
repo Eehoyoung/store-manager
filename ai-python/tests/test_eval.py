@@ -132,9 +132,13 @@ def test_evaluate_detects_risk3_and_passes_block_gate():
 
 
 def test_evaluate_reports_miss_when_block_case_undetectable():
-    """키워드 룰로 못 잡는(별점만 낮은) risk2 사례는 폴백이 놓칠 수 있다 — 그 사실이 그대로 보고돼야 한다."""
+    """키워드 룰로 못 잡는 risk2 사례는 폴백이 놓칠 수 있다 — 그 사실이 그대로 보고돼야 한다.
+
+    ★ 본문에 "화가 나네요" 가 들어 있었는데 2026-09-17 에 (가)화·분노 룰이 생기면서
+      룰이 잡아 버려 이 테스트의 전제가 깨졌다. 감정 어휘도 요구도 반복도 없는
+      문장으로 바꿨다 — 그런 리뷰는 여전히 모델만 잡을 수 있다."""
     rows = [
-        _row("T-3", "COMPLAINT", 1, "그냥 별로였어요 다시는 안 시킬 것 같습니다 화가 나네요", 2),
+        _row("T-3", "COMPLAINT", 1, "그냥 별로였어요 다시는 안 시킬 것 같습니다", 2),
     ]
     report = eval_mod.evaluate(rows, threshold_recall=0.95)
     assert "T-3" in report["auto_publish_block_misses"]
@@ -163,7 +167,7 @@ def _write_jsonl(tmp_path, rows):
 
 
 def test_cli_exit_1_when_block_case_missed(tmp_path):
-    rows = [_row("T-6", "COMPLAINT", 1, "그냥 별로였어요 화가 나네요", 2)]
+    rows = [_row("T-6", "COMPLAINT", 1, "그냥 별로였어요 기대에 못 미쳤습니다", 2)]
     path = _write_jsonl(tmp_path, rows)
     code = eval_mod.main(["--goldenset", str(path)])
     assert code == 1
@@ -185,20 +189,24 @@ def test_골든셋_차단_기대값이_코드와_일치한다():
     """`mustBlockAutoPublish` 는 실제 차단 조건과 같아야 한다.
 
     ★ 코드상 차단 조건은 두 가지뿐이다.
-        main.py               : category == "ABUSIVE"      → blocked
-        guardrails.py G8      : risk_level >= 2            → blocked
+        main.py               : category in NO_DRAFT_CATEGORIES  → blocked
+        guardrails.py G8      : risk_level >= 2                  → blocked
+      ★ v2.0 에서 ABUSIVE 가 ABUSIVE / OFF_TOPIC 으로 갈렸다. 목록을 여기 베껴 쓰지 말고
+        prompts 의 상수를 그대로 읽는다 — 베끼면 다음 분화 때 또 조용히 어긋난다.
       골든셋이 이와 다르면 채점 기준이 제품과 어긋나, 통과해도 의미가 없고
       떨어져도 원인을 알 수 없다.
 
     ★ 2026-08-25 실측에서 5건이 어긋나 있었다(같은 risk 2 인데 기대값이 갈렸다).
     """
+    import prompts
     from guardrails import RISK_BLOCK_THRESHOLD
 
     rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
     mismatched = [
         r["id"] for r in rows
         if r["expected"]["mustBlockAutoPublish"]
-        != (r["category"] == "ABUSIVE" or r["expected"]["riskLevel"] >= RISK_BLOCK_THRESHOLD)
+        != (r["category"] in prompts.NO_DRAFT_CATEGORIES
+            or r["expected"]["riskLevel"] >= RISK_BLOCK_THRESHOLD)
     ]
     assert not mismatched, f"차단 기대값이 코드와 다르다: {mismatched}"
 
@@ -217,3 +225,28 @@ def test_골든셋_risk3은_키워드_룰이_전부_잡는다():
         if r["expected"]["riskLevel"] >= 3 and upgrade_risk_level(r["body"], 0)[0] < 3
     ]
     assert not missed, f"고위험인데 키워드 룰이 못 잡는다: {missed}"
+
+
+def test_예측을_파일로_남긴다(tmp_path):
+    """★ 유료 실행의 산출물은 요약 숫자가 아니라 행별 예측이다.
+
+    2026-09-17 에 564건을 815원 주고 돌렸는데 예측을 저장하지 않아, 정확도가 왜 떨어졌는지
+    다시 보려면 같은 돈을 또 써야 했다. 한 번 내고 여러 번 읽을 수 있어야 한다."""
+    import json
+
+    rows = [
+        {"id": "T-1", "rating": 5, "body": "맛있어요", "category": "POSITIVE",
+         "expected": {"riskLevel": 0, "riskReasons": [], "mustBlockAutoPublish": False}},
+        {"id": "T-2", "rating": 1, "body": "국물에서 벌레가 나왔어요", "category": "COMPLAINT",
+         "expected": {"riskLevel": 3, "riskReasons": ["FOREIGN_OBJECT"], "mustBlockAutoPublish": True}},
+    ]
+    dump = tmp_path / "pred.jsonl"
+    eval_mod.evaluate(rows, classifier=None, dump_path=dump)
+
+    got = [json.loads(l) for l in dump.open(encoding="utf-8")]
+    assert len(got) == 2
+    by_id = {g["id"]: g for g in got}
+    # 재분석에 필요한 것: 기대값·예측값·둘의 일치 여부가 한 행에 있어야 한다
+    assert by_id["T-2"]["got_risk"] == 3 and by_id["T-2"]["risk_reasons"] == ["FOREIGN_OBJECT"]
+    assert by_id["T-2"]["exp_block"] is True and by_id["T-2"]["got_block"] is True
+    assert "category_ok" in by_id["T-1"] and "body" in by_id["T-1"]
