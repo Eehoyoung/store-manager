@@ -10,6 +10,8 @@ export interface QueueEntry {
   draftContent: string;
   blocked: boolean;
   riskLevel: number;
+  /** 위험 사유 코드. 비어 있으면 위험 표시를 하지 않는다. */
+  riskReasons: string[];
   state: QueueState;
   edited: boolean;
   detectedAt: number;

@@ -415,3 +415,68 @@ def test_방문_이물질_지침은_매장_목격도_받는다():
     guide = prompts.SITUATION_GUIDE_NAVER["이물질"]
     assert "매장에서 목격" in guide
     assert "사실을 인정하지" in guide  # 확인 전 자백은 여전히 금지다
+
+
+# ── 방문 경로는 카테고리로 초안을 막지 않는다 (naver-v0.4, 2026-09-19) ────────
+# ★ 배달은 가드레일을 통과하면 사람 손을 거치지 않고 게시되므로 "안 만드는 것" 이
+#   곧 방어였다. 네이버는 구조적으로 전건 사람 승인이다 — 확장이 본문을 넣기만 하고
+#   게시는 사장님이 직접 누른다(NAVER ABSOLUTE RULES 6·7·8). 서버에 게시 경로가 없다.
+#   초안을 빼면 아무것도 막지 못하고 사장님만 빈손이 된다.
+def _stub_classify(category, risk=0, reasons=()):
+    def _f(*_a, **_k):
+        return (prompts.ClassifyOutput(category=category, tone="CALM", sentiment=-0.5,
+                                       issue_tags=[], praised_tags=[], risk_level=risk,
+                                       risk_reasons=list(reasons)),
+                "claude-haiku-4-5", 10, 5, 0.1, 0)
+    return _f
+
+
+def _ask(monkeypatch, platform, category, body, risk=0, reasons=()):
+    import main as _m
+    from llm import LlmResult
+
+    class Provider:
+        client = None
+
+        def complete(self, system, user, model, max_tokens):
+            return LlmResult("불편을 드려 죄송합니다. " + "확인해 보겠습니다 " * 4, model, 10, 5, 0.1)
+
+    monkeypatch.setattr(_m.llm, "get_provider", lambda: Provider())
+    monkeypatch.setattr(_m.rag, "fetch_examples", lambda *_a, **_k: [])
+    monkeypatch.setattr(_m, "_classify", _stub_classify(category, risk, reasons))
+    from fastapi.testclient import TestClient
+    payload = {
+        "reviewId": "r1", "storeId": "s1",
+        "review": {"rating": 1, "body": body, "menus": [], "platform": platform},
+        "persona": {"tone": "FRIENDLY", "useEmoji": True, "emojiLevel": 2, "customerTitle": "고객님",
+                    "signature": None, "bannedWords": [], "lengthMin": 60, "lengthMax": 150,
+                    "personaSeed": 1},
+        "options": {"variants": 1, "instruction": None, "forceTier": None},
+    }
+    return TestClient(_m.app).post("/internal/ai/analyze-and-draft", json=payload,
+                                   headers={"X-Internal-Token": "test-internal-token"}).json()
+
+
+@pytest.mark.parametrize("category", ["ABUSIVE", "OFF_TOPIC"])
+def test_방문_경로는_ABUSIVE_도_OFF_TOPIC_도_초안을_만든다(monkeypatch, category):
+    res = _ask(monkeypatch, "NAVER", category, "사장 뭐하는 짓이야 진짜")
+    assert len(res["drafts"]) == 1, res["blockReasons"]
+    assert res["analysis"]["category"] == category  # 분석은 모델 판정 그대로 보고한다
+
+
+@pytest.mark.parametrize("category", ["ABUSIVE", "OFF_TOPIC"])
+def test_배달_경로는_여전히_초안을_만들지_않는다(monkeypatch, category):
+    # 배달은 자동 게시 경로가 살아 있다. 이쪽 동작을 바꾸면 절대규칙 3 이 흔들린다.
+    res = _ask(monkeypatch, "BAEMIN", category, "사장 뭐하는 짓이야 진짜")
+    assert res["drafts"] == []
+    assert res["blocked"] is True
+
+
+def test_방문_고위험_초안도_위험_사유를_함께_돌려준다(monkeypatch):
+    # 확장이 사유를 배너로 띄운다. 사유가 없으면 "위험도 3" 이라고만 뜨고 사장님은
+    # 무엇을 조심해야 하는지 알 수 없다.
+    res = _ask(monkeypatch, "NAVER", "COMPLAINT", "화장실이 너무 더러웠어요", risk=3)
+    assert res["analysis"]["riskLevel"] == 3
+    assert "HYGIENE" in res["analysis"]["riskReasons"]
+    assert len(res["drafts"]) == 1
+    assert res["blocked"] is True  # 자동 게시는 여전히 막는다(배달 공용 경로)

@@ -6,6 +6,7 @@ import type { QueueEntry } from "../state/queueEntry";
 import type { NaverStore } from "../api/client";
 import { bulkApprovable } from "../state/machine";
 import { createViewportTracker, type ViewportTracker } from "./viewportTracker";
+import { riskBanner } from "./riskBanner";
 
 const app = document.getElementById("app")!;
 
@@ -134,7 +135,7 @@ function openPinModal(onSubmit: (pin: string) => void | Promise<void>): void {
 
 function renderCard(entry: QueueEntry): HTMLElement {
   const card = document.createElement("div");
-  card.className = `card${entry.rating <= 2 ? " low-rating" : ""}`;
+  card.className = `card${entry.rating <= 2 ? " low-rating" : ""}${entry.riskLevel >= 2 ? " risky" : ""}`;
   card.dataset.reviewHash = entry.reviewHash;
 
   // ★ 별점 1~2 는 일괄 승인 체크박스를 렌더하지 않는다(이중 방어) — 배지만 표시.
@@ -142,6 +143,7 @@ function renderCard(entry: QueueEntry): HTMLElement {
 
   card.innerHTML = `
     <div class="meta">${"★".repeat(Math.max(0, entry.rating))} ${lowRatingBadge}</div>
+    ${riskBanner(entry)}
     <div class="body">${escapeHtml(entry.body)}</div>
     <textarea class="draft" data-role="draft">${escapeHtml(entry.draftContent)}</textarea>
     <div class="actions">

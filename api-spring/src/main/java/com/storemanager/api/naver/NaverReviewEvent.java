@@ -66,6 +66,15 @@ public class NaverReviewEvent {
     @Column(name = "risk_level", nullable = false)
     private short riskLevel = 0;
 
+    /**
+     * 위험 사유(ai-python {@code RISK_REASON_VALUES} 9종). riskLevel 과 함께 사장님 화면으로 간다 —
+     * "위험도 3" 만으로는 무엇을 조심하라는 것인지 알 수 없고, 위생 지적과 협박은 할 일이 다르다.
+     * 네이버는 {@code ReviewAnalysis} 행을 만들지 않으므로(NAVER ABSOLUTE RULE 9) 여기에 둔다.
+     */
+    @Builder.Default
+    @Column(name = "risk_reasons", nullable = false)
+    private String[] riskReasons = new String[0];
+
     @Builder.Default
     @Column(nullable = false)
     private String status = "DRAFTED";
@@ -124,8 +133,9 @@ public class NaverReviewEvent {
     private Instant updatedAt = Instant.now();
 
     /** AI 재호출로 초안 내용을 갱신한다. 이미 사람이 확정(APPROVED/POSTED)한 건은 덮어쓰지 않는다. */
-    public void refreshDraft(Short rating, String category, short riskLevel, String draftContent,
-            String[] guardrailFlags, boolean blocked, String promptVersion, String model) {
+    public void refreshDraft(Short rating, String category, short riskLevel, String[] riskReasons,
+            String draftContent, String[] guardrailFlags, boolean blocked, String promptVersion,
+            String model) {
         if ("APPROVED".equals(status) || "POSTED".equals(status)) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
                     Map.of("currentStatus", status, "reason", "이미 확정된 항목은 다시 생성할 수 없습니다."));
@@ -133,6 +143,7 @@ public class NaverReviewEvent {
         this.rating = rating;
         this.category = category;
         this.riskLevel = riskLevel;
+        this.riskReasons = riskReasons == null ? new String[0] : riskReasons;
         this.draftContent = draftContent;
         this.guardrailFlags = guardrailFlags == null ? new String[0] : guardrailFlags;
         this.blocked = blocked;

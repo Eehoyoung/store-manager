@@ -132,6 +132,7 @@ async function handleReviewDetected(message: Record<string, unknown>): Promise<v
       draftContent: draft.draft ?? "",
       blocked: draft.blocked,
       riskLevel: draft.riskLevel,
+      riskReasons: draft.riskReasons ?? [],
       state: "DRAFTED",
       edited: false,
       detectedAt: Date.now(),

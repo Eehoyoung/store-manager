@@ -18,8 +18,14 @@ final class NaverDtos {
             @Size(max = 10_000) String body, String createdAt, Boolean hasReply) {
     }
 
+    /**
+     * ★ riskReasons 가 riskLevel 과 함께 간다. "위험도 3" 만으로는 사장님이 무엇을
+     * 조심해야 하는지 알 수 없다 — 위생 지적과 협박은 할 일이 완전히 다르다.
+     * 값은 ai-python 의 RISK_REASON_VALUES 9종이고 문구 변환은 확장이 한다.
+     */
     record DraftResponse(String reviewHash, String status, String draft, boolean blocked,
-            List<String> blockReasons, int riskLevel, String category, boolean bulkApprovable) {
+            List<String> blockReasons, int riskLevel, List<String> riskReasons, String category,
+            boolean bulkApprovable) {
     }
 
     record EventRequest(@NotBlank String storeId, @NotBlank String reviewHash, @NotBlank String event,

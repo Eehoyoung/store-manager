@@ -181,6 +181,28 @@ class NaverDraftServiceTest {
         verify(notifier, never()).send(any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void 위험_사유가_이벤트와_응답에_함께_남는다() {
+        // ★ "위험도 3" 만으로는 사장님이 무엇을 조심해야 하는지 알 수 없다. 위생 지적과
+        //   협박은 할 일이 완전히 다르다. 확장은 이 사유로 경고 배너를 띄운다 —
+        //   여기가 끊기면 사장님은 아무 경고 없이 고위험 초안을 그대로 올리게 된다.
+        when(aiClient.analyzeAndDraft(any())).thenReturn(new AnalyzeAndDraftResponse(
+                new AnalysisOut("COMPLAINT", "CALM", -0.9f, List.of("청결"), List.of(), 3,
+                        List.of("HYGIENE"), "claude-haiku-4-5", "naver-v0.4"),
+                List.of(draftOut("불편을 드려 죄송합니다. 오늘 바로 확인해 보겠습니다.")), true, List.of("G8_RISK")));
+        when(serviceGate.isServiceable(store)).thenReturn(true);
+
+        DraftResponse res = service.generateDraft(ownerPublicId, request("화장실이 너무 더러웠어요"));
+
+        assertThat(res.riskReasons()).containsExactly("HYGIENE");
+        assertThat(res.draft()).isNotBlank();   // 초안은 준다 — 게시는 사장님이 직접 누른다
+        assertThat(res.bulkApprovable()).isFalse();
+
+        ArgumentCaptor<NaverReviewEvent> captor = ArgumentCaptor.forClass(NaverReviewEvent.class);
+        verify(naverReviewEventRepository).save(captor.capture());
+        assertThat(captor.getValue().getRiskReasons()).containsExactly("HYGIENE");
+    }
+
     private static AnalysisOut analysis(String category, int riskLevel) {
         return new AnalysisOut(category, "NEUTRAL", 0f, List.of(), List.of(), riskLevel, List.of(), "claude-haiku-4-5",
                 "v1.8");

@@ -36,6 +36,8 @@ export interface DraftResponse {
   blocked: boolean;
   blockReasons: string[];
   riskLevel: number;
+  /** ai-python RISK_REASON_VALUES 9종. 문구 변환은 사이드패널이 한다. */
+  riskReasons: string[];
   category: string | null;
   bulkApprovable: boolean;
 }

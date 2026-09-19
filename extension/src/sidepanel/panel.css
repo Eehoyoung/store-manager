@@ -158,3 +158,39 @@ button.primary {
   box-sizing: border-box;
   margin: 12px 0;
 }
+
+/* 위험 표시 — 초안을 빼는 대신 눈에 띄게 알린다(naver-v0.4).
+   40~60대 사장님이 주 사용자다: 색만으로 구분하지 않고 문구를 함께 낸다. */
+.card.risky {
+  border-left: 4px solid #d97706;
+}
+.risk {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.risk strong {
+  font-weight: 600;
+}
+.risk span {
+  opacity: 0.85;
+}
+.risk-mid {
+  background: #fef3c7;
+  color: #78350f;
+}
+.risk-high {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+.card.risky .risk-high ~ .actions [data-role="approve"] {
+  /* 고위험 건은 승인 버튼을 눈에 덜 띄게 둔다. 막지는 않는다 — 판단은 사장님 몫이다. */
+  background: #fff;
+  color: #7f1d1d;
+  border: 1px solid #7f1d1d;
+}

@@ -386,10 +386,18 @@ def analyze_and_draft(
     #   ABUSIVE 는 읽고 판단해야 하고, OFF_TOPIC(광고·시사)은 읽을 것도 없이 넘기면 된다.
     # ★ 단, ABUSIVE 밑에 실체 있는 위험 사유가 깔려 있으면 초안을 만든다(prompts 참고).
     #   ABUSIVE 오판은 받쳐 주는 것이 하나도 없는 유일한 축이고, 하필 손해가 가장 크다.
+    # ★ 방문 경로(네이버)는 카테고리로 초안을 막지 않는다(2026-09-19 운영자 결정).
+    #   배달은 가드레일을 통과하면 사람 손을 거치지 않고 게시되므로 "안 만드는 것" 이
+    #   곧 방어였다. 네이버는 **구조적으로 전건 사람 승인**이다 — 확장이 본문을 넣기만
+    #   하고 게시는 사장님이 직접 누른다(NAVER ABSOLUTE RULES 6·7·8, `!event.isTrusted`
+    #   게이트). 서버에는 게시 경로 자체가 없다.
+    #   그러니 여기서 초안을 빼는 것은 **아무것도 막지 않고 사장님만 빈손으로 만든다.**
+    #   위험은 초안을 없애서가 아니라 riskLevel·riskReasons 로 표시해서 알린다.
     draft_category = classified.category
     if classified.category in prompts.NO_DRAFT_CATEGORIES:
         rescued = (
-            prompts.abusive_draft_category(risk_reasons)
+            "COMPLAINT" if prompts.is_visit_platform(req.review.platform)
+            else prompts.abusive_draft_category(risk_reasons)
             if classified.category == "ABUSIVE" and risk_level >= guardrails.RISK_BLOCK_THRESHOLD
             else None
         )

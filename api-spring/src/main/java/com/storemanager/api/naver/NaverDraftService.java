@@ -118,6 +118,9 @@ public class NaverDraftService {
         Short rating = req.rating() == null ? null : req.rating().shortValue();
         short riskLevel = aiRes.analysis() == null ? 0 : (short) aiRes.analysis().riskLevel();
         String category = aiRes.analysis() == null ? null : aiRes.analysis().category();
+        List<String> riskReasonList = aiRes.analysis() == null || aiRes.analysis().riskReasons() == null
+                ? List.<String>of() : aiRes.analysis().riskReasons();
+        String[] riskReasons = riskReasonList.toArray(new String[0]);
         String[] flagsArray = guardrailFlags.toArray(new String[0]);
         // ★ 프롬프트 계보를 남긴다. 네이버는 배달(v2.x)과 다른 라인(naver-v0.x)이고 아직 골든셋이
         //   없다 — 나중에 품질을 되짚을 때 "그때 어느 프롬프트였나" 를 답할 수 있어야 한다.
@@ -133,6 +136,7 @@ public class NaverDraftService {
                     .rating(rating)
                     .category(category)
                     .riskLevel(riskLevel)
+                    .riskReasons(riskReasons)
                     .draftContent(draftContent)
                     .guardrailFlags(flagsArray)
                     .blocked(aiRes.blocked())
@@ -141,8 +145,8 @@ public class NaverDraftService {
                     .draftedAt(Instant.now())
                     .build();
         } else {
-            existing.refreshDraft(rating, category, riskLevel, draftContent, flagsArray, aiRes.blocked(),
-                    promptVersion, model);
+            existing.refreshDraft(rating, category, riskLevel, riskReasons, draftContent, flagsArray,
+                    aiRes.blocked(), promptVersion, model);
             event = existing;
         }
         naverReviewEventRepository.save(event);
@@ -162,8 +166,9 @@ public class NaverDraftService {
         boolean bulkApprovable = event.getRating() != null && event.getRating() >= 3 && !event.isBlocked()
                 && event.getRiskLevel() < RISK_BULK_BLOCK_LEVEL;
         List<String> flags = event.getGuardrailFlags() == null ? List.of() : List.of(event.getGuardrailFlags());
+        List<String> reasons = event.getRiskReasons() == null ? List.of() : List.of(event.getRiskReasons());
         return new DraftResponse(event.getReviewHash(), event.getStatus(), event.getDraftContent(),
-                event.isBlocked(), flags, event.getRiskLevel(), event.getCategory(), bulkApprovable);
+                event.isBlocked(), flags, event.getRiskLevel(), reasons, event.getCategory(), bulkApprovable);
     }
 
     private AiClientDtos.AnalyzeAndDraftRequest buildAiRequest(Store store, StorePersona persona, DraftRequest req) {

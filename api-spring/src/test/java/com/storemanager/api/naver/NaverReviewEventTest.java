@@ -83,7 +83,7 @@ class NaverReviewEventTest {
         event.markApproved();
 
         assertThrows(ApiException.class,
-                () -> event.refreshDraft((short) 5, "PRAISE", (short) 0, "새 초안", new String[0], false,
-                        "naver-v0.1", "claude-haiku-4-5"));
+                () -> event.refreshDraft((short) 5, "PRAISE", (short) 0, new String[0], "새 초안",
+                        new String[0], false, "naver-v0.4", "claude-haiku-4-5"));
     }
 }
