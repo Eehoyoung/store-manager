@@ -21,6 +21,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 import { AdminFailures } from "./pages/AdminFailures";
 import { LegalDocumentPage } from "./pages/LegalDocumentPage";
+import { IntroPage } from "./pages/IntroPage";
 
 // 라우트 표 (문서 14 §2). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
 // /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
@@ -31,6 +32,8 @@ function App() {
       <ToastProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/" element={<IntroPage />} />
+            <Route path="/open30" element={<IntroPage />} />
             <Route element={<PublicOnlyRoute />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
