@@ -382,3 +382,16 @@ export interface HqAnalyticsResponse {
   dailyRiskTrend: HqDailyRiskItem[];
   storeComparison: HqStoreComparisonItem[];
 }
+
+/** PersonaDtos.StoreFactsResponse — 사장님이 확정 입력한 매장 사실. */
+export interface StoreFactDto {
+  key: string;
+  text: string;
+}
+
+export interface StoreFactsResponse {
+  storeId: string;
+  facts: StoreFactDto[];
+  /** 서버가 정본이다. 화면이 목록을 베끼지 않는다 — 베끼면 항목이 늘 때 조용히 어긋난다. */
+  allowedKeys: string[];
+}

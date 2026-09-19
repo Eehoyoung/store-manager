@@ -27,6 +27,8 @@ import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
+import com.storemanager.api.store.StoreFact;
+import com.storemanager.api.store.StoreFactRepository;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
@@ -57,6 +59,7 @@ public class PersonaService {
 
     private final StorePersonaRepository storePersonaRepository;
     private final StoreRepository storeRepository;
+    private final StoreFactRepository storeFactRepository;
     private final AppUserRepository appUserRepository;
     private final UnifiedReviewRepository unifiedReviewRepository;
     private final StyleSampleQueryRepository styleSampleQueryRepository;
@@ -67,12 +70,14 @@ public class PersonaService {
     private final AuditLogRepository auditLogRepository;
 
     public PersonaService(StorePersonaRepository storePersonaRepository, StoreRepository storeRepository,
+            StoreFactRepository storeFactRepository,
             AppUserRepository appUserRepository, UnifiedReviewRepository unifiedReviewRepository,
             StyleSampleQueryRepository styleSampleQueryRepository, ReviewAnalysisRepository reviewAnalysisRepository,
             AiClient aiClient, BannedWordQueryRepository bannedWordQueryRepository, ObjectMapper objectMapper,
             AuditLogRepository auditLogRepository) {
         this.storePersonaRepository = storePersonaRepository;
         this.storeRepository = storeRepository;
+        this.storeFactRepository = storeFactRepository;
         this.appUserRepository = appUserRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
         this.styleSampleQueryRepository = styleSampleQueryRepository;
@@ -148,7 +153,7 @@ public class PersonaService {
                 review.getPlatform());
         AiClientDtos.AnalyzeAndDraftRequest aiReq = new AiClientDtos.AnalyzeAndDraftRequest(
                 String.valueOf(review.getId()), String.valueOf(store.getId()), reviewIn, personaIn,
-                new AiClientDtos.OptionsIn(1, null, null), List.of());
+                new AiClientDtos.OptionsIn(1, null, null), List.of(), java.util.Map.of());
 
         AiClientDtos.AnalyzeAndDraftResponse aiRes = aiClient.analyzeAndDraft(aiReq);
 
@@ -339,5 +344,59 @@ public class PersonaService {
 
     private AppUser resolveUser(UUID publicId) {
         return appUserRepository.findByPublicId(publicId).orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
+    }
+
+    // ── 매장 사실 ─────────────────────────────────────────────────────────
+
+    /**
+     * GET /stores/{storeId}/facts. 입력 가능한 항목 목록을 함께 준다(화면이 목록을 베끼지 않게).
+     */
+    @Transactional(readOnly = true)
+    public PersonaDtos.StoreFactsResponse getFacts(UUID ownerPublicId, String storePublicId) {
+        Store store = loadOwnedStore(resolveUser(ownerPublicId), UUID.fromString(storePublicId));
+        List<PersonaDtos.StoreFactDto> facts = storeFactRepository.findByStoreId(store.getId()).stream()
+                .map(f -> new PersonaDtos.StoreFactDto(f.getFactKey(), f.getFactText()))
+                .toList();
+        return new PersonaDtos.StoreFactsResponse(storePublicId, facts, StoreFact.ALLOWED_KEYS);
+    }
+
+    /**
+     * PUT /stores/{storeId}/facts. 보낸 것으로 통째로 맞춘다(빈 값은 삭제).
+     *
+     * <p>★ 허용 키 밖의 값은 조용히 버리지 않고 <b>400 으로 거절한다.</b> 사장님이 입력한 줄 알고
+     * 있는데 답글에 안 나오면 원인을 찾을 길이 없다. 키 목록은 {@link StoreFact#ALLOWED_KEYS} 가 정본이다.
+     *
+     * <p>★ 여기 저장되는 값은 그대로 손님에게 읽힌다. AI 가 만든 문장을 여기 넣지 말 것 —
+     * 이 테이블의 존재 이유가 "사람이 확정한 사실" 이라는 것 하나다([절대 규칙] 8번).
+     */
+    @Transactional
+    public PersonaDtos.StoreFactsResponse replaceFacts(UUID ownerPublicId, String storePublicId,
+            PersonaDtos.StoreFactsRequest req) {
+        Store store = loadOwnedStore(resolveUser(ownerPublicId), UUID.fromString(storePublicId));
+        List<PersonaDtos.StoreFactDto> incoming = req == null || req.facts() == null ? List.of() : req.facts();
+
+        List<String> unknown = incoming.stream()
+                .map(PersonaDtos.StoreFactDto::key)
+                .filter(k -> !StoreFact.ALLOWED_KEYS.contains(k))
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    Map.of("unknownKeys", unknown, "allowedKeys", StoreFact.ALLOWED_KEYS));
+        }
+
+        storeFactRepository.deleteAll(storeFactRepository.findByStoreId(store.getId()));
+        List<StoreFact> saved = incoming.stream()
+                .filter(f -> f.text() != null && !f.text().isBlank())
+                .map(f -> StoreFact.builder()
+                        .storeId(store.getId())
+                        .factKey(f.key())
+                        .factText(f.text().trim())
+                        .updatedAt(java.time.Instant.now())
+                        .build())
+                .toList();
+        storeFactRepository.saveAll(saved);
+        return new PersonaDtos.StoreFactsResponse(storePublicId,
+                saved.stream().map(f -> new PersonaDtos.StoreFactDto(f.getFactKey(), f.getFactText())).toList(),
+                StoreFact.ALLOWED_KEYS);
     }
 }

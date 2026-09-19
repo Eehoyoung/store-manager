@@ -52,6 +52,7 @@ class NaverDraftServiceTest {
 
     @Mock private NaverReviewEventRepository naverReviewEventRepository;
     @Mock private StoreRepository storeRepository;
+    @Mock private com.storemanager.api.store.StoreFactRepository storeFactRepository;
     @Mock private StorePersonaRepository storePersonaRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private AiClient aiClient;
@@ -71,7 +72,8 @@ class NaverDraftServiceTest {
     @BeforeEach
     void setUp() {
         service = new NaverDraftService(naverReviewEventRepository, storeRepository, storePersonaRepository,
-                appUserRepository, aiClient, bannedWordQueryRepository, llmUsageLogRepository, notifier,
+                appUserRepository, aiClient, storeFactRepository, bannedWordQueryRepository,
+                llmUsageLogRepository, notifier,
                 serviceGate);
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));

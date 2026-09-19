@@ -18,7 +18,7 @@ class _Persona:
     signature = None
     opening_style = None
     banned_words: list[str] = []
-    length_min = 60
+    length_min = 45
     length_max = 150
     persona_seed = 1
 
@@ -141,10 +141,12 @@ def test_짧은_호평은_길이_하한이_낮다():
     통째로 사라진다(실측 3건/48건). 사장님 기준 답글 30건은 전부 60자 미만이었다."""
     assert guardrails.min_length_for("POSITIVE") == 20
     assert guardrails.min_length_for("PRAISE") == 20
-    # ★ 불만은 60 을 유지한다 — 짧은 사과는 성의 없어 보인다. 전역으로 내리지 말 것.
-    assert guardrails.min_length_for("COMPLAINT") == 60
-    assert guardrails.min_length_for("IMPROVEMENT") == 60
-    assert guardrails.min_length_for(None) == 60  # 모르면 보수적으로
+    # ★ 불만 하한은 45 다(2026-09-19 운영자 결정, 이전 60). 짧은 사과가 성의 없어
+    #   보이는 것은 맞지만, 60 은 "억지로 안내를 만들지 마라" 는 지침과 부딪쳐
+    #   쓸 말이 없을 때 상투구를 강제했다. 45 아래로는 내리지 말 것.
+    assert guardrails.min_length_for("COMPLAINT") == 45
+    assert guardrails.min_length_for("IMPROVEMENT") == 45
+    assert guardrails.min_length_for(None) == 45  # 모르면 보수적으로
 
     short = "감사합니다! 입맛에 맞으셨다니 기쁩니다."
     assert "G1_LENGTH_MIN" in guardrails.check(short, 0)
@@ -152,11 +154,26 @@ def test_짧은_호평은_길이_하한이_낮다():
 
 
 def test_길이_지침_3중_충돌이_사라졌다():
-    """방향 지시("길게 늘이지 마라")와 숫자 제약("60자 이상")이 붙으면 숫자가 이긴다."""
+    """방향 지시("길게 늘이지 마라")와 숫자 제약이 붙으면 숫자가 이긴다.
+
+    ★ 2026-09-19: 상한도 상황이 정한다(운영자 결정). 한 숫자로 두면 한쪽이 진다 —
+      칭찬에 150자를 허용하면 상투구가 붙고, 위생 사고에 80자를 강요하면 성의가 없어
+      보인다. 하한 45 는 고정이다.
+    """
     positive = _build_cat("POSITIVE")
-    assert "길이: 20~150자" in positive and "1~2문장" in positive
+    assert "길이: 20~80자" in positive and "1~2문장" in positive
     complaint = _build_cat("COMPLAINT", ["맛"])
-    assert "길이: 60~150자" in complaint and "2~3문장" in complaint
+    assert "길이: 45~120자" in complaint and "2~3문장" in complaint
+
+
+def test_상한은_상황이_정하되_사장님_설정을_넘지_않는다():
+    """사람이 정한 값이 항상 이긴다. 자동 조절은 그 안에서만 움직인다."""
+    assert prompts.length_max_for("PRAISE", 150) == 80
+    assert prompts.length_max_for("COMPLAINT", 150, risk_level=1) == 120
+    assert prompts.length_max_for("COMPLAINT", 150, risk_level=3, risk_reasons=["HYGIENE"]) == 150
+    assert prompts.length_max_for("IMPROVEMENT", 150, tone="CALM") == 100
+    # 사장님이 100 으로 줄여 두면 위생 사고여도 100 이다
+    assert prompts.length_max_for("COMPLAINT", 100, risk_level=3, risk_reasons=["HYGIENE"]) == 100
 
 
 def test_미확인_주장에는_사실인정_사과를_막는다():
@@ -290,11 +307,11 @@ def test_담담한_개선요청은_짧게_받는다():
     ★ v2.0 부터 별점이 아니라 tone 으로 가른다. 별점은 대리 지표였다 — 별 5개를 주고도
       화내는 손님과 별 1개를 주고도 담담한 손님을 가르지 못한다."""
     assert guardrails.min_length_for("IMPROVEMENT", "CALM") == 20
-    assert guardrails.min_length_for("IMPROVEMENT", "DISAPPOINTED") == 60
-    assert guardrails.min_length_for("IMPROVEMENT", "ANGRY") == 60
-    assert guardrails.min_length_for("IMPROVEMENT", None) == 60   # 모르면 보수적으로
-    # 불만은 tone 과 무관하게 60 이다 — 담담해도 사과가 짧으면 성의 없어 보인다
-    assert guardrails.min_length_for("COMPLAINT", "CALM") == 60
+    assert guardrails.min_length_for("IMPROVEMENT", "DISAPPOINTED") == 45
+    assert guardrails.min_length_for("IMPROVEMENT", "ANGRY") == 45
+    assert guardrails.min_length_for("IMPROVEMENT", None) == 45   # 모르면 보수적으로
+    # 불만은 tone 과 무관하게 45 다 — 담담해도 사과가 너무 짧으면 성의 없어 보인다
+    assert guardrails.min_length_for("COMPLAINT", "CALM") == 45
     assert guardrails.min_length_for("PRAISE", "ANGRY") == 20      # 칭찬은 항상 짧게 허용
 
     class _RCalm(_Review):
@@ -308,7 +325,7 @@ def test_담담한_개선요청은_짧게_받는다():
     angry, _ = prompts.build_generate_messages(
         "IMPROVEMENT", _RCalm(), _Persona(), "", ["일회용품누락"], None, None, "rev-1", "ANGRY"
     )
-    assert "2~3문장" in angry and "길이: 60~" in angry
+    assert "2~3문장" in angry and "길이: 45~" in angry
 
 def test_칭찬받은_태그로는_실패_지침이_붙지_않는다():
     """★ v1.9 까지의 최대 버그였다.

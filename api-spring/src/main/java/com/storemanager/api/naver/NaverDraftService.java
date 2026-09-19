@@ -16,6 +16,8 @@ import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
+import com.storemanager.api.store.StoreFact;
+import com.storemanager.api.store.StoreFactRepository;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
@@ -55,13 +57,14 @@ public class NaverDraftService {
     private final StorePersonaRepository storePersonaRepository;
     private final AppUserRepository appUserRepository;
     private final AiClient aiClient;
+    private final StoreFactRepository storeFactRepository;
     private final BannedWordQueryRepository bannedWordQueryRepository;
     private final LlmUsageLogRepository llmUsageLogRepository;
     private final Notifier notifier;
     private final StoreServiceGate serviceGate;
 
     public NaverDraftService(NaverReviewEventRepository naverReviewEventRepository, StoreRepository storeRepository,
-            StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient,
+            StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient, StoreFactRepository storeFactRepository,
             BannedWordQueryRepository bannedWordQueryRepository, LlmUsageLogRepository llmUsageLogRepository,
             Notifier notifier, StoreServiceGate serviceGate) {
         this.naverReviewEventRepository = naverReviewEventRepository;
@@ -69,6 +72,7 @@ public class NaverDraftService {
         this.storePersonaRepository = storePersonaRepository;
         this.appUserRepository = appUserRepository;
         this.aiClient = aiClient;
+        this.storeFactRepository = storeFactRepository;
         this.bannedWordQueryRepository = bannedWordQueryRepository;
         this.llmUsageLogRepository = llmUsageLogRepository;
         this.notifier = notifier;
@@ -190,7 +194,28 @@ public class NaverDraftService {
         // reviewId 는 내부 식별자가 없으므로 review_hash 앞 16자로 대체한다(ai-python 은 로그 상관용으로만 쓴다).
         String reviewIdForAi = req.reviewHash().length() > 16 ? req.reviewHash().substring(0, 16) : req.reviewHash();
         return new AiClientDtos.AnalyzeAndDraftRequest(reviewIdForAi, String.valueOf(store.getId()), reviewIn,
-                personaIn, optionsIn, recentReplies(store.getId()));
+                personaIn, optionsIn, recentReplies(store.getId()), storeFacts(store.getId()));
+    }
+
+    /**
+     * 사장님이 확정 입력한 매장 사실. 답글이 "확인해 보겠습니다" 로만 끝나지 않게 하는 유일한 출처다.
+     *
+     * <p>★ 조회 실패를 삼킨다 — 매장 사실이 없다고 답글 생성을 막을 이유가 없다. 없으면 없는 대로
+     * 지금까지처럼 동작한다(빈손이 안전한 기본값이다).
+     */
+    private java.util.Map<String, String> storeFacts(Long storeId) {
+        try {
+            java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+            for (StoreFact f : storeFactRepository.findByStoreId(storeId)) {
+                if (f.getFactText() != null && !f.getFactText().isBlank()) {
+                    facts.put(f.getFactKey(), f.getFactText());
+                }
+            }
+            return facts;
+        } catch (RuntimeException e) {
+            log.warn("매장 사실 조회 실패 storeId={} error={}", storeId, e.getClass().getSimpleName());
+            return java.util.Map.of();
+        }
     }
 
     private List<String> recentReplies(Long storeId) {

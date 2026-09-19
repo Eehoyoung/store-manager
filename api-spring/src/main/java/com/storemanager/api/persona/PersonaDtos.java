@@ -79,6 +79,21 @@ final class PersonaDtos {
             @NotBlank @Size(max = 280) String replyText) {
     }
 
+    /**
+     * 매장 사실 — 사장님이 확정 입력한 것만 답글에 인용된다.
+     *
+     * <p>★ 전부 선택 입력이다. 비어 있으면 지금까지처럼 "확인해 보겠습니다" 로만 답한다.
+     * 채워 두면 그 항목의 리뷰에 실제 정보가 나간다 — 손님이 다음에 써먹을 수 있는 것.
+     */
+    record StoreFactDto(@NotBlank String key, @Size(max = 200) String text) {
+    }
+
+    record StoreFactsRequest(@Valid List<StoreFactDto> facts) {
+    }
+
+    record StoreFactsResponse(String storeId, List<StoreFactDto> facts, List<String> allowedKeys) {
+    }
+
     record StyleSampleListResponse(List<StyleSampleResponse> items, boolean hasMore, long manualCount) {
     }
 }

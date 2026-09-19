@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { personaApi } from "../api/persona";
+import { StoreFactsSection } from "./StoreFactsSection";
 import { reviewsApi } from "../api/reviews";
 import type { PersonaRequest, PersonaResponse, PreviewResponse, PublishWindow, ReviewSummary, StyleSampleResponse } from "../api/types";
 import { ApiError } from "../api/client";
@@ -241,6 +242,10 @@ export function PersonaPage() {
           error={fieldErrors.openingStyle}
         />
       </Card>
+
+      {/* ★ 말투 바로 다음에 둔다. 사장님이 가장 먼저 채우면 효과가 제일 큰 항목이다 —
+          여기가 비면 주차·웨이팅 리뷰 답글이 "확인해 보겠습니다" 로만 끝난다. */}
+      <StoreFactsSection storeId={storeId} />
 
       <Card className="persona-page__section">
         <h2>금칙어</h2>

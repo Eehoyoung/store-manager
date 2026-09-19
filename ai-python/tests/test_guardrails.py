@@ -171,10 +171,15 @@ def test_g8_risk_1_not_blocked():
     assert "G8_RISK" not in check(CLEAN, risk_level=1)
 
 
-def test_g8_risk_2_blocked():
+def test_g8_risk_2_는_더이상_차단이_아니다():
+    """★ 2026-09-19 운영자 결정 — 임계를 2 → 3 으로 올렸다(절대규칙 3 의 하한과 같다).
+
+    risk 2 에 남은 것은 (가) 화·분노 하나뿐이다 — 환불 요구·반복 불만은 risk 3 으로
+    올라갔다. 화난 손님은 붙잡아 둘수록 나빠지므로 예약 게시로 보내고, 게시 전에
+    알림톡으로 알려 사장님이 철회·수정할 수 있게 한다(DraftService.RISK_NOTIFY_LEVEL).
+    """
     flags = check(CLEAN, risk_level=2)
-    assert "G8_RISK" in flags
-    assert flags.blocking
+    assert "G8_RISK" not in flags
 
 
 def test_g8_risk_3_blocked():

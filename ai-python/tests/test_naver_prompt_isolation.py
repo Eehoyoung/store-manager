@@ -348,9 +348,24 @@ _VISIT_HYGIENE_MUST_NOT = [
 
 
 @pytest.mark.parametrize("body", _VISIT_HYGIENE_MUST)
-def test_매장_위생_지적은_방문_경로에서_risk3_이다(body):
+def test_매장_위생_지적은_방문_경로에서_사유가_잡힌다(body):
+    """★ 등급은 2 다(2026-09-19 재편). 조리 공간·부패가 아니면 홀 청결이고,
+    사장님이 지금 가서 보면 아는 일이라 답글도 인정하고 사과하는 쪽이 맞다.
+    사유(HYGIENE)는 반드시 남아야 한다 — 사장님 화면의 경고가 여기서 나온다."""
     level, reasons = prompts.upgrade_risk_level(body, 1, "NAVER")
-    assert level == 3, body
+    assert level == 2, (body, level)
+    assert "HYGIENE" in reasons, (body, reasons)
+
+
+@pytest.mark.parametrize("body", [
+    "주방 조리대가 더럽더라고요",
+    "냉장고에서 쉰 냄새가 났어요",
+    "식재료에 곰팡이가 피어 있었어요",
+])
+def test_조리공간_부패는_여전히_risk3_이다(body):
+    """식품위생법 영역이다. 홀 청결과 같은 급으로 내리면 절대규칙 3 이 흔들린다."""
+    level, reasons = prompts.upgrade_risk_level(body, 1, "NAVER")
+    assert level == 3, (body, level)
     assert "HYGIENE" in reasons, (body, reasons)
 
 

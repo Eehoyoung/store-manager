@@ -88,6 +88,16 @@ class AnalyzeAndDraftRequest(BaseModel):
     persona: PersonaIn
     options: OptionsIn = Field(default_factory=OptionsIn)
     recent_replies: list[str] = Field(default_factory=list, alias="recentReplies")
+    # ★ 사장님이 확정 입력한 매장 사실(주차·대기시간·좌석 등). 비어 있는 것이 기본이다.
+    #   prompts.store_facts_line 이 "여기 적힌 것만 쓸 수 있다" 를 못박는다 —
+    #   그 한 줄이 절대규칙 8의 우회 통로가 되는 것을 막는다.
+    store_facts: dict[str, str] = Field(default_factory=dict, alias="storeFacts")
+
+    @field_validator("store_facts")
+    @classmethod
+    def limit_store_facts(cls, facts: dict[str, str]) -> dict[str, str]:
+        """길이·개수 상한. 신뢰 경계를 넘어온 값이라 여기서 자른다."""
+        return {k: str(v)[:200] for k, v in list(facts.items())[:8] if str(v).strip()}
 
     @field_validator("recent_replies")
     @classmethod
@@ -202,7 +212,7 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
 def _generate_draft(
     provider: llm.LlmProvider, tier: str, category: str, req: AnalyzeAndDraftRequest, variant_idx: int,
     issue_tags: list[str] | None = None, risk_reasons: list[str] | None = None,
-    tone: str = "CALM", praised_tags: list[str] | None = None,
+    tone: str = "CALM", praised_tags: list[str] | None = None, risk_level: int = 0,
 ) -> tuple[str | None, str, str, int, int, float, list[str]]:
     """(content, 사용모델, 사용티어, token_in, token_out, cost_krw) 를 반환한다.
     content 가 None 이면 두 티어(원래 티어 + 폴백 1회) 모두 실패한 것이다."""
@@ -251,7 +261,8 @@ def _generate_draft(
             category, safe_review, persona, few_shot_text, issue_tags, req.options.instruction,
             # ★ review_id 는 머리말·맺음말을 리뷰마다 흩는 씨앗이다. 빼면 한 매장의
             #   모든 답글이 같은 인사말로 시작한다(실측 v1.9: 도입부 상위 6문형이 69%).
-            risk_reasons, req.review_id, tone, praised_tags, req.review.platform,
+            risk_reasons, req.review_id, tone, praised_tags, req.review.platform, risk_level,
+            req.store_facts,
         )
         model_id = router.TIER_MODELS[attempt_tier]
         try:
@@ -285,7 +296,8 @@ def _produce_variant(
     total_cost = 0.0
     for _regen in range(2):  # 최초 생성 1회 + RETRY 시 재생성 1회
         content, gen_model, used_tier, tok_in, tok_out, cost, recent_replies = _generate_draft(
-            provider, tier, category, req, variant_idx, issue_tags, risk_reasons, tone, praised_tags
+            provider, tier, category, req, variant_idx, issue_tags, risk_reasons, tone, praised_tags,
+            risk_level,
         )
         total_token_in += tok_in
         total_token_out += tok_out

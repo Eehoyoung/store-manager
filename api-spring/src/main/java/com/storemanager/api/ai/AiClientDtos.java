@@ -27,8 +27,14 @@ public final class AiClientDtos {
     public record OptionsIn(int variants, String instruction, String forceTier) {
     }
 
+    /**
+     * @param storeFacts 사장님이 확정 입력한 매장 사실(주차·대기시간·좌석…). 비어 있는 것이 기본이다.
+     *                   ★ 답글이 사실을 인용할 수 있는 <b>유일한 출처</b>다 — [절대 규칙] 8번은
+     *                   확정하지 않은 것을 약속하지 말라는 규칙이지, 사장님이 확정한 것까지
+     *                   막는 규칙이 아니다. AI 가 이 값을 만들어 내게 하지 말 것.
+     */
     public record AnalyzeAndDraftRequest(String reviewId, String storeId, ReviewIn review, PersonaIn persona,
-            OptionsIn options, List<String> recentReplies) {
+            OptionsIn options, List<String> recentReplies, java.util.Map<String, String> storeFacts) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

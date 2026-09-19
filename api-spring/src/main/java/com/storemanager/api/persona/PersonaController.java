@@ -46,6 +46,19 @@ public class PersonaController {
         return personaService.preview(CurrentUser.publicId(), storeId, req);
     }
 
+    /** 매장 사실 조회. 입력 가능한 항목 목록(allowedKeys)을 함께 준다 — 화면이 목록을 베끼지 않게. */
+    @GetMapping("/api/v1/stores/{storeId}/facts")
+    public PersonaDtos.StoreFactsResponse getFacts(@PathVariable String storeId) {
+        return personaService.getFacts(CurrentUser.publicId(), storeId);
+    }
+
+    /** 매장 사실 전체 교체. 빈 값은 삭제, 허용 키 밖이면 400. */
+    @PutMapping("/api/v1/stores/{storeId}/facts")
+    public PersonaDtos.StoreFactsResponse replaceFacts(@PathVariable String storeId,
+            @Valid @RequestBody PersonaDtos.StoreFactsRequest req) {
+        return personaService.replaceFacts(CurrentUser.publicId(), storeId, req);
+    }
+
     @GetMapping("/api/v1/stores/{storeId}/persona/style-samples")
     public StyleSampleListResponse styleSamples(@PathVariable UUID storeId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {

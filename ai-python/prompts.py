@@ -54,6 +54,12 @@ TONE_VALUES = ("CALM", "DISAPPOINTED", "ANGRY")
 RISK_REASON_VALUES = (
     "FOOD_POISONING", "FOREIGN_OBJECT", "HYGIENE", "LEGAL",
     "THREAT", "REVIEW_TRADE", "ORIGIN_LABEL", "UNDERAGE_ALCOHOL", "PRIVACY_LEAK",
+    # ★ 2026-09-19 신설 2종. 이전에는 risk 2 (나)(다) 로만 있어 **사유가 남지 않았다** —
+    #   사장님 화면에 "위험도 2" 라고만 뜨고 왜인지 알 수 없었다.
+    #   둘 다 risk 3 으로 올린다(운영자 결정):
+    #   · REFUND_DEMAND    돈 이야기다. 답글 한 줄이 분쟁의 시작점이 될 수 있어 사람이 본다.
+    #   · REPEAT_COMPLAINT 단골이 두 번째로 실망했다는 신호다. 자동 사과문이 나가면 잃는다.
+    "REFUND_DEMAND", "REPEAT_COMPLAINT",
 )
 
 ISSUE_TAG_DICT = [
@@ -809,16 +815,30 @@ def upgrade_tone(text: str, base_tone: str) -> str:
 
 
 def _is_risk2(body: str) -> bool:
-    """(가) 화·분노, (나) 환불·보상 요구, (다) 반복 불만 중 하나가 확인되는가.
+    """(가) 화·분노가 확인되는가. **risk 2 는 이제 (가) 하나뿐이다.**
 
-    ★ (가)는 2026-09-17 에야 들어왔다. 그전까지 이 함수는 (나)(다)만 받쳤고,
-      화·분노는 모델 판정에만 의존했다 — 손님 픽스처 실측에서 미탐 4건이 전부
-      이 계열이었다. tone 룰과 같은 어휘를 쓴다(사본을 만들지 않는다)."""
-    if _angry_hit(body):
-        return True
+    ★ 2026-09-19 재편(운영자 결정) — (나) 환불 요구와 (다) 반복 불만을 risk 3 으로
+      올려 `_risk3_demands` 로 옮겼다. 셋을 한 등급에 묶은 것이 애초에 무리였다:
+        · (가) 화난 손님은 **빨리 사과하는 것이 최선**이다. 붙잡아 둘수록 나빠진다.
+        · (나) 환불 요구는 **돈 이야기**다. 답글 한 줄이 분쟁의 시작점이 된다.
+        · (다) 반복 불만은 **단골을 잃는 순간**이다. 자동 사과문이 나가면 끝이다.
+      (가)만 자동으로 나가고 (나)(다)는 사람이 본다.
+    ★ tone 룰과 같은 어휘를 쓴다(사본을 만들지 않는다)."""
+    return _angry_hit(body)
+
+
+def _risk3_demands(body: str) -> list[str]:
+    """risk 3 으로 올려야 하는 '요구·반복' 사유. 소재가 아니라 화행으로 판정한다.
+
+    ★ 위생·이물질 같은 명사 키워드와 성격이 다르다. 같은 단어가 칭찬에도 그대로 나오므로
+      구조를 본다(CLAUDE.md 'risk 2 결정론 룰' 절의 판정 방식을 그대로 물려받는다).
+      `tests/test_risk_rule.py` 의 _RISK2_MUST / _RISK2_MUST_NOT 가 여전히 정본이다."""
+    found: list[str] = []
     if _REFUND_DEMAND.search(body) and not _REFUND_RESOLVED.search(body):
-        return True
-    return _REPEAT_COMPLAINT.search(body) is not None
+        found.append("REFUND_DEMAND")
+    if _REPEAT_COMPLAINT.search(body):
+        found.append("REPEAT_COMPLAINT")
+    return found
 
 
 def _hits(body: str, reason: str) -> bool:
@@ -903,6 +923,16 @@ _VISIT_STAFF_CONFLICT = re.compile(
 )
 
 
+# ★ 같은 '위생' 이라도 급이 다르다(2026-09-19, 외부 감사 지적).
+#   조리 공간·부패는 식품위생법 영역이고 신고로 이어진다 — risk 3, 사람이 본다.
+#   홀·화장실·집기는 손님이 본 매장 상태다. 사장님이 지금 가서 보면 아는 일이고,
+#   답글도 인정하고 사과하는 쪽이 맞다(_VISIT_HYGIENE_GUIDE). risk 2 로 충분하다.
+#   ★ 대응 지침은 이미 갈라 놓고 **등급만 안 갈라** 둔 상태였다.
+_VISIT_KITCHEN = (r"주방", r"조리대", r"조리\s*공간", r"싱크대", r"도마", r"식재료", r"냉장고")
+_VISIT_SPOILED = (r"썩", r"곰팡이", r"상한", r"상했", r"쉰\s*내", r"쉰\s*냄새", r"유통기한")
+_VISIT_HYGIENE_SEVERE = re.compile(f"({'|'.join(_VISIT_KITCHEN + _VISIT_SPOILED)})")
+
+
 def visit_risk(text: str) -> tuple[int, list[str]]:
     """방문 리뷰에만 적용하는 추가 판정. (level, reasons) 를 돌려준다. 승격만 한다.
 
@@ -910,7 +940,9 @@ def visit_risk(text: str) -> tuple[int, list[str]]:
       배달 리뷰에 '화장실' 이 나오면 대개 매장 이야기가 아니라 손님 사정이다."""
     body = text or ""
     if _VISIT_HYGIENE.search(body):
-        return 3, ["HYGIENE"]
+        # 조리 공간이나 부패가 함께 언급되면 급이 다르다.
+        severe = _VISIT_HYGIENE_SEVERE.search(body) is not None
+        return (3 if severe else 2), ["HYGIENE"]
     if _VISIT_STAFF_CONFLICT.search(body):
         return 2, []
     return 0, []
@@ -926,22 +958,29 @@ def upgrade_risk_level(text: str, base_level: int, platform: str | None = None) 
     ★ 승격만 한다. 어떤 경우에도 base_level 아래로 내리지 않는다.
     """
     body = text or ""
+    # ① 키워드·패턴 사유 — 전부 risk 3 이다(위생·이물질·식중독·법적·협박…).
     reasons = [r for r in _RISK_KEYWORDS if _hits(body, r)]
+    # ② 요구·반복은 키워드 사전에 없다(화행이라 구조로 본다). 역시 risk 3 이다.
+    for r in _risk3_demands(body):
+        if r not in reasons:
+            reasons.append(r)
+    level = 3 if reasons else 0
+
+    # ③ 방문 전용 사유 — **등급이 사유에 딸려 오지 않는다.** 같은 HYGIENE 이라도
+    #    조리 공간·부패는 3, 홀·화장실·집기는 2 다. 그래서 여기서는 사유만 합치고
+    #    등급은 visit_level 로 따로 받는다. `reasons` 가 비지 않았다고 3 으로 올리면
+    #    등급 분리가 통째로 무의미해진다(2026-09-19 에 한 번 밟았다).
     visit_level, visit_reasons = visit_risk(body) if is_visit_platform(platform) else (0, [])
     for r in visit_reasons:
         if r not in reasons:
             reasons.append(r)
-    if reasons:
-        level = 3
-    elif visit_level:
-        level = visit_level
-    elif _is_risk2(body):
-        # risk 2 는 위험 '사유'가 아니라 대응 난이도다 — reasons 는 비운다.
-        # main.py 가 riskReasons 를 RISK_REASON_VALUES 로 교집합하므로 값을 넣을 수도 없다.
+    level = max(level, visit_level)
+
+    # ④ (가) 화·분노 — 사유가 아니라 대응 난이도다. reasons 를 만들지 않는다.
+    #    main.py 가 riskReasons 를 RISK_REASON_VALUES 로 교집합하므로 넣을 수도 없다.
+    if level < 2 and _is_risk2(body):
         level = 2
-    else:
-        level = base_level
-    return max(base_level, level, visit_level), reasons
+    return max(base_level, level), reasons
 
 
 # ── 생성 프롬프트 (docs/12 §3) ──────────────────────────────────────────────
@@ -1499,6 +1538,7 @@ def build_generate_messages(
     category: str, review, persona, few_shot_text: str, issue_tags: list[str] | None = None,
     instruction: str | None = None, risk_reasons: list[str] | None = None, review_id: str = "",
     tone: str = "CALM", praised_tags: list[str] | None = None, platform: str | None = None,
+    risk_level: int = 0, store_facts: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     """(system, user) 프롬프트 쌍을 만든다. category 는 PRAISE/POSITIVE/IMPROVEMENT/COMPLAINT
     중 하나여야 한다(ABUSIVE·NOISE 는 main.py 가 이 함수를 호출하지 않는다).
@@ -1527,6 +1567,7 @@ def build_generate_messages(
     #   (POSITIVE 지침) 와 "60~150자" 와 "2~3문장" 이 한 프롬프트에 같이 있었다.
     #   방향 지시와 숫자 제약이 붙으면 숫자가 이긴다 — "길게 늘이지 마라" 는 죽은 지침이었다.
     length_min = min(persona.length_min, guardrails.min_length_for(category, tone))
+    length_max = length_max_for(category, persona.length_max, risk_level, risk_reasons, tone)
     # 담담하게 알려준 개선요청도 짧게 간다 — 따진 게 아니라 알려준 것이라 2~3문장은 과잉이다.
     light = category in ("PRAISE", "POSITIVE") or (category == "IMPROVEMENT" and tone == "CALM")
     sentence_hint = "1~2문장" if light else "2~3문장"
@@ -1571,7 +1612,7 @@ def build_generate_messages(
         f"- 톤: {tone_label}\n"
         f"- 고객 호칭: {html.escape(persona.customer_title, quote=True)}\n"
         f"- 서명 문구: {signature}\n"
-        f"- 길이: {length_min}~{persona.length_max}자 (공백 포함)\n"
+        f"- 길이: {length_min}~{length_max}자 (공백 포함)\n"
         + style_text
         + "\n[절대 규칙]\n"
         "1. 환불·보상·할인·쿠폰·무료 제공 등 금전적 약속을 하지 마라. 고객이 요구하더라도"
@@ -1594,6 +1635,7 @@ def build_generate_messages(
         "- 아래 예시는 이 매장 사장님이 실제로 쓴(혹은 승인된) 답글이다. 문장 리듬과 어휘를"
         " 참고하되 내용을 복사하지 마라.\n\n"
         + (f"\n[이 리뷰의 상황]\n{situation_text}\n" if situation_text else "")
+        + store_facts_line(store_facts, issue_tags, praised_tags)
         + (f"\n[손님이 좋다고 한 것]\n{praised_text}\n"
            "이 가운데 하나를 골라 구체적으로 호응하라. 전부 나열하지 마라.\n"
            if praised_text else "")
@@ -1712,6 +1754,71 @@ def style_slot_for(category: str) -> str:
 #   "국물이 샜어요" 에 "주문해 주셔서 감사합니다" 가 붙는다.
 #   ★ 그런 답글이 나가느니 초안이 없는 편이 낫다 — 없으면 사람 검수로 간다.
 T0_TEMPLATE_CATEGORIES = ("PRAISE", "POSITIVE", "NOISE")
+
+
+# ★ 상한은 상황에 따라 자동으로 움직인다(2026-09-19 운영자 결정). 하한은 45 고정.
+#   "고객에게 관리받는 기분" 과 "사장님에게 간편" 이 길이에서 정면으로 부딪친다.
+#   한 숫자로 두면 한쪽이 진다 — 칭찬에 150자를 허용하면 상투구가 붙고,
+#   위생 사고에 80자를 강요하면 성의가 없어 보인다. 상황이 정하게 한다.
+#
+#   별점 5 칭찬        20~80자    한 줄이면 족하다. 길어질수록 자동 생성 티가 난다
+#   담담한 개선요청     20~100자   알려준 것이지 따진 게 아니다
+#   일반 불만          45~120자   사과 + 무엇을 할지 한 가지
+#   위험·환불 요구      45~150자   경위 인정 + 확인 약속까지 들어가야 한다
+_LENGTH_MAX_BY_SITUATION = {
+    "LIGHT": 80,     # PRAISE·POSITIVE·NOISE
+    "CASUAL": 100,   # IMPROVEMENT + CALM
+    "NORMAL": 120,   # 그 밖의 불만
+    "HEAVY": 150,    # risk>=2 이거나 위험 사유가 잡힌 건
+}
+
+
+def length_max_for(category: str, persona_max: int, risk_level: int = 0,
+                   risk_reasons: list[str] | None = None, tone: str | None = None) -> int:
+    """이 상황에서 허용할 답글 상한. **사장님이 설정한 값을 넘지 않는다.**
+
+    ★ 사람이 정한 값이 항상 이긴다. 자동 조절은 그 안에서만 움직인다 —
+      사장님이 100자로 줄여 뒀는데 위생 사고라고 150자를 쓰면 설정이 무의미해진다."""
+    if risk_level >= 2 or risk_reasons:
+        key = "HEAVY"
+    elif category in ("PRAISE", "POSITIVE", "NOISE"):
+        key = "LIGHT"
+    elif category == "IMPROVEMENT" and tone == "CALM":
+        key = "CASUAL"
+    else:
+        key = "NORMAL"
+    return min(persona_max, _LENGTH_MAX_BY_SITUATION[key])
+
+
+# ★ 사장님이 확정 입력한 매장 사실. 여기 있는 것만 답글에 쓸 수 있다.
+#
+#   [절대 규칙] 8번("확인·확정하지 않은 조치를 약속하지 마라") 때문에 주차·좌석·소음·
+#   분위기·접근성·대기시간 지침이 전부 "확정하지 않은 ~를 약속하지 마라" 로 끝난다.
+#   그래서 방문 리뷰의 절반이 "확인해 보겠습니다" 한 줄로 수렴했다 — 손님은 아무것도
+#   얻지 못하고 사장님은 답글이 다 똑같다고 느낀다.
+#
+#   ★ 이 블록의 값은 **사장님이 직접 확정한 사실**이다. 지어낸 것이 아니라 받아 적은
+#     것이므로 답글에 써도 8번을 어기지 않는다. 그것이 이 기능의 존재 이유 전부다.
+#   ★ 그래서 "여기 적힌 것만" 을 못박는다. 이 한 줄이 빠지면 모델이 매장 사실을
+#     **지어내기 시작한다** — 8번을 우회하는 통로가 되어 버린다. 지우지 말 것.
+def store_facts_line(store_facts: dict[str, str] | None, issue_tags: list[str] | None,
+                     praised_tags: list[str] | None = None) -> str:
+    """이 리뷰가 건드린 항목의 매장 사실만 붙인다. 전부 붙이면 프롬프트만 길어진다."""
+    if not store_facts:
+        return ""
+    touched = set(issue_tags or ()) | set(praised_tags or ())
+    # '분위기' 는 사실이 아니라 취향이라 항목이 없다. 나머지는 태그명이 곧 키다.
+    lines = [f"- {k}: {html.escape(str(v), quote=True)}"
+             for k, v in store_facts.items() if k in touched and str(v).strip()]
+    if not lines:
+        return ""
+    return (
+        "\n[매장 사실 — 사장님이 직접 확인해 둔 것]\n"
+        + "\n".join(lines)
+        + "\n★ 위에 적힌 것만 답글에 쓸 수 있다. **여기 없는 사실을 지어내지 마라.**\n"
+        "- 손님이 겪은 불편과 관련이 있을 때만 한 가지를 골라 짧게 알려 드려라.\n"
+        "- 안내가 변명처럼 읽히지 않게 하라. 사과가 먼저고 안내가 나중이다.\n"
+    )
 
 
 def t0_template_allowed(category: str) -> bool:

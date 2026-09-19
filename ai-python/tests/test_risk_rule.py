@@ -400,8 +400,11 @@ _RISK2_MUST_NOT = [
 
 
 @pytest.mark.parametrize("text", _RISK2_MUST)
-def test_요구와_반복불만은_risk2로_승격한다(text):
-    assert upgrade_risk_level(text, base_level=1)[0] >= 2, text
+def test_요구와_반복불만은_risk3로_승격하고_사유가_남는다(text):
+    # ★ 2026-09-19 재편으로 2 → 3 이 됐다. 사유가 남아야 사장님이 왜 검수인지 안다.
+    level, reasons = upgrade_risk_level(text, base_level=1)
+    assert level == 3, (text, level)
+    assert {"REFUND_DEMAND", "REPEAT_COMPLAINT"} & set(reasons), (text, reasons)
 
 
 @pytest.mark.parametrize("text", _RISK2_MUST_NOT)
@@ -413,9 +416,25 @@ def test_같은_단어라도_요구나_반복이_아니면_올리지_않는다(t
     assert upgrade_risk_level(text, base_level=1)[0] == 1, text
 
 
-def test_risk2_승격은_사유를_만들지_않는다():
-    """risk_reasons 는 9종 위험 사유 전용이다. risk 2 는 사유가 아니라 대응 난이도다."""
+def test_요구와_반복은_risk3_이고_사유를_남긴다():
+    """★ 2026-09-19 재편(운영자 결정). 이전에는 (가)(나)(다)가 모두 risk 2 였고
+    risk 2 는 사유를 만들지 않아 사장님 화면에 "위험도 2" 라고만 떴다.
+
+    셋을 한 등급에 묶은 것이 애초에 무리였다:
+      · (가) 화난 손님은 빨리 사과하는 것이 최선이다 → risk 2 로 남아 예약 게시된다
+      · (나) 환불 요구는 돈 이야기다                 → risk 3, 사람이 본다
+      · (다) 반복 불만은 단골을 잃는 순간이다        → risk 3, 사람이 본다
+    """
     level, reasons = upgrade_risk_level("이건 환불해 주세요", base_level=0)
+    assert (level, reasons) == (3, ["REFUND_DEMAND"])
+
+    level, reasons = upgrade_risk_level("저번에도 식어서 왔는데 오늘도 마찬가지예요", base_level=0)
+    assert (level, reasons) == (3, ["REPEAT_COMPLAINT"])
+
+
+def test_화만_risk2_로_남아_사유를_만들지_않는다():
+    """(가) 는 사유가 아니라 대응 난이도다 — 예약 게시 경로를 탄다."""
+    level, reasons = upgrade_risk_level("이건 그냥 넘어갈 수 없을 만큼 화가 나네요", base_level=0)
     assert (level, reasons) == (2, [])
 
 

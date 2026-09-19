@@ -62,6 +62,7 @@ class PersonaServiceTest {
 
     @Mock private StorePersonaRepository storePersonaRepository;
     @Mock private StoreRepository storeRepository;
+    @Mock private com.storemanager.api.store.StoreFactRepository storeFactRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private UnifiedReviewRepository unifiedReviewRepository;
     @Mock private StyleSampleQueryRepository styleSampleQueryRepository;
@@ -80,7 +81,7 @@ class PersonaServiceTest {
 
     @BeforeEach
     void setUp() {
-        personaService = new PersonaService(storePersonaRepository, storeRepository, appUserRepository,
+        personaService = new PersonaService(storePersonaRepository, storeRepository, storeFactRepository, appUserRepository,
                 unifiedReviewRepository, styleSampleQueryRepository, reviewAnalysisRepository, aiClient,
                 bannedWordQueryRepository, new ObjectMapper(), auditLogRepository);
         // lenient: bean-validation-only 테스트(autoMaxRisk_* 등)는 personaService 를 호출하지 않아 이 스텁을 안 쓴다.
@@ -392,5 +393,38 @@ class PersonaServiceTest {
         verify(auditLogRepository).save(org.mockito.ArgumentMatchers.argThat((AuditLog a) ->
                 "STYLE_SAMPLE_DELETED".equals(a.getAction()) && "REPLY_STYLE_SAMPLE".equals(a.getTargetType())
                         && Long.valueOf(42L).equals(a.getTargetId())));
+    }
+
+    // ── 매장 사실 (2026-09-19) ────────────────────────────────────────────
+
+    @Test
+    void 허용되지_않은_항목은_조용히_버리지_않고_거절한다() {
+        // ★ 조용히 버리면 사장님은 입력한 줄 알고 있는데 답글에 안 나오고, 원인을 찾을 길이 없다.
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
+
+        ApiException ex = assertThrows(ApiException.class, () -> personaService.replaceFacts(
+                ownerPublicId, storePublicId.toString(),
+                new PersonaDtos.StoreFactsRequest(List.of(new PersonaDtos.StoreFactDto("메뉴추천", "아무거나")))));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        verify(storeFactRepository, never()).saveAll(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void 빈_값은_저장하지_않고_보낸_것으로_통째로_맞춘다() {
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(myStore));
+        when(storeFactRepository.findByStoreId(myStore.getId())).thenReturn(List.of());
+        when(storeFactRepository.saveAll(org.mockito.ArgumentMatchers.anyList()))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        PersonaDtos.StoreFactsResponse res = personaService.replaceFacts(ownerPublicId, storePublicId.toString(),
+                new PersonaDtos.StoreFactsRequest(List.of(
+                        new PersonaDtos.StoreFactDto("주차", "  건물 뒤 5대  "),
+                        new PersonaDtos.StoreFactDto("좌석", "   "))));
+
+        assertThat(res.facts()).hasSize(1);
+        assertThat(res.facts().get(0).key()).isEqualTo("주차");
+        assertThat(res.facts().get(0).text()).isEqualTo("건물 뒤 5대");   // 앞뒤 공백 제거
+        assertThat(res.allowedKeys()).contains("주차", "대기시간", "좌석", "소음", "접근성");
     }
 }

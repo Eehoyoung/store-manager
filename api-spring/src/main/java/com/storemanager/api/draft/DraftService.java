@@ -24,6 +24,8 @@ import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
+import com.storemanager.api.store.StoreFact;
+import com.storemanager.api.store.StoreFactRepository;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
@@ -52,6 +54,17 @@ public class DraftService {
 
     private static final Logger log = LoggerFactory.getLogger(DraftService.class);
     private static final short RISK_AUTO_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3
+    /**
+     * 자동 예약은 하되 사장님에게 알리는 하한(2026-09-19 신설).
+     *
+     * <p>★ risk 2 는 이제 <b>(가) 화·분노 하나</b>다 — 환불 요구·반복 불만은 risk 3 으로 올라갔다.
+     * 화난 손님은 붙잡아 둘수록 나빠지므로 답글을 예약하되, <b>게시 전에 알린다.</b>
+     * 지연 게시(기본 2시간)가 곧 철회 창이다 — 사장님이 그 사이 거절하거나 고쳐 쓸 수 있다.
+     *
+     * <p>★ 알림 없이 예약만 하면 "언제 뭐가 나갔는지 모르는" 상태가 된다. 그건 자동화가
+     * 아니라 방치다. 이 알림을 빼지 말 것.
+     */
+    private static final short RISK_NOTIFY_LEVEL = 2;
     // ★ BLOCKED 가 여기 있어야 한다. 수집은 매 폴링마다 최근 2일을 재조회하므로(데이터처리 2번),
     //   BLOCKED 를 빼면 위험 리뷰를 폴링 주기마다 다시 분석한다 — 그것도 T3(가장 비싼 모델)로.
     //   차단된 건은 다시 만들지 않는다. 풀자동화에서 재생성 UI 는 폐기됐다.
@@ -62,6 +75,7 @@ public class DraftService {
     private final ReviewAnalysisRepository reviewAnalysisRepository;
     private final UnifiedReviewRepository unifiedReviewRepository;
     private final StoreRepository storeRepository;
+    private final StoreFactRepository storeFactRepository;
     private final StorePersonaRepository storePersonaRepository;
     private final AppUserRepository appUserRepository;
     private final AiClient aiClient;
@@ -73,7 +87,7 @@ public class DraftService {
     private final StoreServiceGate serviceGate;
 
     public DraftService(ReplyDraftRepository replyDraftRepository, ReviewAnalysisRepository reviewAnalysisRepository,
-            UnifiedReviewRepository unifiedReviewRepository, StoreRepository storeRepository,
+            UnifiedReviewRepository unifiedReviewRepository, StoreRepository storeRepository, StoreFactRepository storeFactRepository,
             StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient,
             BannedWordQueryRepository bannedWordQueryRepository, LlmUsageLogRepository llmUsageLogRepository,
             AuditLogRepository auditLogRepository, Notifier notifier, ObjectMapper objectMapper,
@@ -82,6 +96,7 @@ public class DraftService {
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
         this.storeRepository = storeRepository;
+        this.storeFactRepository = storeFactRepository;
         this.storePersonaRepository = storePersonaRepository;
         this.appUserRepository = appUserRepository;
         this.aiClient = aiClient;
@@ -223,6 +238,11 @@ public class DraftService {
         Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
                 parseWindows(persona.getPublishWindows()));
         draft.scheduleAutomatically(scheduledAt);
+        // ★ 예약은 했지만 사장님이 게시 전에 볼 수 있어야 한다(위 RISK_NOTIFY_LEVEL).
+        if (analysis.riskLevel() >= RISK_NOTIFY_LEVEL) {
+            notifier.send(store.getOwnerId(), store.getId(), "ALIMTALK", "SCHEDULED_REVIEW_CHECK",
+                    "REPLY_DRAFT", draft.getId());
+        }
         auditLogRepository.save(AuditLog.builder()
                 .actorType("SYSTEM")
                 .action("DRAFT_AUTO_SCHEDULED")
@@ -258,7 +278,29 @@ public class DraftService {
         // ★ store_id/review_id 는 ai-python 이 pgvector 조회에 BIGINT 로 그대로 쓰므로 public_id 가 아니라
         // 내부 BIGSERIAL id 를 문자열로 넘긴다(ai-python/rag.py: "store_id = %s::bigint").
         return new AiClientDtos.AnalyzeAndDraftRequest(String.valueOf(review.getId()), String.valueOf(review.getStoreId()),
-                reviewIn, personaIn, optionsIn, recentReplies(review.getStoreId()));
+                reviewIn, personaIn, optionsIn, recentReplies(review.getStoreId()),
+                storeFacts(review.getStoreId()));
+    }
+
+    /**
+     * 사장님이 확정 입력한 매장 사실. 답글이 "확인해 보겠습니다" 로만 끝나지 않게 하는 유일한 출처다.
+     *
+     * <p>★ 조회 실패를 삼킨다 — 매장 사실이 없다고 답글 생성을 막을 이유가 없다. 없으면 없는 대로
+     * 지금까지처럼 동작한다(빈손이 안전한 기본값이다).
+     */
+    private java.util.Map<String, String> storeFacts(Long storeId) {
+        try {
+            java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+            for (StoreFact f : storeFactRepository.findByStoreId(storeId)) {
+                if (f.getFactText() != null && !f.getFactText().isBlank()) {
+                    facts.put(f.getFactKey(), f.getFactText());
+                }
+            }
+            return facts;
+        } catch (RuntimeException e) {
+            log.warn("매장 사실 조회 실패 storeId={} error={}", storeId, e.getClass().getSimpleName());
+            return java.util.Map.of();
+        }
     }
 
     private List<String> recentReplies(Long storeId) {

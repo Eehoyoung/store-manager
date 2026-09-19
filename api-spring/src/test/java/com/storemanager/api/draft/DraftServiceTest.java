@@ -51,6 +51,7 @@ class DraftServiceTest {
     @Mock private ReviewAnalysisRepository reviewAnalysisRepository;
     @Mock private UnifiedReviewRepository unifiedReviewRepository;
     @Mock private StoreRepository storeRepository;
+    @Mock private com.storemanager.api.store.StoreFactRepository storeFactRepository;
     @Mock private StorePersonaRepository storePersonaRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private AiClient aiClient;
@@ -71,7 +72,8 @@ class DraftServiceTest {
     @BeforeEach
     void setUp() {
         draftService = new DraftService(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
-                storeRepository, storePersonaRepository, appUserRepository, aiClient, bannedWordQueryRepository,
+                storeRepository, storeFactRepository, storePersonaRepository, appUserRepository, aiClient,
+                bannedWordQueryRepository,
                 llmUsageLogRepository, auditLogRepository, notifier, new ObjectMapper(), serviceGate);
         // 기본은 서비스 가능. 게이트 자체는 아래 전용 테스트에서 확인한다.
         org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
