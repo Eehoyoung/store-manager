@@ -101,7 +101,9 @@ def test_issue_tags_for_배달은_기존_목록_그대로다():
 
 def test_issue_tags_for_네이버는_배달전용_없이_방문태그를_포함한다():
     tags = prompts.issue_tags_for("NAVER")
-    for delivery_only in ("배달지연", "배달빠름", "기사응대", "오배송", "용기", "최소주문금액"):
+    # ★ 2026-09-19: '용기' 를 뺐다. 네이버 영수증 리뷰에는 포장 주문이 함께 들어오고,
+    #   포장상태·새어나옴·일회용품누락을 남기면서 '용기' 만 지운 것은 사전 자기모순이었다.
+    for delivery_only in ("배달지연", "배달빠름", "기사응대", "오배송", "최소주문금액"):
         assert delivery_only not in tags, delivery_only
     for visit_only in ("대기시간", "주차", "좌석", "소음"):
         assert visit_only in tags, visit_only
@@ -232,3 +234,87 @@ def test_네이버_프롬프트_버전은_배달과_독립된_라인이다():
     )
     # review_analysis.prompt_version / naver_review_event.prompt_version 둘 다 VARCHAR(20) 이다.
     assert len(naver) <= 20, f"{naver!r} 이 DB 컬럼(VARCHAR(20))을 넘는다."
+
+
+# ── 생성 프롬프트 분리 (2026-09-19) ─────────────────────────────────────────
+# ★ 기존 테스트는 [이 리뷰의 상황] 블록만 봤다. 그래서 프롬프트 첫 줄이
+#   "너는 배달앱 리뷰에 답글을 작성한다" 인 채로 14건이 전부 통과했다.
+#   가장 큰 구멍을 안 덮는 테스트는 없는 것보다 나쁘다 — 초록불이 거짓말을 한다.
+_DELIVERY_WORDS = ("배달", "기사", "라이더", "배송")
+
+
+class _Persona:
+    tone = "POLITE"
+    use_emoji = True
+    emoji_level = 1
+    customer_title = "고객님"
+    signature = None
+    opening_style = None
+    banned_words: list[str] = []
+    length_min = 60
+    length_max = 150
+    persona_seed = 1
+
+
+def _build(platform, issue_tags, body="웨이팅 40분에 음식도 식어서 나왔어요"):
+    class _Review:
+        rating = 2
+        menus: list[str] = []
+
+    _Review.body = body
+    system, _ = prompts.build_generate_messages(
+        "COMPLAINT", _Review(), _Persona(), "", issue_tags, None, [], "r1", "DISAPPOINTED", [], platform,
+    )
+    return system
+
+
+def test_방문_생성_프롬프트에_배달_어휘가_하나도_없다():
+    # 상황 지침이 붙는 태그를 최대한 태워 본다(온도·포장상태·새어나옴·조리상태가 배달판이었다).
+    system = _build("NAVER", ["대기시간", "온도", "포장상태", "새어나옴", "조리상태", "용기", "주차"])
+    hits = [ln.strip() for ln in system.splitlines() if any(w in ln for w in _DELIVERY_WORDS)]
+    assert not hits, "방문 생성 프롬프트에 배달 어휘가 남았다:\n" + "\n".join(hits)
+
+
+def test_방문_생성_프롬프트_첫_줄이_방문판이다():
+    assert _build("NAVER", ["주차"]).splitlines()[0] == (
+        "너는 매장 사장님을 대신해 네이버 플레이스 방문 리뷰에 답글을 작성한다."
+    )
+
+
+def test_온도_지침이_배달_소요를_변명으로_주지_않는다():
+    # ★ 홀에서 식어 나온 음식은 전적으로 매장 책임이다. 배달판 지침은
+    #   "배달 소요는 매장이 통제하지 못하는 부분이 있으니" 로 없는 변명을 쥐여줬다.
+    guide = prompts.SITUATION_GUIDE_NAVER["온도"]
+    for word in _DELIVERY_WORDS:
+        assert word not in guide, guide
+    assert "매장이 책임지는" in guide
+
+
+def test_배달_생성_프롬프트는_NAVER_외_모든_값에서_바이트_단위로_같다():
+    baseline = _build(None, ["새어나옴", "온도"])
+    for platform in ("BAEMIN", "YOGIYO", "COUPANGEATS", "", "naver", "NAVER_PLACE"):
+        assert _build(platform, ["새어나옴", "온도"]) == baseline, platform
+    assert _build("NAVER", ["새어나옴", "온도"]) != baseline
+
+
+def test_T0_방문판에는_주문_어휘가_없다():
+    # T0 은 LLM 을 타지 않는 룰 템플릿이라 프롬프트를 갈라도 여기는 갈라지지 않는다.
+    for seed in range(len(prompts._T0_TEMPLATES_VISIT)):
+        text = prompts.render_t0_template("고객님", seed, True, None, "NAVER")
+        assert "주문" not in text, text
+        assert len(text) >= 60, text  # 폴백 경로에서 COMPLAINT 하한을 넘어야 한다
+    assert "주문" in prompts.render_t0_template("고객님", 1, True, None)  # 배달판은 그대로
+
+
+def test_분류_치환_원문이_전부_배달_프롬프트에_실재한다():
+    # ★ 이 파생 방식의 유일한 약점은 **조용한 실패**다. 배달 원문이 한 글자만 바뀌어도
+    #   replace 가 no-op 이 되고 배달 전제가 네이버에 그대로 남는데, 스냅샷 테스트는
+    #   "배달이 바뀌었다" 만 잡고 "치환이 빗나갔다" 는 못 잡는다(방향이 반대다).
+    for old, _new in prompts._NAVER_CLASSIFY_SWAPS:
+        assert old in prompts.CLASSIFY_SYSTEM, f"치환 원문이 배달 프롬프트에 없다: {old[:60]!r}"
+
+
+def test_방문_분류_프롬프트에_배달_전용_어휘가_남지_않는다():
+    s = prompts.CLASSIFY_SYSTEM_NAVER
+    for word in ("배달", "기사응대", "라이더", "오배송", "배달지연"):
+        assert word not in s, [ln for ln in s.splitlines() if word in ln]

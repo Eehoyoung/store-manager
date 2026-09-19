@@ -218,7 +218,9 @@ def _generate_draft(
             continue
         if attempt_tier == "T0":
             seed = (persona.persona_seed or 0) + variant_idx
-            content = prompts.render_t0_template(persona.customer_title, seed, persona.use_emoji, persona.signature)
+            content = prompts.render_t0_template(
+                persona.customer_title, seed, persona.use_emoji, persona.signature, req.review.platform
+            )
             content = content[: guardrails.MAX_LENGTH]
             return content, "rule-template", "T0", 0, 0, 0.0, list(dict.fromkeys(req.recent_replies))
 

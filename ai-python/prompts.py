@@ -81,9 +81,17 @@ def is_visit_platform(platform: str | None) -> bool:
     return platform == "NAVER"
 
 
-# 배달 전용 6종(배달지연·배달빠름·기사응대·오배송·용기·최소주문금액)을 빼고
+# 배달 전용 5종(배달지연·배달빠름·기사응대·오배송·최소주문금액)을 빼고
 # 방문 전용 4종(대기시간·주차·좌석·소음)을 더한다. 공통 태그는 순서까지 그대로 가져온다.
-_DELIVERY_ONLY_TAGS = frozenset({"배달지연", "배달빠름", "기사응대", "오배송", "용기", "최소주문금액"})
+#
+# ★ **포장(테이크아웃)은 방문 쪽에 포함한다** (2026-09-19 결정). 네이버 플레이스 영수증
+#   리뷰에는 홀 식사와 포장 주문이 함께 들어온다. 포장 리뷰를 사전에서 빼면 "용기가 다
+#   새서 왔어요" 가 갈 곳을 잃고 엉뚱한 태그로 떨어진다.
+# ★ 그래서 `용기` 를 배달 전용에서 뺐다. 이전에는 포장상태·새어나옴·일회용품누락은
+#   남기고 `용기` 만 지워 **사전이 자기모순**이었다 — 포장 불만의 대다수가 용기 이야기인데
+#   정작 그 태그가 없었고, 청결 지침 본문의 "청결(매장·용기 위생)" 이 사전에 없는 태그를
+#   가리키고 있었다. 포장을 넣을 거면 `용기` 도 넣고, 뺄 거면 넷을 함께 뺀다. 갈라 놓지 말 것.
+_DELIVERY_ONLY_TAGS = frozenset({"배달지연", "배달빠름", "기사응대", "오배송", "최소주문금액"})
 ISSUE_TAG_DICT_NAVER: list[str] = [t for t in ISSUE_TAG_DICT if t not in _DELIVERY_ONLY_TAGS] + [
     "대기시간", "주차", "좌석", "소음",
 ]
@@ -111,7 +119,11 @@ def issue_tags_for(platform: str | None) -> list[str]:
 #      서로 다른 프롬프트를 가리키게 된다.
 #      → tests/test_naver_prompt_isolation.py 의 배달 스냅샷 테스트가 트립와이어다.
 #        그게 깨지면 픽스처만 갱신하지 말고 이 값도 함께 올려라.
-NAVER_PROMPT_VERSION = "naver-v0.1"
+# ★ v0.2 (2026-09-19) — 분리가 절반에서 멈춰 있던 것을 마저 끝냈다.
+#   생성 프롬프트 헤더가 배달 그대로였고("너는 배달앱 리뷰에 답글을 작성한다"),
+#   온도·포장상태·새어나옴·조리상태 지침이 배달 전제를 문장 구조로 안고 있었으며,
+#   T0 룰 템플릿 5종 중 3종이 "주문해 주셔서" 로 열었다.
+NAVER_PROMPT_VERSION = "naver-v0.2"
 
 
 def prompt_version_for(platform: str | None) -> str:
@@ -340,10 +352,20 @@ _NAVER_EXAMPLE_SWAPS = (
     ),
     ("빠르시네요 두 시간 만에 오셨어요", "여유로우시네요 예약하고도 40분이나 기다리게 하시고"),
     ("빠르시네요 두 시간 만에", "여유로우시네요 예약하고도 40분이나"),
+    # ★ 방문 리뷰에서 "주문" 은 배달 주문을 연상시킨다. 재방문 어휘로 바꾼다.
+    ("전체적으로 괜찮아서 다음에도 주문할 것 같아요", "전체적으로 괜찮아서 다음에도 또 올 것 같아요"),
+    ("\"쓰레기 같고 다시는 주문 안 한다\"", "\"쓰레기 같고 다시는 안 온다\""),
+    ("★ 과거 주문을 끌어와", "★ 과거 방문을 끌어와"),
+    # PRAISE 정의의 근거 목록에 방문 리뷰의 핵심(분위기·응대)이 빠져 있었다.
+    ("메뉴·맛·간·조리상태·포장 중", "메뉴·맛·간·조리상태·매장 분위기·응대 중"),
 )
 
-CLASSIFY_SYSTEM_NAVER = CLASSIFY_SYSTEM
-for _old, _new in (
+# ★ 문자열 치환 파생의 유일한 약점은 **조용한 실패**다. 배달 원문이 한 글자만 바뀌어도
+#   replace 가 no-op 이 되고 네이버 프롬프트에 배달 전제가 그대로 남는다 — 아무도 모른다.
+#   스냅샷 테스트는 "배달이 바뀌었다" 는 잡지만 "치환이 빗나갔다" 는 못 잡는다(방향이 반대다).
+#   그래서 치환 하나하나가 실제로 적용됐는지 여기서 확인한다. 배달 프롬프트를 고쳐
+#   여기가 터지면, 픽스처만 갱신하지 말고 아래 대응쌍과 NAVER_PROMPT_VERSION 을 함께 고쳐라.
+_NAVER_CLASSIFY_SWAPS = (
     ("너는 배달앱 리뷰를 분석하는 분류기다.", "너는 네이버 플레이스에 남겨진 매장 방문 리뷰를 분석하는 분류기다."),
     (_DELIVERY_TAG_LINE, _NAVER_TAG_LINE),
     (
@@ -365,7 +387,14 @@ for _old, _new in (
         "맛·양·온도·대기시간·주차·좌석·소음을 **감정 표현 없이 사실만**",
     ),
     *_NAVER_EXAMPLE_SWAPS,
-) :
+)
+
+CLASSIFY_SYSTEM_NAVER = CLASSIFY_SYSTEM
+for _old, _new in _NAVER_CLASSIFY_SWAPS:
+    if _old not in CLASSIFY_SYSTEM_NAVER:
+        raise AssertionError(
+            f"네이버 분류 프롬프트 치환이 빗나갔다 — 배달 원문에 없는 문구다: {_old[:60]!r}"
+        )
     CLASSIFY_SYSTEM_NAVER = CLASSIFY_SYSTEM_NAVER.replace(_old, _new)
 
 CLASSIFY_SYSTEM_NAVER += """
@@ -966,7 +995,7 @@ SITUATION_GUIDE: dict[str, str] = {
 OUT_OF_STORE_CONTROL_TAGS = ("기사응대",)
 
 
-def blame_line(issue_tags: list[str] | None) -> str:
+def blame_line(issue_tags: list[str] | None, platform: str | None = None) -> str:
     """책임 귀속 지침. 기본은 '주어는 매장이다' 이고, 매장 밖 사안일 때만 바꾼다.
 
     ★ 통째로 없애지 않는다. 이 줄은 '배달 특성상' 같은 책임 회피를 막는 방어선이고,
@@ -975,6 +1004,12 @@ def blame_line(issue_tags: list[str] | None) -> str:
         return (
             "- 이 건은 매장이 통제하지 못하는 부분이 있다. 책임을 자처하지도, 남 탓으로"
             " 돌리지도 마라. 불편을 겪으신 사실에 공감하는 선에서 말하라.\n"
+        )
+    if is_visit_platform(platform):
+        # 방문 리뷰에는 '배달 특성상' 이 나올 자리가 없다. 실제로 나오는 회피 어휘로 바꾼다.
+        return (
+            "- '바쁜 시간대라', '손님이 많아서' 처럼 정황을 앞세워 책임을 흐리지 마라."
+            " 주어는 매장이다.\n"
         )
     return (
         "- '배달 특성상', '포장 특성상' 처럼 정황을 앞세워 책임을 흐리지 마라."
@@ -986,6 +1021,7 @@ def blame_line(issue_tags: list[str] | None) -> str:
 # ★ SITUATION_GUIDE(배달)는 여기서 한 글자도 바꾸지 않는다 — 배달 경로 생성 프롬프트가
 #   바이트 단위로 그대로여야 한다(tests/test_naver_prompt_isolation.py).
 # 배달 전용 안내 문구만 방문 맥락으로 바꾸고, 나머지 지침은 그대로 물려받는다.
+# ★ 분류 프롬프트와 같은 이유로 적용 여부를 확인한다(아래 _build_situation_guide_naver).
 _NAVER_GUIDE_PHRASE_SWAPS = (
     ("주문하신 앱으로 문의해 달라는", "매장으로 연락 주시거나 방문하실 때 말씀해 주시면 된다는"),
     ("주문하신 앱으로 문의해 달라고", "매장으로 연락 주시거나 방문하실 때 말씀해 주시면 된다고"),
@@ -993,6 +1029,33 @@ _NAVER_GUIDE_PHRASE_SWAPS = (
     ("주문 요청사항에 적어 주시면", "주문하실 때 직원에게 말씀해 주시면"),
     ("요청사항 칸에 적어 주시면", "주문하실 때 직원에게 말씀해 주시면"),
 )
+
+# ★ 문구 치환으로는 못 고치는 지침들. 배달 전제가 **문장 구조에** 박혀 있어
+#   통째로 다시 쓴다(2026-09-19).
+#
+# ★★ 가장 위험한 것은 `온도` 였다. 배달판은 "식어서 **도착**한 상황" 으로 열고
+#   "**배달 소요**는 매장이 통제하지 못하는 부분이 있으니 원인을 단정하지 마라" 로 닫는다.
+#   홀에서 식어 나온 음식은 **전적으로 매장 책임**인데, 지침이 존재하지도 않는 변명을
+#   먼저 쥐여주고 있었다. 같은 프롬프트의 `blame_line` 이 "'배달 특성상' 처럼 정황을
+#   앞세워 책임을 흐리지 마라" 라고 말하는 것과 정면으로 부딪친다.
+#   → 방문판은 **원인을 매장 안에서** 찾는다.
+_NAVER_GUIDE_OVERRIDES: dict[str, str] = {
+    "온도": "음식이 식은 채로 나갔다는 지적이다. 어떤 메뉴가 어떤 상태였는지 손님이 쓴 그대로"
+            " 되짚어 사과하라. ★ 홀에서 나가는 음식의 온도는 매장이 책임지는 부분이다 —"
+            " 대기·포장·손님 사정을 원인으로 앞세우지 마라. 확정하지 않은 조리·제공 방식"
+            " 변경을 약속하지 말고 확인해 보겠다는 선에서 끝내라.",
+    "포장상태": "포장·용기 문제다. 무엇이 어떻게 잘못됐는지 손님이 쓴 말로 되짚어라."
+                " 포장 방식에 요청이 있으면 주문하실 때 직원에게 말씀해 주시면 된다고 안내할"
+                " 수 있다. 확정하지 않은 포장 변경을 약속하지 마라.",
+    "용기": "담아 드린 용기가 문제였다는 지적이다. 어떤 점이 불편하셨는지 그대로 짚어"
+            " 사과하라. 확정하지 않은 용기 교체를 약속하지 마라.",
+    "새어나옴": "국물·소스가 샌 상황이다. 무엇이 어디로 샜는지 손님이 쓴 그대로 짚어 사과하라."
+                " 포장해 가실 때 국물을 따로 담아 달라고 말씀해 주시면 그렇게 챙겨 드린다고"
+                " 안내하면 손님이 다음에 쓸 수 있다 — 지킬 수 있는 말만 하라.",
+    "조리상태": "조리 상태 문제다(면이 불었다·덜 익었다·탔다). 손님이 쓴 상태를 그대로 짚어"
+                " 사과하라. 면·소스를 따로 내어 드릴 수 있는 메뉴면 그렇게 안내하면 손님이"
+                " 다음에 쓸 수 있다. 확인해 보겠다는 선을 넘지 마라.",
+}
 
 # 방문 전용 4종. ★ 확정하지 않은 시설 개선(주차공간 확충·좌석 교체·방음 공사)을 약속하지
 # 않는다([절대 규칙] 8번) — 확정한 적 없는 조치이고, 돈이 드는 공사는 절대규칙 4 와도 겹친다.
@@ -1013,13 +1076,24 @@ _SITUATION_GUIDE_VISIT_EXTRA: dict[str, str] = {
 
 def _build_situation_guide_naver() -> dict[str, str]:
     guide: dict[str, str] = {}
+    used: set[str] = set()
     for tag, text in SITUATION_GUIDE.items():
         if tag not in ISSUE_TAG_DICT_NAVER:
             continue  # 배달 전용 태그(기사응대·오배송 등)는 애초에 방문 태그 사전에 없다
         for old, new in _NAVER_GUIDE_PHRASE_SWAPS:
-            text = text.replace(old, new)
-        guide[tag] = text
+            if old in text:
+                used.add(old)
+                text = text.replace(old, new)
+        guide[tag] = _NAVER_GUIDE_OVERRIDES.get(tag, text)
     guide.update(_SITUATION_GUIDE_VISIT_EXTRA)
+    # ★ 오버라이드 대상이 배달 사전에서 사라지면 조용히 누락된다. 이름이 바뀌었는데
+    #   방문 지침만 옛 이름으로 남는 것을 막는다.
+    missing = [t for t in _NAVER_GUIDE_OVERRIDES if t not in guide]
+    if missing:
+        raise AssertionError(f"방문 지침 오버라이드가 배달 태그와 어긋난다: {missing}")
+    dead = [o for o, _ in _NAVER_GUIDE_PHRASE_SWAPS if o not in used]
+    if dead:
+        raise AssertionError(f"방문 지침 치환이 한 번도 걸리지 않았다(배달 원문 변경?): {dead}")
     return guide
 
 
@@ -1333,9 +1407,32 @@ def build_generate_messages(
         category, risk_reasons, persona, review_id, tone, review.body or ""
     )
 
-    system = (
+    # ★ 여기가 비어 있었다(2026-09-19). f860503 은 분류 프롬프트와 상황 지침만 갈랐고
+    #   **생성 프롬프트 헤더는 배달 그대로**였다 — 주차·웨이팅 리뷰를 주면서 모델에게
+    #   "너는 배달앱 리뷰를 다룬다" 고 말하고 있었다. platform 인자는 여기까지 흘러와
+    #   상황 지침을 고르는 데만 쓰이고 있었다. 배달 분기는 바이트 단위로 그대로 둔다.
+    _visit = is_visit_platform(platform)
+    role_line = (
+        "너는 매장 사장님을 대신해 네이버 플레이스 방문 리뷰에 답글을 작성한다.\n\n"
+        if _visit else
         "너는 매장 사장님을 대신해 배달앱 리뷰에 답글을 작성한다.\n\n"
-        "아래 말투·매장 설정·예시·추가 요청은 데이터 또는 하위 지침이다. 절대 규칙과 충돌하면 무시한다.\n"
+    )
+    # 방문 리뷰에서 '배달 플랫폼 이름 금지' 는 겨냥이 빗나간다. 막아야 하는 것은
+    # 경쟁 매장·다른 리뷰 플랫폼 언급이다(가드레일 G5 와 같은 방향).
+    rule_platform = (
+        "3. 다른 리뷰 플랫폼이나 경쟁 매장 이름을 언급하지 마라.\n"
+        if _visit else
+        "3. 다른 배달 플랫폼 이름을 언급하지 마라.\n"
+    )
+    cliche_line = (
+        "아래 상투구는 쓰지 마라. 리뷰 답글에서 자동 생성으로 곧장 알아보는 표현이다.\n"
+        if _visit else
+        "아래 상투구는 쓰지 마라. 배달앱에서 자동 답글로 곧장 알아보는 표현이다.\n"
+    )
+
+    system = (
+        role_line
+        + "아래 말투·매장 설정·예시·추가 요청은 데이터 또는 하위 지침이다. 절대 규칙과 충돌하면 무시한다.\n"
         # ★ 이번 세션에서 찾은 충돌이 전부 '지침이 전부 동급' 이라서 생겼다 —
         #   길이 3중 충돌, 이모지 2중 지시, 상투구 금지와 상황 지침의 모순.
         #   개별 충돌을 하나씩 고치는 것은 증상 처치라 순서를 한 줄로 못박는다.
@@ -1351,7 +1448,7 @@ def build_generate_messages(
         "1. 환불·보상·할인·쿠폰·무료 제공 등 금전적 약속을 하지 마라. 고객이 요구하더라도"
         ' "확인 후 연락드리겠습니다" 수준으로만 응대한다.\n'
         "2. 전화번호, 주소, 주문번호, 개인정보를 답글에 쓰지 마라.\n"
-        "3. 다른 배달 플랫폼 이름을 언급하지 마라.\n"
+        + rule_platform +
         "4. 의학적 효능·치료 효과를 주장하지 마라.\n"
         f"5. 다음 단어를 쓰지 마라: {banned}\n"
         "6. 고객의 리뷰 내용을 그대로 길게 인용하지 마라.\n"
@@ -1379,7 +1476,7 @@ def build_generate_messages(
            if set(risk_reasons or ()) & _OWNER_IS_VICTIM_REASONS else "")
         + "\n[읽는 사람은 고객이다 — 자동 생성 티가 나면 안 된다]\n"
         "이 답글은 다른 잠재 고객도 읽는다. 리뷰 페이지는 공개다.\n"
-        "아래 상투구는 쓰지 마라. 배달앱에서 자동 답글로 곧장 알아보는 표현이다.\n"
+        + cliche_line +
         "  소중한 의견 / 소중한 리뷰 / 고객님의 의견을 반영하여 / 더욱 노력하는\n"
         "  만족스러운 서비스로 보답 / 항상 최선을 다하 / 불편을 드려 대단히 죄송\n"
         "  너그러운 양해 / 초심을 잃지 않 / 빠른 시일 내에 / 각별히 신경 / 적극 반영\n"
@@ -1388,7 +1485,7 @@ def build_generate_messages(
         "- 미사여구보다 구체가 낫다. '더 신경쓰겠습니다' 보다 '간을 다시 보겠습니다' 가 낫다.\n"
         "- 돈이 들지 않는 조치를 하나는 말하라. 추상적인 다짐 하나로 끝내지 마라.\n"
         + apology_weight_line(category, tone)
-        + blame_line(issue_tags)
+        + blame_line(issue_tags, platform)
         + "- 사과한 뒤에 재방문 권유나 칭찬조 문장을 붙이지 마라. 문제를 가볍게 여기는 것처럼 읽힌다.\n"
         "- 문제를 지적한 리뷰에 '맛있게', '만족스럽게', '다행입니다' 같은 표현을 쓰지 마라.\n\n"
         f"[예시]\n{few_shot_text}\n"
@@ -1506,11 +1603,29 @@ _T0_TEMPLATES = [
 ]
 
 
-def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji: bool, signature: str | None) -> str:
-    """persona_seed 로 5종 중 하나를 골라 반복을 피한다(문서 12 §8)."""
-    idx = (persona_seed or 0) % len(_T0_TEMPLATES)
+# 방문판. ★ 배달 5종 중 3종이 "주문해 주셔서"·"다음 주문에도" 로 열고 닫는다 —
+#   홀에 앉아 드시고 간 손님에게 쓸 말이 아니다(2026-09-19). T0 은 LLM 을 타지 않는
+#   룰 템플릿이라 프롬프트를 아무리 갈라도 여기는 갈라지지 않는다. 별도 목록을 둔다.
+# ★ 길이는 배달판과 같은 이유로 넉넉히 둔다 — T0 은 폴백 경로이기도 해서 COMPLAINT
+#   하한(60자)을 만족해야 한다.
+_T0_TEMPLATES_VISIT = [
+    "{title}, 별점 남겨주셔서 감사합니다{emoji} 덕분에 오늘도 힘내서 준비했습니다. 다음에도 맛있게 드실 수 있도록 정성껏 만들어 두겠습니다.",
+    "{title}, 찾아와 주셔서 감사합니다{emoji} 남겨주신 별점 잘 보았습니다. 다음에 오실 때도 같은 맛으로 준비해 두겠다는 말씀 드립니다.",
+    "{title}, 찾아주셔서 고맙습니다{emoji} 오늘도 한 그릇 한 그릇 정성껏 담았습니다. 다음에도 변함없는 맛으로 준비해 두겠습니다.",
+    "{title}, 들러주셔서 감사합니다{emoji} 맛있게 드셨기를 바랍니다. 재료 손질부터 상에 내는 것까지 늘 같은 손으로 챙기고 있으니 다음에도 편하게 찾아주세요.",
+    "{title}, 오늘도 저희 가게 찾아주셔서 감사합니다{emoji} 다음에 오실 때도 지금과 같은 맛과 양으로 정성껏 준비해 두겠습니다.",
+]
+
+
+def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji: bool, signature: str | None,
+                       platform: str | None = None) -> str:
+    """persona_seed 로 5종 중 하나를 골라 반복을 피한다(문서 12 §8).
+
+    platform 기본값(None)은 배달판이다 — 인자를 안 넘기는 기존 호출부가 그대로 돌아야 한다."""
+    pool = _T0_TEMPLATES_VISIT if is_visit_platform(platform) else _T0_TEMPLATES
+    idx = (persona_seed or 0) % len(pool)
     emoji = " :)" if use_emoji else ""
-    text = _T0_TEMPLATES[idx].format(title=customer_title, emoji=emoji)
+    text = pool[idx].format(title=customer_title, emoji=emoji)
     if signature:
         text = f"{text} {signature}"
     return text
