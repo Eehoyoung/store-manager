@@ -1,0 +1,13 @@
+{
+  "minExtensionVersion": "0.1.0",
+  "pages": {
+    "reviewList": {
+      "match": "/bizes/place/*/reviews",
+      "container": "[data-testid='review-list']",
+      "item": "[data-testid='review-item']",
+      "fields": {
+        "body": { "selector": ".review-body", "parse": "text" }
+      }
+    }
+  }
+}

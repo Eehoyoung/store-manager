@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "리뷰파일럿 — 네이버 답글 도우미",
+  "description": "네이버 스마트플레이스 리뷰 답글 초안을 만들어 드립니다. 게시는 항상 사장님이 직접 클릭합니다.",
+  "version": "0.1.0",
+  "permissions": ["storage", "alarms", "sidePanel", "notifications"],
+  "host_permissions": [
+    "https://new.smartplace.naver.com/*",
+    "https://review.sodamlabs.kr/*"
+  ],
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://new.smartplace.naver.com/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "src/sidepanel/panel.html"
+  }
+}

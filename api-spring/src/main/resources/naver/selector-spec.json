@@ -1,0 +1,22 @@
+{
+  "_note": "실제 네이버 스마트플레이스 DOM 구조는 실측 미검증 초안이다(docs/naver/04-extension-spec.md). 실측 후 갱신할 것.",
+  "version": "2026-09-19T00:00:00Z",
+  "minExtensionVersion": "0.1.0",
+  "pages": {
+    "reviewList": {
+      "match": "/bizes/place/*/reviews",
+      "container": "[data-testid='review-list']",
+      "item": "[data-testid='review-item']",
+      "fields": {
+        "id": { "selector": "[data-review-id]", "attr": "data-review-id" },
+        "rating": { "selector": ".rating", "parse": "int" },
+        "body": { "selector": ".review-body", "parse": "text" },
+        "authorName": { "selector": ".author", "parse": "text" },
+        "createdAt": { "selector": "time", "attr": "datetime" },
+        "hasReply": { "selector": ".reply-badge", "parse": "exists" }
+      },
+      "replyInput": "textarea[name='reply']",
+      "replyForm": "form[data-testid='reply-form']"
+    }
+  }
+}

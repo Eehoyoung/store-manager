@@ -1,0 +1,148 @@
+/*
+ * 40~60대 사장님이 포스 PC 에서 쓰는 화면 — 글자 16px 이상, 터치 타깃 44px 이상.
+ * docs/naver/04-extension-spec.md 사이드 패널 스케치 참고.
+ */
+:root {
+  color-scheme: light;
+  font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+body {
+  margin: 0;
+  font-size: 16px;
+  background: #f7f7f8;
+  color: #1a1a1a;
+}
+
+header {
+  padding: 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+header h1 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+header .summary {
+  font-size: 14px;
+  color: #555;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  margin: 12px;
+  padding: 14px;
+}
+
+.card.low-rating {
+  border-color: #f2b8b5;
+  background: #fff7f7;
+}
+
+.card .meta {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.card .body {
+  font-size: 16px;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.card .draft {
+  width: 100%;
+  min-height: 72px;
+  font-size: 16px;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+}
+
+.card .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+button {
+  font-size: 16px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  cursor: pointer;
+}
+
+button.primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.bulk-bar {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 16px;
+  background: #fff;
+  border-top: 1px solid #e5e5e5;
+}
+
+.bulk-bar button {
+  width: 100%;
+}
+
+.pairing {
+  padding: 24px 16px;
+}
+
+.pairing input {
+  font-size: 20px;
+  letter-spacing: 4px;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  margin-bottom: 12px;
+}
+
+.pin-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pin-modal .box {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 260px;
+}
+
+.pin-modal input {
+  font-size: 20px;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 12px 0;
+}

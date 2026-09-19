@@ -1,0 +1,14 @@
+{
+  "version": "2026-09-18T14:00:00Z",
+  "minExtensionVersion": "0.1.0",
+  "pages": {
+    "reviewList": {
+      "match": "/bizes/place/*/reviews",
+      "container": "[data-testid='review-list']",
+      "item": "[data-testid='review-item']",
+      "fields": {
+        "rating": { "selector": ".rating", "parse": "double" }
+      }
+    }
+  }
+}

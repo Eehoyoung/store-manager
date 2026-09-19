@@ -70,6 +70,10 @@ public class AppUser {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /** 네이버 확장 일괄승인 PIN(BCrypt). NULL이면 일괄승인 기능 자체를 쓸 수 없다(fail-closed). */
+    @Column(name = "naver_bulk_pin_hash")
+    private String naverBulkPinHash;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -109,6 +113,12 @@ public class AppUser {
 
     public void assignFranchiseBrand(String brandName) {
         this.franchiseBrandName = brandName;
+        this.updatedAt = Instant.now();
+    }
+
+    /** 네이버 확장 일괄승인 PIN 설정/변경. ExtensionAuthService에서만 호출한다. */
+    public void assignNaverBulkPinHash(String hash) {
+        this.naverBulkPinHash = hash;
         this.updatedAt = Instant.now();
     }
 }

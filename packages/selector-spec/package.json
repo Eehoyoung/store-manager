@@ -1,0 +1,10 @@
+{
+  "name": "@review-pilot/selector-spec",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

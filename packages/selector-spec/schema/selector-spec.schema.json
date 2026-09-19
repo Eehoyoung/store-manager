@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://review-pilot.internal/schema/selector-spec.schema.json",
+  "title": "SelectorSpec",
+  "description": "네이버 DOM 셀렉터 스펙. 코드가 아니라 데이터다.",
+  "type": "object",
+  "required": ["version", "minExtensionVersion", "pages"],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^_": {}
+  },
+  "properties": {
+    "version": { "type": "string", "minLength": 1 },
+    "minExtensionVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "pages": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/pageSpec" }
+    }
+  },
+  "$defs": {
+    "fieldParse": {
+      "type": "string",
+      "enum": ["text", "int", "float", "exists"]
+    },
+    "fieldSpec": {
+      "type": "object",
+      "required": ["selector"],
+      "additionalProperties": false,
+      "properties": {
+        "selector": { "type": "string", "minLength": 1 },
+        "attr": { "type": "string", "minLength": 1 },
+        "parse": { "$ref": "#/$defs/fieldParse" }
+      }
+    },
+    "pageSpec": {
+      "type": "object",
+      "required": ["match", "container", "item", "fields"],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^_": {}
+      },
+      "properties": {
+        "match": { "type": "string", "minLength": 1 },
+        "container": { "type": "string", "minLength": 1 },
+        "item": { "type": "string", "minLength": 1 },
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/$defs/fieldSpec" }
+        },
+        "replyInput": { "type": "string", "minLength": 1 },
+        "replyForm": { "type": "string", "minLength": 1 },
+        "replyOpenButton": { "type": "string", "minLength": 1 },
+        "replySubmitButton": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

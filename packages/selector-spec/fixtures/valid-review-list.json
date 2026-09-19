@@ -1,0 +1,21 @@
+{
+  "version": "2026-09-18T14:00:00Z",
+  "minExtensionVersion": "0.1.0",
+  "pages": {
+    "reviewList": {
+      "match": "/bizes/place/*/reviews",
+      "container": "[data-testid='review-list']",
+      "item": "[data-testid='review-item']",
+      "fields": {
+        "id": { "selector": "[data-review-id]", "attr": "data-review-id" },
+        "rating": { "selector": ".rating", "parse": "int" },
+        "body": { "selector": ".review-body", "parse": "text" },
+        "authorName": { "selector": ".author", "parse": "text" },
+        "createdAt": { "selector": "time", "attr": "datetime" },
+        "hasReply": { "selector": ".reply-badge", "parse": "exists" }
+      },
+      "replyInput": "textarea[name='reply']",
+      "replyForm": "form[data-testid='reply-form']"
+    }
+  }
+}

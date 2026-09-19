@@ -58,3 +58,30 @@ jobs:
       - name: 빌드
         working-directory: web
         run: npm run build
+
+  # 네이버 크롬 확장 + 셀렉터 스펙.
+  # ★ 이 잡의 핵심은 빌드가 아니라 extension/src/security.test.ts 다 —
+  #   게시 자동화 API(.click/.submit/합성 MouseEvent·KeyboardEvent)와 과도한 manifest 권한이
+  #   소스에 들어오면 여기서 막힌다. CLAUDE.md 'NAVER ABSOLUTE RULES' 6·7·8 의 집행 지점이다.
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - name: 의존성 설치
+        working-directory: extension
+        run: npm ci
+      - name: 타입체크
+        working-directory: extension
+        run: npm run typecheck
+      # packages/selector-spec 테스트도 이 러너가 함께 돌린다(vitest include 설정).
+      - name: 테스트
+        working-directory: extension
+        run: npm run test
+      - name: 빌드
+        working-directory: extension
+        run: npm run build

@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "types": ["chrome", "vitest/globals", "node"],
+    "paths": {
+      "@selector-spec": ["../packages/selector-spec/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}
