@@ -30,7 +30,7 @@ class StyleExample:
 def fetch_examples(
     store_id: str, review_text: str, k: int = 4,
     category: str | None = None, issue_tags: list[str] | None = None,
-    slot_wanted: str | None = None,
+    slot_wanted: str | None = None, platform: str | None = None,
 ) -> list[StyleExample]:
     """해당 매장의 말투 few-shot 예시를 최대 k 건 반환한다. 실패 시 빈 리스트.
 
@@ -43,6 +43,13 @@ def fetch_examples(
     ★ 왜 pgvector 를 안 쓰나: embedding 이 아직 결정론적 해시라 의미 유사도가 없다(T-15).
       그걸로 유사도 검색을 하면 무작위와 다를 바 없다. 의미 임베딩으로 바꾸기 전까지는
       **이미 계산해 둔 분류 축**(category·issue_tags)이 더 나은 신호다 — 추가 비용도 0이다.
+
+    ★ platform (2026-09-19 네이버 경계) — 배달에서 긁어온 사장님 답글(RC_LIST)이 네이버
+      방문 리뷰 답글의 few-shot 으로 새지 않게 한다. 기본값(None)은 배달 경로이고 지금과
+      완전히 동일한 SQL·결과를 낸다. platform="NAVER" 일 때만 non-MANUAL 조회에
+      platform='NAVER' 조건을 건다. MANUAL 은 사장님이 직접 적은 형식이라 플랫폼과
+      무관하므로 양쪽 다 그대로 쓴다. 네이버는 아직 자기 EDITED 샘플이 없어 MANUAL 위주가
+      되는데, 이건 의도된 결과다 — 네이버 EDITED 샘플 적재는 후속 과제(T-7 계열).
     """
     try:
         import psycopg
@@ -69,11 +76,14 @@ def fetch_examples(
                     return manual
 
                 tags = [t for t in (issue_tags or []) if t]
+                # ★ 배달(기본값)은 이 조건절이 빈 문자열이라 아래 SQL 이 지금과 바이트 단위로
+                #   동일하다 — tests/test_rag.py 가 이 문자열을 그대로 잠근다.
+                platform_filter = " AND platform = 'NAVER'" if platform == "NAVER" else ""
                 cur.execute(
-                    """
+                    f"""
                     SELECT review_text, reply_text, rating
                       FROM reply_style_sample
-                     WHERE store_id = %s::bigint AND source <> 'MANUAL'
+                     WHERE store_id = %s::bigint AND source <> 'MANUAL'{platform_filter}
                      ORDER BY (source = 'EDITED') DESC,
                               cardinality(ARRAY(SELECT unnest(issue_tags)
                                                 INTERSECT SELECT unnest(%s::text[]))) DESC,

@@ -224,9 +224,12 @@ def _generate_draft(
 
         # ★ 분류 축을 검색에 넘긴다. 이게 없으면 배달 지연 리뷰에 칭찬 답글 4건이 예시로 붙는다.
         slot = prompts.style_slot_for(category)
+        # ★ platform 도 넘긴다. 이게 없으면 네이버 방문 리뷰 답글에 배달에서 긁어온
+        #   사장님 답글이 예시로 붙어 "주문 요청사항에 적어주시면…" 같은 배달 표현이 샌다.
+        #   MANUAL(사장님이 직접 적은 형식)은 플랫폼 무관이라 양쪽 다 그대로 쓴다.
         examples = rag.fetch_examples(
             req.store_id, req.review.body, k=4, category=category, issue_tags=issue_tags,
-            slot_wanted=slot,
+            slot_wanted=slot, platform=req.review.platform,
         )
         # ★ 슬롯 유형을 같이 넘긴다. 리뷰가 없는 형식 예시는 유형이 곧 맥락이다 —
         #   없으면 감사 형식이 불만 리뷰의 본보기로 읽힌다.

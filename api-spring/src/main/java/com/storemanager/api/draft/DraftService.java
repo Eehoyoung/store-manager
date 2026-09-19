@@ -14,6 +14,7 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.draft.DraftDtos.DraftResponse;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsRequest;
 import com.storemanager.api.draft.DraftDtos.GenerateDraftsResponse;

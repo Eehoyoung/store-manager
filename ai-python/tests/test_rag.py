@@ -68,3 +68,53 @@ def test_태그가_없어도_검색은_깨지지_않는다(monkeypatch):
 
     assert rag.fetch_examples("1", "본문", k=4) == []
     assert rag.fetch_examples("1", "본문", k=4, category=None, issue_tags=None) == []
+
+
+# ── 2026-09-19: 네이버 경계 — RAG few-shot 에 platform 조건을 준다 ──────────────
+
+
+def _capture_sql(monkeypatch):
+    captured = {}
+
+    class _Cur:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def execute(self, sql, params):
+            captured.setdefault("sql", []).append(sql)
+            captured.setdefault("params", []).append(params)
+        def fetchall(self): return []
+
+    class _Conn:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def cursor(self): return _Cur()
+
+    fake = types.ModuleType("psycopg")
+    fake.connect = lambda *a, **kw: _Conn()
+    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    return captured
+
+
+def test_platform_인자를_안_넘긴_기존_배달_호출부는_SQL이_그대로다(monkeypatch):
+    """platform 기본값(None)은 지금 배달 경로와 바이트 단위로 같은 SQL 을 내야 한다."""
+    captured = _capture_sql(monkeypatch)
+
+    rag.fetch_examples("1", "배달이 늦었어요", k=4, category="COMPLAINT", issue_tags=["배달지연"])
+    baseline_sql = captured["sql"][1]
+
+    captured2 = _capture_sql(monkeypatch)
+    rag.fetch_examples("1", "배달이 늦었어요", k=4, category="COMPLAINT", issue_tags=["배달지연"], platform="BAEMIN")
+
+    assert captured2["sql"][1] == baseline_sql, "배달 플랫폼 문자열을 명시해도 SQL이 달라지면 안 된다"
+    assert "platform = 'NAVER'" not in baseline_sql
+
+
+def test_네이버는_non_MANUAL_조회에_platform_조건이_붙는다(monkeypatch):
+    captured = _capture_sql(monkeypatch)
+
+    rag.fetch_examples("1", "친절하고 좋아요", k=4, category="PRAISE", issue_tags=[], platform="NAVER")
+
+    second = captured["sql"][1]
+    assert "platform = 'NAVER'" in second
+    first = captured["sql"][0]
+    assert "platform" not in first, "MANUAL 조회는 플랫폼 무관 — 조건을 걸지 않는다"

@@ -9,10 +9,10 @@ import com.storemanager.api.ai.LlmUsageLog;
 import com.storemanager.api.ai.LlmUsageLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.PersonalIdentifierMasker;
-import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.naver.NaverDtos.DraftRequest;
 import com.storemanager.api.naver.NaverDtos.DraftResponse;
+import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
@@ -48,6 +48,7 @@ public class NaverDraftService {
 
     private static final Logger log = LoggerFactory.getLogger(NaverDraftService.class);
     private static final short RISK_BULK_BLOCK_LEVEL = 2; // docs/naver/03 §Tier 1 성립조건 3번
+    private static final short RISK_AUTO_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3 — DraftService 와 동일 기준
 
     private final NaverReviewEventRepository naverReviewEventRepository;
     private final StoreRepository storeRepository;
@@ -56,13 +57,13 @@ public class NaverDraftService {
     private final AiClient aiClient;
     private final BannedWordQueryRepository bannedWordQueryRepository;
     private final LlmUsageLogRepository llmUsageLogRepository;
-    private final ReplyDraftRepository replyDraftRepository;
+    private final Notifier notifier;
     private final StoreServiceGate serviceGate;
 
     public NaverDraftService(NaverReviewEventRepository naverReviewEventRepository, StoreRepository storeRepository,
             StorePersonaRepository storePersonaRepository, AppUserRepository appUserRepository, AiClient aiClient,
             BannedWordQueryRepository bannedWordQueryRepository, LlmUsageLogRepository llmUsageLogRepository,
-            ReplyDraftRepository replyDraftRepository, StoreServiceGate serviceGate) {
+            Notifier notifier, StoreServiceGate serviceGate) {
         this.naverReviewEventRepository = naverReviewEventRepository;
         this.storeRepository = storeRepository;
         this.storePersonaRepository = storePersonaRepository;
@@ -70,7 +71,7 @@ public class NaverDraftService {
         this.aiClient = aiClient;
         this.bannedWordQueryRepository = bannedWordQueryRepository;
         this.llmUsageLogRepository = llmUsageLogRepository;
-        this.replyDraftRepository = replyDraftRepository;
+        this.notifier = notifier;
         this.serviceGate = serviceGate;
     }
 
@@ -146,6 +147,14 @@ public class NaverDraftService {
         }
         naverReviewEventRepository.save(event);
 
+        if (riskLevel >= RISK_AUTO_BLOCK_LEVEL) {
+            // ★ CLAUDE.md '실운영 전 필수 조치' — refType 을 배달(UNIFIED_REVIEW)과 다르게 둬서
+            //   uq_notification_high_risk_ref(template, ref_type, ref_id) 유니크 제약이 서로 다른
+            //   테이블의 내부 id 를 같은 키로 오인해 충돌하지 않게 한다.
+            notifier.send(owner.getId(), store.getId(), "ALIMTALK", "HIGH_RISK_REVIEW", "NAVER_REVIEW_EVENT",
+                    event.getId());
+        }
+
         return toResponse(event);
     }
 
@@ -181,7 +190,9 @@ public class NaverDraftService {
 
     private List<String> recentReplies(Long storeId) {
         try {
-            return replyDraftRepository.findRecentPublishedContents(
+            // ★ 배달 게시 이력(ReplyDraftRepository)을 참조하지 않는다 — 네이버는 자신의 POSTED
+            //   이력으로 G7(답글 중복)을 검사한다. draft 패키지에 대한 의존을 만들지 말 것.
+            return naverReviewEventRepository.findRecentPostedContents(
                     storeId, Instant.now().minus(30, ChronoUnit.DAYS), PageRequest.of(0, 20));
         } catch (RuntimeException e) {
             log.warn("최근 게시 답글 조회 실패 storeId={} error={}", storeId, e.getClass().getSimpleName());

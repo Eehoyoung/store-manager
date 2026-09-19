@@ -12,7 +12,7 @@ import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.PersonalIdentifierMasker;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.draft.ReviewAnalysis;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { analyticsApi } from "../api/analytics";
+import { naverExtensionApi, type NaverStatusResponse } from "../api/naverExtension";
 import type {
   AnalyticsIssuesResponse,
   AnalyticsMenusResponse,
@@ -54,6 +55,11 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
 
+  // 네이버 카드는 기존 배달 지표와 별도 API·별도 상태로 뗀다 — 확장 미연결로 실패해도
+  // 나머지 대시보드는 그대로 뜬다(scope_decision).
+  const [naverStatus, setNaverStatus] = useState<NaverStatusResponse | null>(null);
+  const [naverLoaded, setNaverLoaded] = useState(false);
+
   useEffect(() => {
     if (!storeId) return;
     setData(null);
@@ -67,6 +73,17 @@ export function DashboardPage() {
     ])
       .then(([summary, trend, issues, menus, response]) => setData({ summary, trend, issues, menus, response }))
       .catch((e) => setError(e instanceof ApiError ? e.message : "대시보드 데이터를 불러오지 못했습니다."));
+  }, [storeId, retryTick]);
+
+  useEffect(() => {
+    if (!storeId) return;
+    setNaverStatus(null);
+    setNaverLoaded(false);
+    naverExtensionApi
+      .getStatus(storeId)
+      .then(setNaverStatus)
+      .catch(() => setNaverStatus(null))
+      .finally(() => setNaverLoaded(true));
   }, [storeId, retryTick]);
 
   if (!storeId) {
@@ -238,7 +255,58 @@ export function DashboardPage() {
           </ul>
         )}
       </Card>
+
+      <Card className="dashboard-section">
+        <h2>네이버 리뷰</h2>
+        {!naverLoaded ? (
+          <Skeleton height={80} />
+        ) : (
+          <NaverSummary status={naverStatus} />
+        )}
+      </Card>
     </div>
+  );
+}
+
+const NAVER_PENDING_STATUSES = ["DRAFTED", "VIEWED", "EDITED", "APPROVED"] as const;
+
+function NaverSummary({ status }: { status: NaverStatusResponse | null }) {
+  const counts = status?.counts ?? {};
+  const pending = NAVER_PENDING_STATUSES.reduce((sum, key) => sum + (counts[key] ?? 0), 0);
+  const posted = counts.POSTED ?? 0;
+  const skipped = counts.SKIPPED ?? 0;
+
+  // 확장이 연결되지 않았거나 아직 아무것도 수집하지 않았으면 0 을 보여주지 않는다 —
+  // 0 으로 보이면 "네이버 리뷰가 없다" 로 오해한다(요구사항 ui_requirements).
+  if (pending + posted + skipped === 0) {
+    return (
+      <EmptyState
+        title="확장을 연결하면 표시됩니다"
+        description="네이버 스마트플레이스 확장을 설치하고 매장을 연결하면 처리 현황이 여기에 나타납니다."
+      />
+    );
+  }
+
+  return (
+    <>
+      <ul className="dashboard-metric-list">
+        <li>
+          <span>처리 대기</span>
+          <strong>{pending}건</strong>
+        </li>
+        <li>
+          <span>게시 완료</span>
+          <strong>{posted}건</strong>
+        </li>
+        <li>
+          <span>건너뜀</span>
+          <strong>{skipped}건</strong>
+        </li>
+      </ul>
+      <p className="field__hint">
+        네이버 지표는 확장이 수집한 것만 집계합니다. 브라우저가 꺼져 있는 동안에는 쌓이지 않습니다.
+      </p>
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ package com.storemanager.api.naver;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,9 +17,9 @@ import com.storemanager.api.ai.BannedWordQueryRepository;
 import com.storemanager.api.ai.LlmUsageLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.naver.NaverDtos.DraftRequest;
 import com.storemanager.api.naver.NaverDtos.DraftResponse;
+import com.storemanager.api.notify.Notifier;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StorePersona;
 import com.storemanager.api.store.StorePersonaRepository;
@@ -41,9 +42,9 @@ import org.mockito.quality.Strictness;
 /**
  * NaverDraftService 단위테스트(IMPLEMENTATION_PLAN_NAVER.md §7).
  *
- * <p>★ 이 클래스는 {@code ReplyDraftRepository.save}·{@code UnifiedReviewRepository} 를
- * 구조적으로 호출하지 않는다(생성자에 UnifiedReviewRepository 자체가 없다) — 네이버 경로가
- * 배달 3사 게시 큐(worker/publish.py)에 진입하지 않는다는 격리 요구사항의 증거다.
+ * <p>★ 이 클래스는 {@code ReplyDraft}·{@code UnifiedReview} 를 구조적으로 만들지 않는다
+ * (생성자에 draft 패키지 리포지토리가 아예 없다) — 네이버 경로가 배달 3사 게시 큐
+ * (worker/publish.py)에 진입하지 않는다는 격리 요구사항의 증거다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -56,7 +57,7 @@ class NaverDraftServiceTest {
     @Mock private AiClient aiClient;
     @Mock private BannedWordQueryRepository bannedWordQueryRepository;
     @Mock private LlmUsageLogRepository llmUsageLogRepository;
-    @Mock private ReplyDraftRepository replyDraftRepository;
+    @Mock private Notifier notifier;
     @Mock private StoreServiceGate serviceGate;
 
     private NaverDraftService service;
@@ -70,13 +71,13 @@ class NaverDraftServiceTest {
     @BeforeEach
     void setUp() {
         service = new NaverDraftService(naverReviewEventRepository, storeRepository, storePersonaRepository,
-                appUserRepository, aiClient, bannedWordQueryRepository, llmUsageLogRepository, replyDraftRepository,
+                appUserRepository, aiClient, bannedWordQueryRepository, llmUsageLogRepository, notifier,
                 serviceGate);
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
         when(bannedWordQueryRepository.findActiveGlobal()).thenReturn(List.of());
-        when(replyDraftRepository.findRecentPublishedContents(any(), any(), any())).thenReturn(List.of());
+        when(naverReviewEventRepository.findRecentPostedContents(any(), any(), any())).thenReturn(List.of());
         when(naverReviewEventRepository.findByStoreIdAndReviewHash(any(), any())).thenReturn(Optional.empty());
     }
 
@@ -140,16 +141,44 @@ class NaverDraftServiceTest {
     }
 
     @Test
-    void 네이버_경로는_ReplyDraft를_생성하지_않는다() {
+    void G7_중복검사는_배달_게시이력이_아니라_네이버_자신의_POSTED_이력을_쓴다() {
         when(serviceGate.isServiceable(store)).thenReturn(true);
         when(aiClient.analyzeAndDraft(any())).thenReturn(
                 new AnalyzeAndDraftResponse(analysis("PRAISE", 0), List.of(draftOut("감사합니다")), false, List.of()));
 
         service.generateDraft(ownerPublicId, request("최고예요"));
 
-        // replyDraftRepository 는 G7 중복검사 조회(findRecentPublishedContents)에만 쓰이고
-        // save 는 절대 호출되지 않는다 — 네이버 리뷰가 배달 3사 게시 큐로 새지 않는다는 증거.
-        verify(replyDraftRepository, never()).save(any());
+        // 네이버는 naver_review_event 자신의 POSTED 이력을 조회한다(ReplyDraftRepository 는
+        // 생성자에서 아예 사라졌으므로 배달 게시 큐로 새는 경로도 구조적으로 없다).
+        verify(naverReviewEventRepository).findRecentPostedContents(eq(100L), any(), any());
+    }
+
+    @Test
+    void risk_3이상이면_고위험_알림을_발행한다() {
+        when(serviceGate.isServiceable(store)).thenReturn(true);
+        when(aiClient.analyzeAndDraft(any())).thenReturn(
+                new AnalyzeAndDraftResponse(analysis("ABUSIVE", 3), List.of(draftOut("불편을 드려 죄송합니다")), true,
+                        List.of("G8_RISK")));
+
+        service.generateDraft(ownerPublicId, request("고소할 거야"));
+
+        // ★ refType 을 배달(UNIFIED_REVIEW)과 다르게 둔다 — uq_notification_high_risk_ref 의
+        //   (template, ref_type, ref_id) 유니크 제약이 서로 다른 테이블의 내부 id 를 같은 키로
+        //   오인해 충돌하지 않는지가 이 값으로 갈린다.
+        verify(notifier).send(eq(1L), eq(100L), eq("ALIMTALK"), eq("HIGH_RISK_REVIEW"), eq("NAVER_REVIEW_EVENT"),
+                any());
+    }
+
+    @Test
+    void risk_3미만이면_알림을_발행하지_않는다() {
+        when(serviceGate.isServiceable(store)).thenReturn(true);
+        when(aiClient.analyzeAndDraft(any())).thenReturn(
+                new AnalyzeAndDraftResponse(analysis("COMPLAINT", 2), List.of(draftOut("불편을 드려 죄송합니다")), false,
+                        List.of()));
+
+        service.generateDraft(ownerPublicId, request("배달이 너무 늦었어요"));
+
+        verify(notifier, never()).send(any(), any(), any(), any(), any(), any());
     }
 
     private static AnalysisOut analysis(String category, int riskLevel) {

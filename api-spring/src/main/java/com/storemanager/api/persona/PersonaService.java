@@ -10,7 +10,7 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.draft.PersonalIdentifierMasker;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.draft.ReviewAnalysisRepository;
 import com.storemanager.api.persona.PersonaDtos.PersonaRequest;

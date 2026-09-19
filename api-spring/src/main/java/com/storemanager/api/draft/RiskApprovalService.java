@@ -4,6 +4,7 @@ import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;

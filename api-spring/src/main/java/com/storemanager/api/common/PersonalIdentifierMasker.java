@@ -1,4 +1,4 @@
-package com.storemanager.api.draft;
+package com.storemanager.api.common;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -12,6 +12,9 @@ import java.util.regex.Pattern;
  * <p>★ 반드시 Spring 쪽, AI 요청을 만드는 시점(DraftService.buildAiRequest)에 적용한다.
  * ai-python 에서 하면 이미 국외 전송을 마친 뒤라 방침의 약속을 지키지 못한다
  * (docs/goals/legal-code-alignment.json WP-04 T-6).
+ *
+ * <p>배달 3사(DraftService)와 네이버(NaverDraftService)가 함께 쓰는 공용 방어선이라 draft
+ * 패키지가 아닌 common 에 둔다 — 어느 한쪽 도메인에 속한 유틸이 아니다.
  *
  * <p>★ 대상은 형식이 명확한 식별자만이다 — 전화번호(휴대폰·일반), 이메일, 계좌번호,
  * 주민등록번호, 카드번호. 이름·주소 추정처럼 모호한 판단은 넣지 않는다. 리뷰 본문에서

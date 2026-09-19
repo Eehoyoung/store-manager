@@ -1,4 +1,4 @@
-package com.storemanager.api.draft;
+package com.storemanager.api.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
