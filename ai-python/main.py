@@ -346,7 +346,11 @@ def analyze_and_draft(
     classified, classify_model, c_tok_in, c_tok_out, c_cost, _c_cache = _classify(provider, req.review)
 
     # 문서 12 §1.2: 키워드 룰이 모델보다 우선(하향 금지)
-    risk_level, keyword_reasons = prompts.upgrade_risk_level(req.review.body, classified.risk_level)
+    # ★ platform 을 넘긴다. 방문 리뷰에만 있는 축(매장 위생·대면 충돌)은 배달 룰이
+    #   상정한 적이 없다 — 넘기지 않으면 "화장실이 너무 더러웠어요" 가 자동 게시된다.
+    risk_level, keyword_reasons = prompts.upgrade_risk_level(
+        req.review.body, classified.risk_level, req.review.platform
+    )
     risk_reasons = sorted(
         (set(classified.risk_reasons) | set(keyword_reasons)) & set(prompts.RISK_REASON_VALUES)
     )

@@ -9,6 +9,7 @@
 import json
 from pathlib import Path
 
+import pytest
 import prompts
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -318,3 +319,99 @@ def test_방문_분류_프롬프트에_배달_전용_어휘가_남지_않는다(
     s = prompts.CLASSIFY_SYSTEM_NAVER
     for word in ("배달", "기사응대", "라이더", "오배송", "배달지연"):
         assert word not in s, [ln for ln in s.splitlines() if word in ln]
+
+
+# ── 방문 전용 축 (naver-v0.3, 2026-09-19) ───────────────────────────────────
+# ★ 배달 룰은 조리 공간만 상정한다. 홀은 화장실·테이블·수저·집기가 전부 손님 눈앞에
+#   있고 그게 전부 절대규칙 3 의 '위생' 이다. 이 테스트를 지우면 절대규칙 3 이 무너진다.
+_VISIT_HYGIENE_MUST = [
+    "화장실이 너무 더러웠어요",
+    "변기에 때가 껴 있고 악취가 심했어요",
+    "테이블이 끈적끈적하고 수저에 얼룩이 있었어요",
+    "물컵에 립스틱 자국이 그대로 있었어요",
+    "바닥에 먼지가 수북했어요",
+    "화장실 청소 안 한 지 한참 된 것 같아요",
+    "접시에 뭐가 말라붙어 있었어요",
+]
+
+# ★ 전부 칭찬이다. 골든셋에 없다고 안 나오는 게 아니다 — 룰을 넓힐 때 반드시 함께 돈다.
+_VISIT_HYGIENE_MUST_NOT = [
+    "화장실이 깨끗해서 좋았어요",
+    "테이블도 넓고 깔끔했어요",
+    "수저 놓는 자리가 따로 있어 편해요",
+    "분위기 좋고 매장도 청결합니다",
+    "직원분들이 친절하게 안내해 주셨어요",
+    "주방이 오픈형이라 믿음이 갔어요",
+    "컵도 예쁘고 접시도 정갈했어요",
+    "벌레 한 마리 없이 깔끔했어요",
+]
+
+
+@pytest.mark.parametrize("body", _VISIT_HYGIENE_MUST)
+def test_매장_위생_지적은_방문_경로에서_risk3_이다(body):
+    level, reasons = prompts.upgrade_risk_level(body, 1, "NAVER")
+    assert level == 3, body
+    assert "HYGIENE" in reasons, (body, reasons)
+
+
+@pytest.mark.parametrize("body", _VISIT_HYGIENE_MUST_NOT)
+def test_칭찬은_방문_경로에서도_올라가지_않는다(body):
+    level, reasons = prompts.upgrade_risk_level(body, 0, "NAVER")
+    assert level == 0, (body, level, reasons)
+
+
+@pytest.mark.parametrize("body", [
+    "직원이 반말하고 소리를 질렀어요",
+    "알바생이 대놓고 무시하더라고요",
+    "사장님이 막말을 하시더군요",
+])
+def test_대면_충돌은_risk2_다(body):
+    # risk 3 이 아니다. 매장이 끝나는 사안이 아니라 사람이 읽고 판단할 사안이고,
+    # risk 2 가 정확히 그 뜻이다.
+    level, reasons = prompts.upgrade_risk_level(body, 1, "NAVER")
+    assert level == 2, (body, level)
+    assert reasons == [], reasons  # risk 2 는 위험 '사유' 를 만들지 않는다
+
+
+@pytest.mark.parametrize("body", _VISIT_HYGIENE_MUST + [
+    "직원이 반말하고 소리를 질렀어요",
+])
+def test_배달_경로는_방문_룰을_타지_않는다(body):
+    # 배달 리뷰에 '화장실' 이 나오면 대개 매장 이야기가 아니라 손님 사정이다.
+    for platform in (None, "BAEMIN", "YOGIYO", "COUPANGEATS"):
+        level, _ = prompts.upgrade_risk_level(body, 1, platform)
+        assert level == 1, (platform, body, level)
+
+
+def test_벌레_없이는_칭찬이라_걸리지_않는다():
+    # ★ '벌레 한 마리 없이 깔끔했어요' 가 risk 3 + T3(opus) 로 갔다(2026-09-19).
+    #   THREAT('각오하세요')·위생('위생장갑') 과 같은 관용구 함정이다.
+    for praise in ("벌레 한 마리 없이 깔끔했어요", "벌레가 없어서 좋아요",
+                   "벌레 하나 없이 관리 잘 하시네요", "벌레 한 마리도 없었어요"):
+        assert prompts.upgrade_risk_level(praise, 0)[0] == 0, praise
+    # 진짜는 그대로 잡힌다
+    for real in ("국물에 벌레가 나왔어요", "벌레 들어있었어요", "바퀴벌레가 나왔습니다",
+                 "벌레가 나왔는데 사과도 없고"):
+        assert prompts.upgrade_risk_level(real, 0)[0] == 3, real
+
+
+def test_프롬프트가_가리키는_것은_태그_사전에_있다():
+    # ★ 부록은 "찾아가기 어려운 위치" 를 예로 들고 PRAISE 정의는 "매장 분위기" 를 쓴다.
+    #   태그가 없으면 상황 지침도 안 붙고 이슈 레이더에도 안 잡힌다.
+    for tag in ("분위기", "접근성", "직원응대", "대기시간", "주차", "좌석", "소음"):
+        assert tag in prompts.ISSUE_TAG_DICT_NAVER, tag
+        assert tag in prompts.SITUATION_GUIDE_NAVER, tag
+
+
+def test_직원응대_지침은_인사조치를_약속하지_않는다():
+    # 특정 직원 처벌·교육 약속은 확인 전 공개 답글에 남으면 안 된다([절대 규칙] 8번).
+    guide = prompts.SITUATION_GUIDE_NAVER["직원응대"]
+    assert "지목" in guide and "이름" in guide
+    for word in ("환불", "보상", "할인", "쿠폰", "무료"):
+        assert word not in guide, word
+
+
+def test_방문_이물질_지침은_매장_목격도_받는다():
+    guide = prompts.SITUATION_GUIDE_NAVER["이물질"]
+    assert "매장에서 목격" in guide
+    assert "사실을 인정하지" in guide  # 확인 전 자백은 여전히 금지다
