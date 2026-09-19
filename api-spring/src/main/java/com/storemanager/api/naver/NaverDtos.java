@@ -39,7 +39,11 @@ final class NaverDtos {
     record PairRequest(@NotBlank String code) {
     }
 
-    record PairResponse(String token, long expiresInSeconds) {
+    /** ★ storeId 는 store.public_id(UUID) 문자열이다. 내부 BIGSERIAL 은 절대 노출하지 않는다. */
+    record StoreRef(String storeId, String name) {
+    }
+
+    record PairResponse(String token, long expiresInSeconds, List<StoreRef> stores) {
     }
 
     record SetPinRequest(@NotBlank String pin) {

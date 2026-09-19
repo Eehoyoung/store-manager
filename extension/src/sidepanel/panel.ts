@@ -3,6 +3,7 @@
  * docs/naver/04-extension-spec.md 의 스케치를 따른다.
  */
 import type { QueueEntry } from "../state/queueEntry";
+import type { NaverStore } from "../api/client";
 import { bulkApprovable } from "../state/machine";
 import { createViewportTracker, type ViewportTracker } from "./viewportTracker";
 
@@ -26,6 +27,31 @@ function handleViewed(el: Element): void {
   void sendToBackground({ type: "VIEW_ITEM", reviewHash: hash });
 }
 
+/** 개발용 API 주소 설정 화면. 저장 후 onDone 이 가리키는 이전 화면으로 돌아간다. */
+async function renderSettings(onDone: () => void | Promise<void>): Promise<void> {
+  const { apiBaseUrl } = await sendToBackground<{ apiBaseUrl: string }>({ type: "GET_SETTINGS" });
+  app.innerHTML = `
+    <div class="pairing">
+      <h1>설정</h1>
+      <p>로컬 개발 서버를 쓰려면 API 주소를 바꾸세요(예: http://localhost:18080).</p>
+      <input id="api-base-url" />
+      <button class="primary" id="settings-save">저장</button>
+      <p><a href="#" id="settings-back">뒤로</a></p>
+    </div>
+  `;
+  (document.getElementById("api-base-url") as HTMLInputElement).value = apiBaseUrl;
+
+  document.getElementById("settings-save")!.addEventListener("click", async () => {
+    const value = (document.getElementById("api-base-url") as HTMLInputElement).value.trim();
+    await sendToBackground({ type: "SET_API_BASE_URL", apiBaseUrl: value });
+    await onDone();
+  });
+  document.getElementById("settings-back")!.addEventListener("click", (e) => {
+    e.preventDefault();
+    void onDone();
+  });
+}
+
 function renderPairing(): void {
   app.innerHTML = `
     <div class="pairing">
@@ -34,16 +60,54 @@ function renderPairing(): void {
       <input id="pair-code" maxlength="8" placeholder="ABCD1234" />
       <button class="primary" id="pair-submit">연결</button>
       <p id="pair-error" style="color:#b3261e"></p>
+      <p><a href="#" id="open-settings">API 주소 설정</a></p>
     </div>
   `;
   document.getElementById("pair-submit")!.addEventListener("click", async () => {
     const code = (document.getElementById("pair-code") as HTMLInputElement).value.trim();
-    const res = await sendToBackground<{ ok: boolean }>({ type: "PAIR", code });
-    if (res.ok) {
-      await renderQueue();
-    } else {
+    const res = await sendToBackground<{ ok: boolean; storeId?: string | null; stores?: NaverStore[] }>({
+      type: "PAIR",
+      code,
+    });
+    if (!res.ok) {
       document.getElementById("pair-error")!.textContent = "코드가 올바르지 않습니다. 다시 확인해 주세요.";
+      return;
     }
+    const stores = res.stores ?? [];
+    if (res.storeId) {
+      await renderQueue();
+    } else if (stores.length > 1) {
+      renderStoreSelect(stores);
+    } else {
+      document.getElementById("pair-error")!.textContent = "연결된 매장을 찾을 수 없습니다. 관리자에게 문의해 주세요.";
+    }
+  });
+  document.getElementById("open-settings")!.addEventListener("click", (e) => {
+    e.preventDefault();
+    void renderSettings(renderPairing);
+  });
+}
+
+/** 페어링 응답에 매장이 2개 이상일 때만 보인다. 매장 1개면 background 가 자동 선택한다. */
+function renderStoreSelect(stores: NaverStore[]): void {
+  app.innerHTML = `
+    <div class="pairing">
+      <h1>매장을 선택해 주세요</h1>
+      <p>이 확장이 연결할 매장을 선택하세요.</p>
+      <select id="store-select"></select>
+      <button class="primary" id="store-select-submit">선택</button>
+    </div>
+  `;
+  const select = document.getElementById("store-select") as HTMLSelectElement;
+  for (const store of stores) {
+    const option = document.createElement("option");
+    option.value = store.storeId;
+    option.textContent = store.name;
+    select.appendChild(option);
+  }
+  document.getElementById("store-select-submit")!.addEventListener("click", async () => {
+    await sendToBackground({ type: "SELECT_STORE", storeId: select.value });
+    await renderQueue();
   });
 }
 
@@ -113,7 +177,10 @@ async function renderQueue(): Promise<void> {
 
   app.innerHTML = `
     <header>
-      <h1>리뷰파일럿</h1>
+      <div class="header-row">
+        <h1>리뷰파일럿</h1>
+        <a href="#" id="open-settings" class="settings-link">⚙ 설정</a>
+      </div>
       <div class="summary">미확인 ${entries.filter((e) => e.state === "DRAFTED").length}건 · 부정 ${entries.filter((e) => e.rating <= 2).length}건</div>
     </header>
     <div id="cards"></div>
@@ -127,23 +194,38 @@ async function renderQueue(): Promise<void> {
   const cardsEl = document.getElementById("cards")!;
   for (const entry of entries) cardsEl.appendChild(renderCard(entry));
 
+  document.getElementById("open-settings")!.addEventListener("click", (e) => {
+    e.preventDefault();
+    void renderSettings(renderQueue);
+  });
+
   document.getElementById("bulk-approve")!.addEventListener("click", () => {
     if (bulkTargets.length === 0) return;
     openPinModal(async (pin) => {
-      await sendToBackground({
+      const res = await sendToBackground<{ ok: boolean; approved: number; excluded: Record<string, string> }>({
         type: "BULK_APPROVE",
         reviewHashes: bulkTargets.map((e) => e.reviewHash),
         pin,
       });
       await renderQueue();
+      const excludedReasons = [...new Set(Object.values(res.excluded ?? {}))];
+      if (excludedReasons.length > 0) {
+        alert(`일부 리뷰는 일괄 승인에서 제외됐습니다.\n${excludedReasons.join("\n")}`);
+      }
     });
   });
 }
 
 async function main(): Promise<void> {
-  const { storeId } = await sendToBackground<{ storeId: string | null }>({ type: "GET_STORE_ID" });
+  const { storeId, stores } = await sendToBackground<{ storeId: string | null; stores: NaverStore[] }>({
+    type: "GET_STORES",
+  });
   if (!storeId) {
-    renderPairing();
+    if (stores.length > 1) {
+      renderStoreSelect(stores);
+    } else {
+      renderPairing();
+    }
     return;
   }
   await renderQueue();

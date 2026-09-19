@@ -12,6 +12,7 @@ import { Skeleton } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../auth/AuthContext";
 import { agreementsApi, type AgreementHistoryRow } from "../api/agreements";
+import { naverExtensionApi } from "../api/naverExtension";
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
@@ -28,6 +29,8 @@ export function SettingsPage() {
       <p className="settings-page__intro">계정 정보와 보안 설정을 관리합니다.</p>
       <ProfileCard profile={profile} onUpdated={setProfile} />
       <PasswordCard />
+      <NaverPairingCard />
+      <NaverPinCard />
       <AgreementHistoryCard />
       <Card className="settings-page__security-note">
         <h2>서비스 보안</h2>
@@ -134,6 +137,148 @@ function PasswordCard() {
         <Field label="새 비밀번호 확인" required type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
         <Button type="submit" loading={loading}>비밀번호 변경</Button>
+      </form>
+    </Card>
+  );
+}
+
+function formatMmSs(totalSeconds: number): string {
+  const clamped = Math.max(0, totalSeconds);
+  const m = Math.floor(clamped / 60);
+  const s = clamped % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function NaverPairingCard() {
+  const [pairing, setPairing] = useState<{ code: string; expiresAt: number } | null>(null);
+  const [remaining, setRemaining] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pairing) return;
+    const tick = () => setRemaining(Math.round((pairing.expiresAt - Date.now()) / 1000));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [pairing]);
+
+  const issue = async () => {
+    setLoading(true);
+    setError(null);
+    setCopyMessage(null);
+    try {
+      const res = await naverExtensionApi.issuePairingCode();
+      setPairing({ code: res.code, expiresAt: Date.now() + res.expiresInSeconds * 1000 });
+    } catch (e) {
+      setPairing(null);
+      setError(e instanceof ApiError ? e.message : "페어링 코드 발급에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!pairing) return;
+    try {
+      await navigator.clipboard.writeText(pairing.code);
+      setCopyMessage("코드를 복사했습니다.");
+    } catch {
+      setCopyMessage("복사에 실패했습니다. 코드를 직접 선택해 복사해 주세요.");
+    }
+  };
+
+  const expired = pairing !== null && remaining <= 0;
+
+  return (
+    <Card className="settings-page__card">
+      <h2>네이버 확장 연동</h2>
+      <p className="settings-page__naver-honesty">
+        네이버 리뷰는 자동으로 게시되지 않습니다. 확장이 답글을 입력창에 채워 드리면 등록 버튼은 사장님이 직접 누르셔야 합니다.
+      </p>
+      <ol className="settings-page__naver-steps">
+        <li>크롬에 확장 프로그램을 설치합니다.</li>
+        <li>확장의 사이드패널을 엽니다.</li>
+        <li>아래 코드를 사이드패널에 입력합니다.</li>
+      </ol>
+      {!pairing || expired ? (
+        <>
+          {expired ? <p role="status">코드가 만료되었습니다. 다시 발급해 주세요.</p> : null}
+          <Button type="button" loading={loading} onClick={() => void issue()}>
+            {expired ? "다시 발급" : "확장 연결하기"}
+          </Button>
+        </>
+      ) : (
+        <div className="settings-page__naver-code">
+          <p className="settings-page__naver-code-value" aria-live="polite">{pairing.code}</p>
+          <p className="settings-page__naver-code-timer" role="status">남은 시간 {formatMmSs(remaining)}</p>
+          <div className="settings-page__naver-code-actions">
+            <Button type="button" variant="secondary" onClick={() => void copy()}>복사</Button>
+          </div>
+          {copyMessage ? <p role="status">{copyMessage}</p> : null}
+        </div>
+      )}
+      {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+    </Card>
+  );
+}
+
+function NaverPinCard() {
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!/^\d{4,8}$/.test(pin)) return setError("PIN 은 4~8자리 숫자로 입력해 주세요.");
+    if (pin !== confirmPin) return setError("PIN 이 일치하지 않습니다.");
+    setLoading(true);
+    try {
+      await naverExtensionApi.setPin(pin);
+      setPin("");
+      setConfirmPin("");
+      toast.show("PIN 설정을 완료했습니다.", "success");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "PIN 설정에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="settings-page__card">
+      <h2>일괄 승인 PIN</h2>
+      <p>
+        PIN 을 설정해야 일괄 승인을 쓸 수 있습니다. 공용 포스 PC 에서 직원이 대신 승인하는 것을
+        막기 위한 장치입니다. 미설정 상태에서는 일괄 승인이 동작하지 않습니다.
+      </p>
+      <form onSubmit={submit} noValidate>
+        <Field
+          label="PIN (숫자 4~8자리)"
+          required
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={pin}
+          maxLength={8}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setPin(e.target.value.replace(/\D/g, ""))}
+        />
+        <Field
+          label="PIN 확인"
+          required
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={confirmPin}
+          maxLength={8}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+        />
+        {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+        <Button type="submit" loading={loading}>PIN 저장</Button>
       </form>
     </Card>
   );

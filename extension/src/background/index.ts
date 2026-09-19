@@ -8,7 +8,7 @@
  *   "tabs" 권한이 필요 없다(sender.tab.id 로 이미 확보한 tabId 에만 보낸다).
  *   chrome.tabs.query 등 권한이 필요한 API 는 쓰지 않는다.
  */
-import { ApiClient, DEFAULT_BASE_URL } from "../api/client";
+import { ApiClient, DEFAULT_BASE_URL, type NaverStore, type QueueEvent } from "../api/client";
 import { loadSpec, recordMiss, resetMissState, type CacheDeps } from "../selector/cache";
 import { drain, enqueue, type OfflineQueueDeps, type QueuedItem } from "../queue/offlineQueue";
 import { reportSelectorMiss } from "../telemetry/selectorMiss";
@@ -18,12 +18,22 @@ import { isHeartbeatStale } from "./heartbeat";
 
 const TOKEN_KEY = "extensionToken";
 const STORE_ID_KEY = "storeId";
+const STORES_KEY = "naverStores";
+const API_BASE_URL_KEY = "apiBaseUrl";
 const LAST_HEARTBEAT_KEY = "lastHeartbeatAt";
 const QUEUE_KEY = "naverDraftQueue";
 
 const SPEC_ALARM = "refreshSelectorSpec";
 const HEARTBEAT_CHECK_ALARM = "checkHeartbeat";
 const QUEUE_DRAIN_ALARM = "drainOfflineQueue";
+
+// 제외 사유 코드 → 사람이 읽을 문구. 모르는 코드는 원본 코드를 그대로 보여준다
+// (서버가 코드를 늘려도 화면이 깨지지 않게).
+const EXCLUDE_REASON_KO: Record<string, string> = {
+  NOT_VIEWED: "확인하지 않은 리뷰",
+  LOW_RATING: "별점 1~2점은 개별 확인이 필요합니다",
+  RISK_BLOCKED: "위험 검수 대상이라 자동 승인할 수 없습니다",
+};
 
 // heartbeat 를 보낸 탭에만 초안을 밀어준다. "tabs" 권한 없이도 이미 받은 sender.tab.id 로는
 // chrome.tabs.sendMessage 를 쓸 수 있다. service worker 재시작 시 null 로 리셋되지만
@@ -49,7 +59,7 @@ async function setQueueEntry(entry: QueueEntry): Promise<void> {
 
 function showNotification(title: string, message: string): void {
   // ponytail: 아이콘 자산 미준비 — icon128.png 는 배포 전 추가해야 실제로 표시된다.
-  chrome.notifications.create({ type: "basic", iconUrl: "icon128.png", title, message });
+  chrome.notifications.create({ type: "basic", iconUrl: "icons/icon128.png", title, message });
 }
 
 async function getToken(): Promise<string | null> {
@@ -59,8 +69,14 @@ async function revokeToken(): Promise<void> {
   await storageSet(TOKEN_KEY, null);
   showNotification("재연결이 필요합니다", "확장 연결이 끊어졌습니다. 웹 대시보드에서 다시 페어링해 주세요.");
 }
+async function getBaseUrl(): Promise<string> {
+  return ((await storageGet(API_BASE_URL_KEY)) as string | undefined) || DEFAULT_BASE_URL;
+}
+async function getStoreId(): Promise<string | null> {
+  return ((await storageGet(STORE_ID_KEY)) as string | undefined) ?? null;
+}
 
-const client = new ApiClient({ baseUrl: DEFAULT_BASE_URL, getToken, onTokenRevoked: revokeToken });
+const client = new ApiClient({ getBaseUrl, getToken, onTokenRevoked: revokeToken });
 
 const specCacheDeps: CacheDeps = { fetchSpec: () => client.getSelectorSpec(), storageGet, storageSet };
 
@@ -81,12 +97,23 @@ async function sendQueuedItem(item: QueuedItem): Promise<boolean> {
   }
 }
 
+/** 상태 전이를 서버에 기록한다. 실패하면 오프라인 큐에 쌓아 재시도한다. */
+async function reportEvent(storeId: string, reviewHash: string, event: QueueEvent, edited = false): Promise<void> {
+  const req = { storeId, reviewHash, event, edited, editDistance: null };
+  try {
+    await client.postEvent(req);
+  } catch {
+    await enqueue(queueDeps, { id: crypto.randomUUID(), endpoint: "postEvent", payload: req });
+  }
+}
+
 async function handleReviewDetected(message: Record<string, unknown>): Promise<void> {
   const reviewHash = String(message.reviewHash ?? "");
+  const storeId = String(message.storeId ?? "");
   const req = {
-    storeId: String(message.storeId ?? ""),
+    storeId,
     reviewHash,
-    rating: Number(message.rating ?? 0),
+    rating: typeof message.rating === "number" ? message.rating : Number(message.rating ?? 0),
     body: String(message.body ?? ""),
     createdAt: String(message.createdAt ?? new Date().toISOString()),
     hasReply: Boolean(message.hasReply),
@@ -99,10 +126,10 @@ async function handleReviewDetected(message: Record<string, unknown>): Promise<v
     const draft = await client.postDraft(req);
     await setQueueEntry({
       reviewHash,
-      storeId: req.storeId,
+      storeId,
       rating: req.rating,
       body: req.body,
-      draftContent: draft.draftContent,
+      draftContent: draft.draft ?? "",
       blocked: draft.blocked,
       riskLevel: draft.riskLevel,
       state: "DRAFTED",
@@ -119,22 +146,12 @@ async function handleReviewPosted(message: Record<string, unknown>): Promise<voi
   if (!reviewHash) return; // 활성 리뷰를 특정할 수 없으면 보고하지 않는다(오귀속 방지)
 
   const entry = (await getQueue())[reviewHash];
-  const req = {
-    reviewHash,
-    platform: "naver" as const,
-    rating: entry?.rating ?? 0,
-    edited: entry?.edited ?? false,
-    postedAt: new Date().toISOString(),
-  };
-  if (entry && canTransition(entry.state, "POSTED")) {
+  if (!entry) return;
+  if (canTransition(entry.state, "POSTED")) {
     entry.state = "POSTED";
     await setQueueEntry(entry);
   }
-  try {
-    await client.postEvent(req);
-  } catch {
-    await enqueue(queueDeps, { id: crypto.randomUUID(), endpoint: "postEvent", payload: req });
-  }
+  await reportEvent(entry.storeId, reviewHash, "POSTED", entry.edited);
 }
 
 /** 승인된 초안을 활성 탭에 삽입 요청한다. 게시는 여전히 사람이 네이버 버튼을 눌러야 한다. */
@@ -164,7 +181,24 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
 
   switch (message.type) {
     case "GET_STORE_ID":
-      return { storeId: ((await storageGet(STORE_ID_KEY)) as string | undefined) ?? null };
+      return { storeId: await getStoreId() };
+
+    case "GET_STORES":
+      return {
+        storeId: await getStoreId(),
+        stores: ((await storageGet(STORES_KEY)) as NaverStore[] | undefined) ?? [],
+      };
+
+    case "SELECT_STORE":
+      await storageSet(STORE_ID_KEY, String(message.storeId ?? "") || null);
+      return { ok: true };
+
+    case "GET_SETTINGS":
+      return { apiBaseUrl: await getBaseUrl() };
+
+    case "SET_API_BASE_URL":
+      await storageSet(API_BASE_URL_KEY, String(message.apiBaseUrl ?? "").trim() || DEFAULT_BASE_URL);
+      return { ok: true };
 
     case "GET_SELECTOR_SPEC":
       return loadSpec(specCacheDeps);
@@ -205,6 +239,7 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
       if (entry.state !== "VIEWED" && canTransition(entry.state, "VIEWED")) {
         entry.state = "VIEWED";
         await setQueueEntry(entry);
+        await reportEvent(entry.storeId, entry.reviewHash, "VIEWED");
       }
       return { ok: true };
     }
@@ -216,6 +251,7 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
       entry.edited = true;
       entry.draftContent = String(message.content ?? entry.draftContent);
       await setQueueEntry(entry);
+      await reportEvent(entry.storeId, entry.reviewHash, "EDITED", true);
       return { ok: true };
     }
 
@@ -223,9 +259,11 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
       const entry = (await getQueue())[String(message.reviewHash)];
       if (!entry || !canTransition(entry.state, "APPROVED")) return { ok: false };
       entry.state = "APPROVED";
+      await reportEvent(entry.storeId, entry.reviewHash, "APPROVED", entry.edited);
       pushInsertDraft(entry);
       entry.state = "INSERTED"; // APPROVED → INSERTED 는 항상 허용되는 전이다
       await setQueueEntry(entry);
+      await reportEvent(entry.storeId, entry.reviewHash, "INSERTED", entry.edited);
       return { ok: true };
     }
 
@@ -234,40 +272,55 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
       if (!entry || !canTransition(entry.state, "SKIPPED")) return { ok: false };
       entry.state = "SKIPPED";
       await setQueueEntry(entry);
+      await reportEvent(entry.storeId, entry.reviewHash, "SKIPPED");
       return { ok: true };
     }
 
     case "BULK_APPROVE": {
+      const storeId = await getStoreId();
       const hashes = Array.isArray(message.reviewHashes) ? message.reviewHashes.map(String) : [];
       const pin = String(message.pin ?? "");
       const queue = await getQueue();
       const candidates = hashes.map((h) => queue[h]).filter((e): e is QueueEntry => Boolean(e));
       // ★ 서버가 최종 관문이 아니다 — 여기서도 별점 1~2·VIEWED 미경유 항목을 다시 거른다.
       const targets = selectBulkTargets(candidates);
-      if (targets.length === 0) return { ok: false, approved: 0 };
+      if (!storeId || targets.length === 0) return { ok: false, approved: 0, excluded: {} };
 
+      let result: { approved: string[]; excluded: Record<string, string> };
       try {
-        await client.postBulkApprove({ reviewHashes: targets.map((t) => t.reviewHash), pin });
+        result = await client.postBulkApprove({ storeId, reviewHashes: targets.map((t) => t.reviewHash), pin });
       } catch {
-        return { ok: false, approved: 0 };
+        return { ok: false, approved: 0, excluded: {} };
       }
 
+      const approvedSet = new Set(result.approved);
       for (const entry of targets) {
+        if (!approvedSet.has(entry.reviewHash)) continue;
         entry.state = "APPROVED";
         await setQueueEntry(entry);
+        await reportEvent(entry.storeId, entry.reviewHash, "APPROVED", entry.edited);
         pushInsertDraft(entry);
         entry.state = "INSERTED";
         await setQueueEntry(entry);
+        await reportEvent(entry.storeId, entry.reviewHash, "INSERTED", entry.edited);
       }
-      return { ok: true, approved: targets.length };
+
+      const excludedKo: Record<string, string> = {};
+      for (const [hash, code] of Object.entries(result.excluded ?? {})) {
+        excludedKo[hash] = EXCLUDE_REASON_KO[code] ?? code;
+      }
+      return { ok: true, approved: result.approved.length, excluded: excludedKo };
     }
 
     case "PAIR": {
-      const { token, storeId } = await client.pair(String(message.code ?? ""));
+      const { token, stores } = await client.pair(String(message.code ?? ""));
       await storageSet(TOKEN_KEY, token);
-      await storageSet(STORE_ID_KEY, storeId);
+      const list: NaverStore[] = Array.isArray(stores) ? stores : [];
+      await storageSet(STORES_KEY, list);
+      const selected = list.length === 1 ? list[0].storeId : null;
+      await storageSet(STORE_ID_KEY, selected);
       await resetMissState(specCacheDeps);
-      return { ok: true, storeId };
+      return { ok: true, stores: list, storeId: selected };
     }
 
     default:

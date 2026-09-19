@@ -50,6 +50,10 @@ public class SecurityConfig {
      * allowCredentials=true 가 필요하고, 이 조합에서 "*" 는 스펙상 금지될 뿐 아니라
      * 임의 사이트가 로그인된 사장님 세션으로 API 를 호출할 수 있게 된다.
      * 운영 도메인은 APP_CORS_ORIGINS 환경변수로 주입한다.
+     *
+     * <p>★ 네이버 확장(extension/)의 chrome-extension:// 오리진은 여기 넣지 않는다. 확장은
+     * service worker/확장 페이지에서 fetch 하고 manifest.json 의 host_permissions 로 접근을
+     * 허가받으므로 애초에 브라우저 CORS 검사 대상이 아니다(IMPLEMENTATION_PLAN_NAVER.md §6).
      */
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {

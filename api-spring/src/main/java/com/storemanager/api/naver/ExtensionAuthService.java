@@ -2,15 +2,20 @@ package com.storemanager.api.naver;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.naver.NaverDtos.PairResponse;
+import com.storemanager.api.naver.NaverDtos.StoreRef;
+import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,12 +43,14 @@ public class ExtensionAuthService {
 
     private final StringRedisTemplate redisTemplate;
     private final AppUserRepository appUserRepository;
+    private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
 
     public ExtensionAuthService(StringRedisTemplate redisTemplate, AppUserRepository appUserRepository,
-            PasswordEncoder passwordEncoder) {
+            StoreRepository storeRepository, PasswordEncoder passwordEncoder) {
         this.redisTemplate = redisTemplate;
         this.appUserRepository = appUserRepository;
+        this.storeRepository = storeRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -58,8 +65,14 @@ public class ExtensionAuthService {
         return value;
     }
 
-    /** POST /api/v1/naver/extension/pair (무인증). 코드를 불투명 토큰으로 1회 교환한다(GETDEL). */
-    public String pair(String rawCode) {
+    /**
+     * POST /api/v1/naver/extension/pair (무인증). 코드를 불투명 토큰으로 1회 교환한다(GETDEL).
+     *
+     * <p>★ 응답에 페어링한 사용자가 소유한 매장 목록을 함께 담는다. 확장은 storeId 를 몰라서
+     * drafts·events·bulk-approve·status 등 이후 모든 호출을 못 하는 상태였다(storeId 필수 파라미터).
+     * storeId 는 항상 {@code store.public_id}(UUID) 문자열이다 — 내부 BIGSERIAL 은 내보내지 않는다.
+     */
+    public PairResponse pair(String rawCode) {
         String normalized = rawCode == null ? "" : rawCode.trim().toUpperCase(Locale.ROOT);
         String key = PAIR_CODE_PREFIX + normalized;
         String userPublicId = redisTemplate.opsForValue().get(key);
@@ -69,7 +82,18 @@ public class ExtensionAuthService {
         redisTemplate.delete(key); // 1회용
         String token = generateToken();
         redisTemplate.opsForValue().set(TOKEN_PREFIX + token, userPublicId, TOKEN_TTL);
-        return token;
+        List<StoreRef> stores = ownedStores(UUID.fromString(userPublicId));
+        return new PairResponse(token, TOKEN_TTL.toSeconds(), stores);
+    }
+
+    private List<StoreRef> ownedStores(UUID userPublicId) {
+        AppUser owner = appUserRepository.findByPublicId(userPublicId).orElse(null);
+        if (owner == null) {
+            return List.of();
+        }
+        return storeRepository.findByOwnerIdAndDeletedAtIsNull(owner.getId()).stream()
+                .map(store -> new StoreRef(store.getPublicId().toString(), store.getName()))
+                .collect(Collectors.toList());
     }
 
     /** ExtensionTokenFilter 전용. 유효하면 슬라이딩 TTL 갱신 후 userPublicId 문자열을 반환, 아니면 null. */

@@ -58,8 +58,7 @@ public class NaverController {
 
     @PostMapping("/api/v1/naver/extension/pair")
     public PairResponse pair(@Valid @RequestBody PairRequest req) {
-        String token = extensionAuthService.pair(req.code());
-        return new PairResponse(token, java.time.Duration.ofDays(30).toSeconds());
+        return extensionAuthService.pair(req.code());
     }
 
     @PostMapping("/api/v1/naver/extension/pin")
