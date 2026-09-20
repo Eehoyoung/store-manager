@@ -87,6 +87,32 @@ class NaverDraftServiceTest {
         return new DraftRequest(storePublicId.toString(), "h".repeat(64), 5, body, null, false);
     }
 
+    /**
+     * ★ 실기동 비용 누수(2026-09-20). 19건을 돌렸는데 유료 호출이 23건 나갔다.
+     * 확장은 페이지가 다시 그려질 때마다 목록 전체를 보내는데, 예전 가드는
+     * APPROVED·POSTED 만 걸러 DRAFTED·VIEWED 가 통과했다. 같은 리뷰에 LLM 호출이
+     * 반복된다 — 매장·리뷰가 늘수록 그대로 비례한다.
+     *
+     * <p>확장에도 같은 검사가 있지만 best-effort 다(응답 대기 중 다음 스캔이 끼어들 수
+     * 있고, 확장 저장소가 비면 통째로 사라진다). <b>돈을 쓰는 쪽이 막아야 한다.</b>
+     */
+    @Test
+    void 이미_초안이_있는_리뷰는_AI_를_다시_부르지_않는다() {
+        for (String status : List.of("DRAFTED", "VIEWED", "EDITED", "APPROVED", "POSTED")) {
+            NaverReviewEvent existing = NaverReviewEvent.builder()
+                    .storeId(100L).reviewHash("h".repeat(64)).status(status)
+                    .draftContent("이미 만들어 둔 초안입니다. 감사합니다.").build();
+            when(naverReviewEventRepository.findByStoreIdAndReviewHash(100L, "h".repeat(64)))
+                    .thenReturn(Optional.of(existing));
+            when(serviceGate.isServiceable(store)).thenReturn(true);
+
+            DraftResponse res = service.generateDraft(ownerPublicId, request("좋아요"));
+
+            assertThat(res.draft()).isEqualTo("이미 만들어 둔 초안입니다. 감사합니다.");
+        }
+        verify(aiClient, never()).analyzeAndDraft(any());
+    }
+
     @Test
     void 구독_비활성_매장은_AI_호출_전에_차단한다() {
         when(serviceGate.isServiceable(store)).thenReturn(false);

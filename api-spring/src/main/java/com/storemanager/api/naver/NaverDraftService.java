@@ -91,8 +91,20 @@ public class NaverDraftService {
 
         NaverReviewEvent existing = naverReviewEventRepository
                 .findByStoreIdAndReviewHash(store.getId(), req.reviewHash()).orElse(null);
-        if (existing != null && ("APPROVED".equals(existing.getStatus()) || "POSTED".equals(existing.getStatus()))) {
-            // 이미 사람이 확정했거나 게시된 건 — 재호출하지 않고 그대로 돌려준다(불필요한 LLM 비용 방지).
+        if (existing != null) {
+            // ★ 이미 초안을 만든 리뷰는 **무조건** 그대로 돌려준다. 다시 만들지 않는다.
+            //
+            // 예전에는 APPROVED·POSTED 만 걸렀는데, 확장은 페이지가 다시 그려질 때마다
+            // 목록 전체를 훑어 보낸다. DRAFTED·VIEWED 가 통과하면 같은 리뷰에 LLM 호출이
+            // 반복된다 — 실기동(2026-09-20)에서 19건을 돌렸는데 유료 호출이 23건
+            // 나갔다(중복 6건, 약 30원). 매장·리뷰가 늘수록 그대로 비례한다.
+            //
+            // ★ 확장에도 같은 검사가 있지만(background.handleReviewDetected) 그건
+            //   best-effort 다. 응답을 기다리는 수 초 동안 다음 스캔이 끼어들 수 있고,
+            //   확장 저장소가 비면 통째로 사라진다. **돈을 쓰는 쪽이 막아야 한다.**
+            //
+            // ★ 재생성 기능이 필요해지면 전용 엔드포인트를 만들어라. 이 경로를 다시
+            //   열지 말 것 — 여기는 "화면에 보이니 초안을 달라" 는 조회성 호출이다.
             return toResponse(existing);
         }
 
