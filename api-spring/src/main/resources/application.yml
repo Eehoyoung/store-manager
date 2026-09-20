@@ -69,6 +69,21 @@ app:
     previous-keys: ${CREDENTIAL_PREVIOUS_KEYS:}
     # 운영 배포에서는 true로 설정해야 하며, 실제 KMS 어댑터 도입 전에는 기동을 허용하지 않는다.
     require-kms: ${CREDENTIAL_REQUIRE_KMS:false}
+  business:
+    # 전자상거래법 제10조 표시사항. ★ 정본은 BusinessInfoProperties 하나다 —
+    #   화면·약관에 사업자등록번호를 따로 적지 말 것.
+    # ★ 사업자 등록이 나오면 아래 값을 채우고 BUSINESS_INFO_REQUIRED=true 로 켠다.
+    #   켜 두면 값이 하나라도 비었을 때 기동하지 않는다(fail-closed).
+    name: ${BUSINESS_NAME:소담}
+    service-name: ${BUSINESS_SERVICE_NAME:리뷰파일럿}
+    representative: ${BUSINESS_REPRESENTATIVE:}
+    address: ${BUSINESS_ADDRESS:}
+    phone: ${BUSINESS_PHONE:}
+    email: ${BUSINESS_EMAIL:}
+    registration-number: ${BUSINESS_REGISTRATION_NUMBER:}
+    mail-order-number: ${BUSINESS_MAIL_ORDER_NUMBER:}
+    privacy-officer: ${BUSINESS_PRIVACY_OFFICER:}
+    require-complete: ${BUSINESS_INFO_REQUIRED:false}
   internal:
     # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
     token: ${INTERNAL_TOKEN}

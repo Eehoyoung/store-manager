@@ -9,7 +9,15 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AgreementService {
-    public static final String CURRENT_VERSION = "2026-08-28";
+    /**
+     * 동의 문서 버전. {@code resources/agreements/<버전>/} 디렉터리 이름과 같아야 한다.
+     *
+     * <p><b>★ 올리면 기존 동의가 현행이 아니게 된다</b>({@link #requireCurrentVersion}).
+     * 문구를 고쳤는데 버전을 안 올리면 "무엇에 동의했는지" 를 답할 수 없게 되므로,
+     * 문서를 고칠 때는 새 디렉터리를 만들고 여기를 함께 올린다. 옛 디렉터리는 지우지 않는다 —
+     * 과거 동의가 가리키는 문서다.
+     */
+    public static final String CURRENT_VERSION = "2026-09-20";
     public static final String TERMS = "TERMS_OF_SERVICE";
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";

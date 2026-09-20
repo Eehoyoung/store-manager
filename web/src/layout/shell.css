@@ -252,3 +252,65 @@
     padding: 0 var(--space-4);
   }
 }
+
+/* ── 사업자 정보 푸터 — 전자상거래법 제10조 표시사항 ──────────────────────
+   ★ 작게 줄이지 말 것. 40~60대 사용자 기준(docs/14)이라 보조 텍스트도 16px 하한이다.
+     법이 요구하는 것은 "적어 두는 것" 이 아니라 "소비자가 확인할 수 있는 것" 이다. */
+.legal-footer {
+  border-top: 1px solid var(--color-rule);
+  padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.legal-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+/* 터치 목표 44px — 링크가 촘촘해도 손가락으로 눌러진다. */
+.legal-footer__links a {
+  color: var(--color-primary);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.legal-footer__business {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.legal-footer__business > div {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.legal-footer__business dt {
+  color: var(--color-text-muted);
+}
+
+.legal-footer__business dt::after {
+  content: "";
+}
+
+.legal-footer__business dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+/* 미등록 항목은 회색으로 흘리지 않는다 — 비어 보이면 표시한 것으로 착각한다. */
+.legal-footer__pending {
+  color: var(--color-warning);
+}
+
+.legal-footer__copy {
+  margin: 0;
+}

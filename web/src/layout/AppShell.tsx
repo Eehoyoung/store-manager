@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LegalFooter } from "./LegalFooter";
 import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { storesApi } from "../api/stores";
@@ -128,6 +129,7 @@ export function AppShell() {
           <Outlet context={{ storeId, setStoreId } satisfies ShellContext} />
         </main>
       </div>
+      <LegalFooter />
     </div>
   );
 }

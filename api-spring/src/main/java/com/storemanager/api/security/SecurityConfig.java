@@ -88,8 +88,11 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // ★ /legal/business-info 는 거래 전에 보여야 하는 표시사항이라 로그인 뒤로 숨기지 않는다
+                        //   (전자상거래법 제10조). 사업자 등록부에 공개된 항목만 실린다.
                         .requestMatchers("/api/v1/auth/**", "/api/v1/agreements",
-                                "/api/v1/agreements/documents/**", "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**")
+                                "/api/v1/agreements/documents/**", "/api/v1/legal/business-info",
+                                "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**")
                         .permitAll()
                         // 페어링 코드 → 확장 토큰 교환은 아직 로그인 수단이 없는 확장이 부르므로 무인증이다.
                         // 코드 자체가 5분 TTL 1회용이라(ExtensionAuthService) 무인증이어도 안전하다.

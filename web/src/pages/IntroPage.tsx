@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { LegalFooter } from "../layout/LegalFooter";
 import { Link, useLocation } from "react-router-dom";
 import "./intro.css";
 
@@ -216,13 +217,12 @@ export function IntroPage() {
         </section>
       </main>
 
+      {/* ★ 전자상거래법 제10조 표시는 '거래 전' 화면에 있어야 한다 — 로그인 뒤가 아니라 여기다. */}
       <footer className="intro-footer">
-        <span>리뷰파일럿</span>
         <nav aria-label="하단 링크">
-          <Link to="/legal/terms">이용약관</Link>
-          <Link to="/legal/privacy">개인정보처리방침</Link>
           <Link to="/login">로그인</Link>
         </nav>
+        <LegalFooter />
       </footer>
 
       <div className="intro-sticky" aria-label="무료체험 신청">
