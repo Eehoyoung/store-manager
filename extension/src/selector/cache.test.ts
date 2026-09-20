@@ -45,7 +45,12 @@ describe("loadSpec", () => {
     }
   });
 
-  it("캐시도 없고 fetch 도 실패하면 disabled 를 반환한다", async () => {
+  /**
+   * ★ 이전에는 여기서 disabled 였다. 서버가 안 뜬 상태(개발·첫 설치·점검)에서
+   *   확장이 통째로 죽어 아무것도 확인할 수 없었다. 빌드에 동봉한 스펙으로 떨어진다.
+   *   원격이 응답하면 위에서 항상 덮어쓰므로 "원격 데이터" 설계는 그대로다.
+   */
+  it("캐시도 없고 fetch 도 실패하면 번들 스펙으로 떨어진다", async () => {
     const storage = makeMemoryStorage();
     const result = await loadSpec({
       ...storage,
@@ -53,38 +58,24 @@ describe("loadSpec", () => {
         throw new Error("network down");
       },
     });
-    expect(result).toEqual({ status: "disabled" });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") expect(result.spec.pages.reviewList).toBeDefined();
   });
 
-  it("원격 응답이 스펙 검증에 실패하면 disabled 로 폴백한다(캐시 없을 때)", async () => {
+  it("원격 응답이 깨졌어도 번들 스펙으로 떨어진다(캐시 없을 때)", async () => {
     const storage = makeMemoryStorage();
     const result = await loadSpec({ ...storage, fetchSpec: async () => ({ broken: true }) });
-    expect(result).toEqual({ status: "disabled" });
-  });
-});
-
-describe("recordMiss", () => {
-  it("미스 3회 누적 시 disabled 상태가 된다", async () => {
-    const storage = makeMemoryStorage();
-    const deps: CacheDeps = { ...storage, fetchSpec: async () => validSpec };
-
-    await loadSpec(deps); // 정상 스펙 로드
-    expect((await recordMiss(deps)) as boolean).toBe(false);
-    expect((await recordMiss(deps)) as boolean).toBe(false);
-    expect((await recordMiss(deps)) as boolean).toBe(true); // MAX_MISSES(3)번째
-
-    const result = await loadSpec(deps);
-    expect(result).toEqual({ status: "disabled" });
+    expect(result.status).toBe("ok");
   });
 
-  it("resetMissState 이후에는 다시 정상 동작한다", async () => {
+  /**
+   * ★ 킬스위치는 번들 폴백보다 먼저 걸린다. 셀렉터가 3회 빗나가 기능을 끈 상태에서
+   *   동봉 스펙으로 되살아나면 끈 의미가 없다 — 그 스펙이 바로 빗나간 그 스펙이다.
+   */
+  it("3회 미스로 비활성화되면 번들 스펙도 쓰지 않는다", async () => {
     const storage = makeMemoryStorage();
-    const deps: CacheDeps = { ...storage, fetchSpec: async () => validSpec };
-
-    for (let i = 0; i < MAX_MISSES; i++) await recordMiss(deps);
-    expect((await loadSpec(deps)).status).toBe("disabled");
-
-    await resetMissState(deps);
-    expect((await loadSpec(deps)).status).toBe("ok");
+    const deps = { ...storage, fetchSpec: async () => validSpec };
+    for (let i = 0; i < MAX_MISSES; i += 1) await recordMiss(deps);
+    expect(await loadSpec(deps)).toEqual({ status: "disabled" });
   });
 });

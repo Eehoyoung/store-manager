@@ -12,6 +12,9 @@
  * chrome.storage.local 바인딩을 주입한다.
  */
 import { validateSelectorSpec, type SelectorSpec } from "@selector-spec";
+// ★ 서버가 배포하는 것과 **같은 파일**을 번들에 넣는다. 사본을 따로 두지 않는다 —
+//   두 벌이 되면 한쪽만 고쳐지는 날이 온다(정본은 api-spring 쪽 리소스 하나다).
+import bundledSpec from "../../../api-spring/src/main/resources/naver/selector-spec.json";
 
 export const CACHE_KEY = "selectorSpecCache";
 const MISS_KEY = "selectorSpecMissCount";
@@ -59,6 +62,13 @@ export async function loadSpec(deps: CacheDeps): Promise<SpecState> {
   if (cached) {
     return { status: "ok", spec: cached.spec };
   }
+
+  // ★ 캐시도 없고 원격도 못 받았다 — 빌드에 동봉한 스펙으로 떨어진다.
+  //   이게 없으면 서버가 안 뜬 상태(개발·첫 설치·점검 중)에서 확장이 통째로 죽는다.
+  //   원격 데이터 설계는 그대로다: 서버가 응답하면 위에서 항상 덮어쓰고,
+  //   3회 미스 킬스위치(DISABLED_KEY)도 이 폴백보다 먼저 걸린다.
+  const fallback = validateSelectorSpec(bundledSpec);
+  if (fallback.ok) return { status: "ok", spec: fallback.spec };
   return { status: "disabled" };
 }
 
