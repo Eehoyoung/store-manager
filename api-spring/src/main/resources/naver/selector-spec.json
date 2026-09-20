@@ -1,22 +1,42 @@
 {
-  "_note": "실제 네이버 스마트플레이스 DOM 구조는 실측 미검증 초안이다(docs/naver/04-extension-spec.md). 실측 후 갱신할 것.",
-  "version": "2026-09-19T00:00:00Z",
+  "_note": "2026-09-20 실측 반영. 클래스 해시(__QiSQh 등)는 네이버 배포마다 바뀌므로 반드시 접두사 매칭([class*=...])으로만 쓴다. data-pui-click-code / data-area-code 는 네이버 분석 로그 키라 훨씬 안정적이므로 가능한 곳은 그쪽을 1순위로 쓴다.",
+  "_unverified": "hasReply 는 아직 미검증이다. 실측 시점에 답글 달린 리뷰가 0건이라 답글 완료 상태의 DOM 을 보지 못했다. 현재 값은 추정이며 확인 전까지 신뢰하지 말 것.",
+  "version": "2026-09-20T00:00:00Z",
   "minExtensionVersion": "0.1.0",
   "pages": {
     "reviewList": {
       "match": "/bizes/place/*/reviews",
-      "container": "[data-testid='review-list']",
-      "item": "[data-testid='review-item']",
+      "container": "ul[class*=\"Review_columns_list\"]",
+      "item": "li[class*=\"Review_pui_review\"]",
       "fields": {
-        "id": { "selector": "[data-review-id]", "attr": "data-review-id" },
-        "rating": { "selector": ".rating", "parse": "int" },
-        "body": { "selector": ".review-body", "parse": "text" },
-        "authorName": { "selector": ".author", "parse": "text" },
-        "createdAt": { "selector": "time", "attr": "datetime" },
-        "hasReply": { "selector": ".reply-badge", "parse": "exists" }
+        "authorRef": {
+          "selector": "a[data-pui-click-code=\"profile\"][href*=\"/my/\"]",
+          "attr": "href"
+        },
+        "authorName": {
+          "selector": "[class*=\"pui__uslU0d\"]",
+          "parse": "text"
+        },
+        "rating": {
+          "selector": "[class*=\"Review_rating_in_names\"]",
+          "parse": "int"
+        },
+        "dateBlock": {
+          "selector": "[class*=\"pui__Py6QlM\"]",
+          "parse": "text"
+        },
+        "body": {
+          "selector": "[data-pui-click-code=\"text\"]",
+          "parse": "text"
+        },
+        "hasReply": {
+          "selector": "[class*=\"Review_reply\"]",
+          "parse": "exists"
+        }
       },
-      "replyInput": "textarea[name='reply']",
-      "replyForm": "form[data-testid='reply-form']"
+      "replyOpenButton": "[data-area-code=\"rv.replywrite\"]",
+      "replyInput": "textarea",
+      "replyForm": "form"
     }
   }
 }

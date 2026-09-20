@@ -16,6 +16,14 @@ function queryWithinItem(el: Element, selector: string): Element | null {
   return el.querySelector(selector);
 }
 
+/** 문자열에서 첫 번째 숫자를 뽑는다. "별점5점" → 5, "4.5점" → 4.5, 없으면 null. */
+function firstNumber(text: string): number | null {
+  const m = /-?\d+(?:\.\d+)?/.exec(text);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
 function parseField(el: Element, spec: FieldSpec): string | number | boolean | null {
   const target = queryWithinItem(el, spec.selector);
   if (!target) return spec.parse === "exists" ? false : null;
@@ -26,14 +34,16 @@ function parseField(el: Element, spec: FieldSpec): string | number | boolean | n
   const text = (raw ?? "").trim();
 
   switch (spec.parse) {
+    // ★ 숫자가 한국어에 둘러싸여 온다. 스마트플레이스 별점은 "별점5점" 이라
+    //   parseInt 가 곧장 NaN 을 낸다(실측 2026-09-20). 앞뒤 글자를 떼고 **첫 숫자**를 쓴다.
+    //   ★ 첫 숫자라는 점이 중요하다 — 셀렉터를 느슨하게 잡아 "리뷰 12 사진 34" 같은
+    //     덩어리를 가리키면 엉뚱한 값이 조용히 들어온다. 셀렉터를 좁게 유지할 것.
     case "int": {
-      const n = Number.parseInt(text, 10);
-      return Number.isNaN(n) ? null : n;
+      const n = firstNumber(text);
+      return n === null ? null : Math.trunc(n);
     }
-    case "float": {
-      const n = Number.parseFloat(text);
-      return Number.isNaN(n) ? null : n;
-    }
+    case "float":
+      return firstNumber(text);
     case "text":
     default:
       return text;

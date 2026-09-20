@@ -1,0 +1,91 @@
+<!--
+  실측 스마트플레이스 방문자 리뷰 DOM 골격 (2026-09-20).
+
+  ★ 실제 페이지에서 뜬 구조를 그대로 옮기되 본문·닉네임·이미지 URL 은 가짜로 바꿨다.
+    실데이터를 픽스처로 커밋하지 않는다(NAVER ABSOLUTE RULES 3).
+  ★ 클래스 해시(__QiSQh 등)는 네이버 배포마다 바뀐다. 셀렉터는 접두사 매칭으로만 쓰고
+    이 픽스처의 해시값 자체에 의존하는 테스트를 쓰지 말 것.
+  ★ 2열 레이아웃이라 <ul> 이 두 개다. 리뷰가 그 둘에 나뉘어 들어간다.
+-->
+<div class="Review_columns_wrap__1Vk7r">
+  <ul class="Review_columns_list__QiSQh">
+    <li class="Review_pui_review__6lInP">
+      <div class="pui__q2fg8o pui__A7NplK">
+        <a class="pui__sG3Q0N" data-pui-click-code="profile" href="https://m.place.naver.com/my/aaaaaaaaaaaaaaaaaaaaaaaa/review">
+          <div class="pui__thumb"><img class="pui__AnL5iU" src="https://example.invalid/thumb.jpg"></div>
+        </a>
+        <a class="pui__hvyFHZ" data-pui-click-code="profile" href="https://m.place.naver.com/my/aaaaaaaaaaaaaaaaaaaaaaaa/review">
+          <div class="pui__JiVbY3"><span class="pui__uslU0d">홍길동님</span></div>
+          <div class="pui__RuLAax">
+            <span class="pui__WN-kAf">리뷰 12</span>
+            <span class="pui__WN-kAf">사진 34</span>
+            <span class="pui__WN-kAf">팔로워 5</span>
+          </div>
+        </a>
+      </div>
+      <div class="pui__Py6QlM">
+        <div class="pui__4rEbt5">
+          <span class="pui__ewpNGR">방문일</span>
+          <span class="pui__m7nkds"><time>2026. 9. 10(목)</time><span class="pui__blind"></span></span>
+          <span class="pui__m7nkds pui__lHDwSH">1번째</span>
+        </div>
+        <div class="pui__4rEbt5">
+          <span class="pui__ewpNGR">작성일</span>
+          <span class="pui__m7nkds"><time>2026. 9. 16(수)</time><span class="pui__blind"></span></span>
+        </div>
+        <div class="pui__4rEbt5">
+          <span class="pui__m7nkds">
+            <a class="pui__oQ0qP9" data-pui-click-code="rv.paymentinfo" data-nlog-area="smp_rv.paymentinfo">영수증 인증</a>
+          </span>
+        </div>
+      </div>
+      <div class="pui__F2t42c">
+        <span class="pui__ETqMYH">
+          <span class="Review_rating_in_names__g5gLW"><div class="pui__6abRMf">별점5점</div></span>
+        </span>
+      </div>
+      <div class="pui__vn15t2">
+        <a class="" data-pui-click-code="text">파스타가 정말 맛있었어요 다음에 또 올게요</a>
+        <a class="pui__wFzIYl" data-pui-click-code="text">더보기</a>
+      </div>
+      <div class="pui__sRNfrm">
+        <div class="pui__bMT0VC">
+          <button class="Review_review_menu_btn__jwPa5" data-area-code="rv.menu" data-nlog-area="smp_rv.menu"></button>
+        </div>
+      </div>
+      <div class="Review_btn_group__Zlpww">
+        <button class="Review_btn__a_059 Review_btn_write__KNwMT" data-area-code="rv.replywrite" data-nlog-area="smp_rv.replywrite">답글 쓰기</button>
+      </div>
+    </li>
+  </ul>
+  <ul class="Review_columns_list__QiSQh">
+    <li class="Review_pui_review__6lInP">
+      <div class="pui__q2fg8o pui__A7NplK">
+        <a class="pui__hvyFHZ" data-pui-click-code="profile" href="https://m.place.naver.com/my/bbbbbbbbbbbbbbbbbbbbbbbb/review">
+          <div class="pui__JiVbY3"><span class="pui__uslU0d">김손님</span></div>
+        </a>
+      </div>
+      <div class="pui__Py6QlM">
+        <div class="pui__4rEbt5">
+          <span class="pui__ewpNGR">방문일</span>
+          <span class="pui__m7nkds"><time>2026. 9. 11(금)</time></span>
+        </div>
+        <div class="pui__4rEbt5">
+          <span class="pui__ewpNGR">작성일</span>
+          <span class="pui__m7nkds"><time>2026. 9. 12(토)</time></span>
+        </div>
+      </div>
+      <div class="pui__F2t42c">
+        <span class="pui__ETqMYH">
+          <span class="Review_rating_in_names__g5gLW"><div class="pui__6abRMf">별점2점</div></span>
+        </span>
+      </div>
+      <div class="pui__vn15t2">
+        <a class="" data-pui-click-code="text">주차가 너무 불편하고 웨이팅도 40분 넘게 걸렸어요</a>
+      </div>
+      <div class="Review_btn_group__Zlpww">
+        <button class="Review_btn__a_059 Review_btn_write__KNwMT" data-area-code="rv.replywrite" data-nlog-area="smp_rv.replywrite">답글 쓰기</button>
+      </div>
+    </li>
+  </ul>
+</div>

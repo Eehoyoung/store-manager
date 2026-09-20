@@ -31,6 +31,7 @@ import { JSDOM } from "jsdom";
 
 import { extractReviews } from "../src/selector/runtime.ts";
 import { maskReviewBody, hashAuthor, reviewHash } from "../src/masking/mask.ts";
+import { parseReviewDates, reviewIdentity } from "../src/selector/identity.ts";
 import { validateSelectorSpec } from "../../packages/selector-spec/index.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -92,15 +93,37 @@ for (const [pageName, page] of Object.entries(spec.pages)) {
     );
   }
 
-  // 서버로 실제 나가는 모습. 원문이 아니라 마스킹 통과 후를 보여준다.
+  // ★ 해시 충돌은 조용한 사고다 — 두 리뷰가 같은 해시를 받으면 두 번째는 중복으로
+  //   취급돼 영영 답글을 못 받는다. 전건을 훑어 먼저 확인한다.
+  const seen = new Map();
+  let unidentified = 0;
+  for (const it of items) {
+    const { writtenAt } = parseReviewDates(it.dateBlock);
+    const identity = reviewIdentity(it.authorRef, writtenAt);
+    if (!identity) {
+      unidentified += 1;
+      continue;
+    }
+    const h = await reviewHash(identity, "demo-store");
+    seen.set(h, (seen.get(h) ?? 0) + 1);
+  }
+  const collisions = [...seen.values()].filter((n) => n > 1).length;
+  console.log("\n  [식별자 점검]");
+  console.log(`    ${unidentified === 0 ? "✓" : "✗"} 식별 불가 ${unidentified}/${items.length}건`
+    + (unidentified ? "  ← authorRef 나 작성일을 못 읽었다. 이 건들은 처리되지 않는다." : ""));
+  console.log(`    ${collisions === 0 ? "✓" : "✗"} 해시 충돌 ${collisions}건`
+    + (collisions ? "  ← 서로 다른 리뷰가 같은 해시다. 두 번째부터 답글을 못 받는다." : ""));
+
   console.log("\n  [서버로 전송될 payload — 앞 3건]");
   for (const it of items.slice(0, 3)) {
     const body = maskReviewBody(String(it.body ?? ""));
     const author = it.authorName ? await hashAuthor(String(it.authorName), "demo-salt") : null;
-    const hash = await reviewHash(String(it.id ?? ""), "demo-store");
-    console.log(`    reviewHash : ${hash.slice(0, 16)}…`);
+    const { visitedAt, writtenAt } = parseReviewDates(it.dateBlock);
+    const identity = reviewIdentity(it.authorRef, writtenAt);
+    const hash = identity ? await reviewHash(identity, "demo-store") : null;
+    console.log(`    reviewHash : ${hash ? hash.slice(0, 16) + "…" : "(식별 불가 — 건너뜀)"}`);
     console.log(`    rating     : ${it.rating ?? "(없음)"}`);
-    console.log(`    createdAt  : ${it.createdAt ?? "(없음)"}`);
+    console.log(`    writtenAt  : ${writtenAt ?? "(없음)"}   방문일 ${visitedAt ?? "(없음)"}`);
     console.log(`    hasReply   : ${it.hasReply ?? "(없음)"}`);
     console.log(`    authorHash : ${author ?? "(없음)"}   ← 원본 닉네임은 전송되지 않는다`);
     console.log(`    body       : ${body.slice(0, 80)}${body.length > 80 ? "…" : ""}`);
