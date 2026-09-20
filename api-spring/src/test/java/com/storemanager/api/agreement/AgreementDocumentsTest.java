@@ -41,6 +41,19 @@ class AgreementDocumentsTest {
         assertThat(read("privacy")).contains("네이버 스마트플레이스").contains("2.2의2");
     }
 
+    /**
+     * ★ 이 서비스는 인공지능이 분류·위험도·답글 문안을 정한다. 개인정보 보호법 제37조의2 가
+     * 요구하는 자동화된 결정 고지가 빠지면, 정확히 그 판정이 제품의 핵심인 서비스에서
+     * 설명·재검토 요구권이 안내되지 않은 상태가 된다.
+     */
+    @Test
+    void 자동화된_결정_고지가_처리방침에_있다() throws Exception {
+        assertThat(read("privacy"))
+                .contains("자동화된 결정")
+                .contains("제37조의2")
+                .contains("사람에 의한 재검토");
+    }
+
     private static String read(String slug) throws Exception {
         return new String(new ClassPathResource(
                 "agreements/" + AgreementService.CURRENT_VERSION + "/" + slug + ".md")
