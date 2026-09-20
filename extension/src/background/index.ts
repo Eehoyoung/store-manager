@@ -340,6 +340,14 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
   return true; // 비동기 응답
 });
 
+// ★ 툴바 아이콘을 누르면 사이드패널이 열린다. manifest 의 side_panel 만으로는
+//   패널이 "존재" 할 뿐 여는 수단이 없다 — action 키가 없으면 툴바 아이콘 자체가
+//   생기지 않고, 있어도 이 한 줄이 없으면 클릭이 아무 일도 하지 않는다.
+//   크롬 사이드패널 드롭다운에 숨어 있는 것은 사장님이 찾지 못한다(실기동 확인).
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((e: unknown) => console.error("[리뷰파일럿] 사이드패널 동작 설정 실패", e));
+
 // 새 버전은 대개 셀렉터를 고친 버전이다. 설치·업데이트 때 킬스위치를 푼다.
 // (개발 중 "확장 새로고침" 으로 막힌 상태를 빠져나오는 길이기도 하다.)
 chrome.runtime.onInstalled.addListener(() => void resetMissState(specCacheDeps));

@@ -10,6 +10,9 @@
     "128": "icons/icon128.png"
   },
   "permissions": ["storage", "alarms", "sidePanel", "notifications"],
+  "action": {
+    "default_title": "리뷰파일럿 열기"
+  },
   "host_permissions": [
     "https://new.smartplace.naver.com/*",
     "https://review.sodamlabs.kr/*",
