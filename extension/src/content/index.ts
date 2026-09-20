@@ -19,6 +19,12 @@ import { handlePublishEvent } from "./publishGate";
 import { hideBanner, showBanner } from "./banner";
 
 const SCAN_INTERVAL_MS = 5 * 60 * 1000; // 성능 예산: 리뷰 목록 스캔 주기 5분
+// DOM 변화가 멎은 뒤 이만큼 기다렸다가 다시 스캔한다. 리액트가 목록을 채우는 동안
+// 수십 번 발화하므로 묶어서 한 번만 돌린다.
+const RESCAN_DEBOUNCE_MS = 1000;
+// 페이지를 연 직후 이 시간 안에는 컨테이너가 없어도 "로그인 만료" 로 보지 않는다.
+// SPA 라 목록이 늦게 그려진다 — 렌더 중인 것과 세션이 끊긴 것은 구분할 수 없다.
+const SESSION_GRACE_MS = 15 * 1000;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 
 let currentSpec: SelectorSpec | null = null;
@@ -27,6 +33,13 @@ let currentStoreId: string | null = null;
 // 게시 감지 시점에는 DOM 에 리뷰 식별자가 없으므로 이 값으로만 매칭한다.
 let activeReviewHash: string | null = null;
 const wiredElements = new WeakSet<Element>();
+// 같은 결과를 반복해서 찍지 않는다 — 옵저버가 자주 깨우므로 콘솔이 금세 묻힌다.
+let lastScanLine = "";
+// scan() 은 await 를 탄다. 겹쳐 돌면 같은 리뷰를 두 번 보낸다.
+let scanning = false;
+const loadedAt = Date.now();
+// 세션 만료는 한 번만 알린다. 옵저버가 DOM 변화마다 깨우므로 안 그러면 알림이 쏟아진다.
+let sessionExpiryReported = false;
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -128,27 +141,76 @@ export function planScan(items: RawReview[]): ScanPlan {
   return plan;
 }
 
-async function scan(page: PageSpec, storeId: string | null): Promise<void> {
-  const { items, misses } = extractReviews(document, page);
-  const plan = planScan(items);
-
-  // ★ 항상 콘솔에 남긴다. 확장이 도는지·몇 건을 보는지 확인할 유일한 창구다.
-  //   숫자만 남기고 본문·닉네임은 찍지 않는다(원문을 로그에 흘리지 않는다).
-  console.log(
-    `[리뷰파일럿] 리뷰 ${items.length}건 · 초안대상 ${plan.targets.length} · `
-      + `이미답글 ${plan.alreadyReplied} · 식별불가 ${plan.unidentified} · 충돌 ${plan.colliding}`
-      + (storeId ? "" : "  (미연결 — 서버로 보내지 않는다)"),
+/**
+ * 추출 결과 한 줄 요약. ★ 숫자와 셀렉터 키만 남긴다 — 본문·닉네임은 찍지 않는다.
+ *
+ * ★ misses 를 반드시 함께 낸다. 건수만 찍으면 0건일 때 **왜** 0인지 알 수 없다
+ *   (컨테이너를 못 찾은 것과 항목이 아직 안 그려진 것은 대처가 완전히 다르다).
+ */
+export function scanSummary(
+  itemCount: number,
+  plan: ScanPlan,
+  misses: string[],
+  connected: boolean,
+): string {
+  const missKeys = [...new Set(misses)];
+  return (
+    `리뷰 ${itemCount}건 · 초안대상 ${plan.targets.length} · 이미답글 ${plan.alreadyReplied}`
+    + ` · 식별불가 ${plan.unidentified} · 충돌 ${plan.colliding}`
+    + (missKeys.length ? ` · 미스: ${missKeys.join(", ")}` : "")
+    + (connected ? "" : "  (미연결 — 서버로 보내지 않는다)")
   );
+}
 
-  for (const selectorKey of misses) {
-    void sendToBackground({ type: "SELECTOR_MISS", selectorKey, pagePath: window.location.pathname });
-  }
-  // 연결 전에는 여기서 멈춘다. 추출은 확인할 수 있고 전송은 하지 않는다.
-  if (!storeId) return;
+async function scan(page: PageSpec, storeId: string | null): Promise<void> {
+  if (scanning) return;
+  scanning = true;
+  try {
+    const { items, misses } = extractReviews(document, page);
+    const plan = planScan(items);
 
-  for (const t of plan.targets) {
-    await maskAndReport(t.raw, storeId, t.identity, t.writtenAt);
+    const line = scanSummary(items.length, plan, misses, Boolean(storeId));
+    if (line !== lastScanLine) {
+      lastScanLine = line;
+      console.log(`[리뷰파일럿] ${line}`);
+    }
+
+    // ★ "item" 미스는 셀렉터 고장이 아니라 아직 안 그려진 것일 때가 대부분이다.
+    //   옵저버가 곧 다시 부르므로 킬스위치 카운터를 올리지 않는다 — 올리면 페이지를
+    //   세 번 여는 것만으로 기능이 꺼진다.
+    for (const selectorKey of misses) {
+      if (selectorKey === "item") continue;
+      void sendToBackground({ type: "SELECTOR_MISS", selectorKey, pagePath: window.location.pathname });
+    }
+    if (!storeId) return; // 연결 전 — 추출은 확인할 수 있고 전송은 하지 않는다
+
+    for (const t of plan.targets) {
+      await maskAndReport(t.raw, storeId, t.identity, t.writtenAt);
+    }
+  } finally {
+    scanning = false;
   }
+}
+
+/**
+ * DOM 이 바뀌면 다시 스캔한다.
+ *
+ * ★ 왜 필요한가 (실측 2026-09-20) — 스마트플레이스는 SPA 다. document_idle 시점에는
+ *   리뷰 목록 <ul> 만 있고 <li> 는 비어 있다. 한 번 훑고 5분을 기다리면 그 사이를
+ *   통째로 놓쳐 **리뷰 0건**으로 보인다. 실제로 그렇게 나왔다.
+ *
+ * ★ 이 한 가지가 세 가지를 함께 해결한다 — 최초 렌더 지연 · SPA 내부 이동
+ *   (content script 가 다시 주입되지 않는다) · 무한 스크롤 추가 로드.
+ *
+ * ★ 재스캔은 안전하다. background 가 reviewHash 로 큐를 조회해 이미 있으면
+ *   초안을 다시 만들지 않는다.
+ */
+function watchForChanges(): void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(tick, RESCAN_DEBOUNCE_MS);
+  }).observe(document.body, { childList: true, subtree: true });
 }
 
 /** 초안을 입력창에 삽입한다. 폼 열기·스크롤·포커스·값 설정은 UI 조작이지 콘텐츠 발행이 아니다. */
@@ -202,11 +264,18 @@ function tick(): void {
   if (!page) return;
 
   if (isSessionExpired(page)) {
+    // ★ 갓 열린 페이지는 아직 그리는 중일 수 있다. 여기서 단정하면 정상 로딩마다
+    //   "다시 로그인하세요" 가 뜬다 — 진짜 만료됐을 때 사장님이 안 믿게 된다.
+    if (Date.now() - loadedAt < SESSION_GRACE_MS) return;
     showBanner("네이버 로그인이 만료된 것 같습니다. 다시 로그인해 주세요.");
-    void sendToBackground({ type: "SESSION_EXPIRED" });
+    if (!sessionExpiryReported) {
+      sessionExpiryReported = true;
+      void sendToBackground({ type: "SESSION_EXPIRED" });
+    }
     return;
   }
 
+  sessionExpiryReported = false;
   hideBanner();
   wirePublishDetection(page);
   void scan(page, currentStoreId);
@@ -236,7 +305,8 @@ async function main(): Promise<void> {
   await loadSpecFromBackground();
 
   startHeartbeat();
-  setInterval(tick, SCAN_INTERVAL_MS);
+  watchForChanges();
+  setInterval(tick, SCAN_INTERVAL_MS); // 옵저버가 놓쳐도 결국 돌게 하는 백스톱
   tick();
 }
 

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateSelectorSpec } from "@selector-spec";
 import { extractReviews } from "../selector/runtime";
-import { planScan } from "./index";
+import { planScan, scanSummary } from "./index";
 
 /**
  * ★ 이 파일의 존재 이유 — content script 가 실측 스펙과 어긋나 있었다(2026-09-20).
@@ -81,5 +81,28 @@ describe("planScan — 배포 스펙 × 실측 DOM", () => {
     ]);
     expect(plan.targets).toHaveLength(0);
     expect(plan.alreadyReplied).toBe(1);
+  });
+});
+
+describe("scanSummary", () => {
+  const empty = { targets: [], unidentified: 0, colliding: 0, alreadyReplied: 0 };
+
+  /**
+   * ★ 이 테스트의 이유 — 실기동에서 "리뷰 0건" 만 찍히고 **왜** 0인지가 없어
+   *   왕복이 한 번 날아갔다(2026-09-20). 컨테이너를 못 찾은 것과 항목이 아직
+   *   안 그려진 것은 대처가 완전히 다르다. 미스 키를 반드시 함께 낸다.
+   */
+  it("0건일 때 미스 키를 함께 낸다", () => {
+    expect(scanSummary(0, empty, ["item"], false)).toContain("미스: item");
+  });
+
+  it("같은 미스가 리뷰 수만큼 쌓여도 한 번만 쓴다", () => {
+    const line = scanSummary(3, empty, ["fields.authorRef", "fields.authorRef", "fields.body"], true);
+    expect(line).toContain("미스: fields.authorRef, fields.body");
+  });
+
+  it("정상이면 미스 표기가 없고, 연결 여부를 밝힌다", () => {
+    expect(scanSummary(9, empty, [], true)).not.toContain("미스");
+    expect(scanSummary(9, empty, [], false)).toContain("미연결");
   });
 });
