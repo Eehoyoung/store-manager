@@ -1575,3 +1575,20 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
 }
+
+/* 자동 게시 스위치 — 저장 버튼 없이 즉시 반영된다(처리방침 §9.4 거부권).
+   ★ 체크박스를 작게 만들지 말 것. 40~60대 기준 터치 목표 44px(docs/14). */
+.persona-page__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+
+.persona-page__switch input {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--color-primary);
+}

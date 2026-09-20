@@ -51,7 +51,13 @@ class AgreementDocumentsTest {
         assertThat(read("privacy"))
                 .contains("자동화된 결정")
                 .contains("제37조의2")
-                .contains("사람에 의한 재검토");
+                // 법정 용어로 잠근다 — 설명·재처리는 §37조의2 가 정한 권리 이름이다.
+                .contains("설명 요구")
+                .contains("재처리 요구")
+                // 결정의 기준·절차·방식 공개가 이 조항의 핵심 의무다.
+                .contains("결정의 기준")
+                .contains("결정의 절차")
+                .contains("결정의 방식");
     }
 
     private static String read(String slug) throws Exception {

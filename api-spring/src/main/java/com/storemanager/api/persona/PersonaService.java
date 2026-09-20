@@ -111,6 +111,24 @@ public class PersonaService {
     }
 
     /**
+     * PUT /stores/{storeId}/auto-publish — 자동 게시 중지·재개.
+     *
+     * <p><b>★ 페르소나 전체 교체와 분리했다.</b> 말투 설정을 저장하다가 실수로 자동 게시가
+     * 켜지거나 꺼지면 안 된다. 이건 취향이 아니라 개인정보 보호법 제37조의2 의 거부권 행사이고,
+     * 처리방침 §9.4 가 "접수 즉시 중지한다" 고 약속한 동작이다.
+     *
+     * <p>끈다고 초안 생성이 멈추지는 않는다 — 초안은 계속 나오고 게시만 사람이 한다.
+     */
+    @Transactional
+    public PersonaResponse setAutoPublish(UUID ownerPublicId, UUID storePublicId, boolean autoPublish) {
+        AppUser owner = resolveUser(ownerPublicId);
+        Store store = loadOwnedStore(owner, storePublicId);
+        StorePersona persona = loadPersona(store.getId());
+        persona.setAutoPublish(autoPublish);
+        return toResponse(persona);
+    }
+
+    /**
      * POST /stores/{storeId}/persona/preview (P3). 저장하지 않는다.
      * ★ AI 가 돌려준 분석의 riskLevel>=3 이면 내용을 응답에 담지 않고 422 RISK_LEVEL_TOO_HIGH.
      */
@@ -290,7 +308,7 @@ public class PersonaService {
                 p.getCustomerTitle(), p.getSignature(), p.getOpeningStyle(),
                 p.getBannedWords() == null ? List.of() : List.of(p.getBannedWords()), p.getLengthMin(),
                 p.getLengthMax(), p.getDelayHours(),
-                readWindows(p.getPublishWindows()), p.getPersonaSeed(),
+                readWindows(p.getPublishWindows()), p.isAutoPublish(), p.getPersonaSeed(),
                 p.getUpdatedAt() == null ? null : p.getUpdatedAt().toString());
     }
 

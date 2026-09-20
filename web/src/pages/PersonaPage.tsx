@@ -90,14 +90,30 @@ export function PersonaPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [newBannedWord, setNewBannedWord] = useState("");
+  // ★ persona 상태(PersonaRequest)와 따로 둔다 — 자동 게시는 저장 버튼이 아니라 즉시 반영이다.
+  const [autoPublish, setAutoPublish] = useState(true);
 
   useEffect(() => {
     if (!storeId) return;
     personaApi
       .get(storeId)
-      .then((res) => setPersona(toRequest(res)))
+      .then((res) => {
+        setPersona(toRequest(res));
+        setAutoPublish(res.autoPublish);
+      })
       .catch((e) => setLoadError(e instanceof ApiError ? e.message : "페르소나 설정을 불러오지 못했습니다."));
   }, [storeId]);
+
+  const toggleAutoPublish = async (next: boolean) => {
+    try {
+      const res = await personaApi.setAutoPublish(storeId, next);
+      setAutoPublish(res.autoPublish);
+      toast.show(next ? "자동 게시를 다시 켰습니다." : "자동 게시를 중지했습니다. 답글은 계속 만들어집니다.",
+        "success");
+    } catch (e) {
+      toast.show(e instanceof ApiError ? e.message : "변경에 실패했습니다.", "danger");
+    }
+  };
 
   const update = (patch: Partial<PersonaRequest>) => {
     setPersona((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -312,8 +328,20 @@ export function PersonaPage() {
 
       <Card className="persona-page__section">
         <h2>자동 게시</h2>
-        <p className="persona-page__auto-publish-notice" role="alert">
-          안전 검사를 통과한 답글은 승인 없이 자동 게시됩니다. 위험·가드레일 차단 건은 게시하지 않습니다.
+        {/* ★ 저장 버튼을 거치지 않고 즉시 반영한다 — 개인정보 보호법 제37조의2 거부권 행사이고,
+            처리방침 §9.4 가 "접수 즉시 중지한다" 고 약속한 동작이다. */}
+        <label className="persona-page__switch">
+          <input
+            type="checkbox"
+            checked={autoPublish}
+            onChange={(e) => void toggleAutoPublish(e.target.checked)}
+          />
+          <span>답글을 자동으로 게시합니다</span>
+        </label>
+        <p className="persona-page__auto-publish-notice" role="status">
+          {autoPublish
+            ? "안전 검사를 통과한 답글은 승인 없이 자동 게시됩니다. 위험·가드레일 차단 건은 게시하지 않습니다."
+            : "자동 게시를 중지했습니다. 답글은 그대로 만들어 두고, 게시는 사장님이 직접 하시게 됩니다."}
         </p>
         <Field
           label="게시 지연 시간(시간)"

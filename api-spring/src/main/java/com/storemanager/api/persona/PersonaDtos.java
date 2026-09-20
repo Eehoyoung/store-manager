@@ -57,7 +57,11 @@ final class PersonaDtos {
     record PersonaResponse(String storeId, String tone, boolean useEmoji, short emojiLevel, String customerTitle,
             String signature, String openingStyle, List<String> bannedWords, short lengthMin, short lengthMax,
             short delayHours,
-            List<WindowDto> publishWindows, int personaSeed, String updatedAt) {
+            List<WindowDto> publishWindows, boolean autoPublish, int personaSeed, String updatedAt) {
+    }
+
+    /** PUT /stores/{id}/auto-publish — 자동화된 결정 거부권 행사(처리방침 §9.4). */
+    record AutoPublishRequest(@NotNull Boolean autoPublish) {
     }
 
     /** POST /persona/preview 요청. persona 가 null 이면 저장된 페르소나를 그대로 쓴다. */

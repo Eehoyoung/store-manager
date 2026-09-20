@@ -129,6 +129,45 @@ class DraftServiceTest {
                 org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
     }
 
+    /**
+     * ★ 개인정보 보호법 제37조의2 거부권의 이행. 처리방침 §9.4 가 "요청하면 자동 게시를
+     * 중지한다" 고 약속한다 — 이 테스트가 그 약속이 코드에서 지켜지는지 본다.
+     *
+     * <p>중지해도 <b>초안은 그대로 나온다.</b> 멈추면 사장님이 빈손이 된다.
+     * 상태는 BLOCKED 가 아니라 DRAFT 다 — 차단은 "규칙을 어겼다", 이건 "직접 올리기로 했다" 다.
+     */
+    @Test
+    void 자동게시를_끄면_예약하지_않고_초안은_남는다() {
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(21L).publicId(reviewPublicId).storeId(100L).linkId(1L)
+                .platform("BAEMIN").platformReviewId("r-21").rating((short) 5).body("맛있어요")
+                .writtenAt(Instant.now()).collectedAt(Instant.now()).build();
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
+                .delayHours((short) 0).publishWindows("[]").autoPublish(false)
+                .personaSeed(1).build();
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+        when(bannedWordQueryRepository.findActiveGlobal()).thenReturn(List.of());
+        when(replyDraftRepository.findRecentPublishedContents(any(), any(), any())).thenReturn(List.of());
+
+        AnalysisOut analysisOut = new AnalysisOut("POSITIVE", "CALM", 0.9f, List.of(), List.of(), 0, List.of(),
+                "local-7b", "v1");
+        DraftOut draftOut = new DraftOut("고객님, 감사합니다", "T1", "local-7b", "v1", List.of(), 0.2f, 100, 40, 0.5);
+        when(aiClient.analyzeAndDraft(any()))
+                .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of()));
+        when(reviewAnalysisRepository.findById(21L)).thenReturn(Optional.empty());
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var result = draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
+
+        assertThat(result.drafts()).hasSize(1);
+        assertThat(result.drafts().get(0).status()).isEqualTo("DRAFT");
+        assertThat(result.drafts().get(0).content()).isEqualTo("고객님, 감사합니다");
+        org.mockito.Mockito.verify(auditLogRepository, org.mockito.Mockito.never()).save(
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
+    }
+
     @Test
     void AI요청에는_전화번호등_식별자가_마스킹되고_리뷰원문은_그대로_남는다() {
         UUID reviewPublicId = UUID.randomUUID();

@@ -150,6 +150,8 @@ export interface PersonaRequest {
 
 export interface PersonaResponse extends PersonaRequest {
   storeId: string;
+  /** 자동 게시 여부. 페르소나 저장(PUT persona)으로는 바뀌지 않는다 — 전용 API 로만 켜고 끈다. */
+  autoPublish: boolean;
   personaSeed: number;
   updatedAt: string;
 }

@@ -6,6 +6,12 @@ export const personaApi = {
   get: (storeId: string) => apiRequest<PersonaResponse>(`/stores/${storeId}/persona`),
   update: (storeId: string, req: PersonaRequest) =>
     apiRequest<PersonaResponse>(`/stores/${storeId}/persona`, { method: "PUT", body: req }),
+  // ★ 페르소나 저장과 분리된 별도 호출이다. 말투를 저장하다가 자동 게시가 함께 바뀌면 안 된다.
+  setAutoPublish: (storeId: string, autoPublish: boolean) =>
+    apiRequest<PersonaResponse>(`/stores/${storeId}/auto-publish`, {
+      method: "PUT",
+      body: { autoPublish },
+    }),
   preview: (storeId: string, reviewId: string, persona: PersonaRequest | null) =>
     apiRequest<PreviewResponse>(`/stores/${storeId}/persona/preview`, {
       method: "POST",

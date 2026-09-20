@@ -220,6 +220,12 @@ public class DraftService {
             draft.blockForAutomationUnavailable();
             return;
         }
+        // ★ 사장님이 자동 게시를 껐으면 예약하지 않는다(처리방침 §9.4 — 자동화된 결정 거부권).
+        //   초안은 그대로 두고 게시만 사람이 한다. 차단이 아니라 DRAFT 로 남긴다 —
+        //   차단은 "규칙을 어겼다" 는 뜻이고 이건 "사장님이 직접 올리기로 했다" 는 뜻이다.
+        if (!persona.isAutoPublish()) {
+            return;
+        }
         // AI 가 risk>=2 를 G8_RISK 로 차단하므로 여기까지 오는 초안은 보통 0~1이다.
         // 임계값이 바뀌어도 절대규칙 risk>=3 차단은 유지한다.
         boolean riskOk = analysis.riskLevel() < RISK_AUTO_BLOCK_LEVEL;

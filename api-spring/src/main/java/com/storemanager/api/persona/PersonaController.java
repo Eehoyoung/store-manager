@@ -1,5 +1,6 @@
 package com.storemanager.api.persona;
 
+import com.storemanager.api.persona.PersonaDtos.AutoPublishRequest;
 import com.storemanager.api.persona.PersonaDtos.PersonaRequest;
 import com.storemanager.api.persona.PersonaDtos.PersonaResponse;
 import com.storemanager.api.persona.PersonaDtos.PreviewRequest;
@@ -39,6 +40,11 @@ public class PersonaController {
     @PutMapping("/api/v1/stores/{storeId}/persona")
     public PersonaResponse update(@PathVariable UUID storeId, @Valid @RequestBody PersonaRequest req) {
         return personaService.updatePersona(CurrentUser.publicId(), storeId, req);
+    }
+
+    @PutMapping("/api/v1/stores/{storeId}/auto-publish")
+    public PersonaResponse setAutoPublish(@PathVariable UUID storeId, @Valid @RequestBody AutoPublishRequest req) {
+        return personaService.setAutoPublish(CurrentUser.publicId(), storeId, req.autoPublish());
     }
 
     @PostMapping("/api/v1/stores/{storeId}/persona/preview")
