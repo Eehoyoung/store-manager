@@ -13,6 +13,8 @@ import type { PageSpec, SelectorSpec } from "@selector-spec";
 import { hashAuthor, maskReviewBody, reviewHash } from "../masking/mask";
 import type { RawReview } from "../selector/runtime";
 import { extractReviews } from "../selector/runtime";
+import { collidingIdentities, parseReviewDates, reviewIdentity } from "../selector/identity";
+import { deriveHasReply } from "../selector/replyState";
 import { handlePublishEvent } from "./publishGate";
 import { hideBanner, showBanner } from "./banner";
 
@@ -57,12 +59,14 @@ async function loadSpecFromBackground(): Promise<void> {
   }
 }
 
-async function maskAndReport(raw: RawReview, storeId: string): Promise<void> {
-  const platformReviewId = String(raw.id ?? "");
-  if (!platformReviewId) return;
-
+async function maskAndReport(
+  raw: RawReview,
+  storeId: string,
+  identity: string,
+  writtenAt: string,
+): Promise<void> {
   const [hash, authorHash] = await Promise.all([
-    reviewHash(platformReviewId, storeId),
+    reviewHash(identity, storeId),
     hashAuthor(String(raw.authorName ?? ""), storeId),
   ]);
 
@@ -73,18 +77,77 @@ async function maskAndReport(raw: RawReview, storeId: string): Promise<void> {
     authorHash,
     rating: typeof raw.rating === "number" ? raw.rating : 0,
     body: maskReviewBody(String(raw.body ?? "")),
-    hasReply: Boolean(raw.hasReply),
-    createdAt: String(raw.createdAt ?? new Date().toISOString()),
+    hasReply: false, // 여기 도달한 건 "답글 쓰기" 버튼이 남아 있는 리뷰뿐이다
+    createdAt: writtenAt,
   });
 }
 
-async function scan(page: PageSpec, storeId: string): Promise<void> {
+export interface ScanPlan {
+  /** 초안을 요청할 리뷰 — 식별 가능하고, 중복이 아니고, 아직 답글이 없다 */
+  targets: { raw: RawReview; identity: string; writtenAt: string }[];
+  /** authorRef 나 작성일을 못 읽어 식별 불가 */
+  unidentified: number;
+  /** 서로 다른 리뷰가 같은 식별자 — 잘못 붙이느니 건너뛴다 */
+  colliding: number;
+  /** 이미 답글이 달려 있어 초안이 필요 없다 */
+  alreadyReplied: number;
+}
+
+/**
+ * 추출 결과를 "무엇을 처리하고 무엇을 왜 건너뛰는가" 로 가른다.
+ *
+ * ★ 순수 함수다 — chrome API·네트워크를 타지 않는다. 이 판정이 곧 수집 품질이라
+ *   테스트가 직접 잡을 수 있어야 한다.
+ * ★ 식별자 계산을 전건 먼저 돌린 뒤 충돌을 본다. 한 건씩 처리하면 충돌을 알 수 없다.
+ */
+export function planScan(items: RawReview[]): ScanPlan {
+  const rows = items.map((raw) => {
+    const { writtenAt, visitedAt } = parseReviewDates(String(raw.dateBlock ?? ""));
+    return { raw, writtenAt, identity: reviewIdentity(String(raw.authorRef ?? ""), writtenAt, visitedAt) };
+  });
+  const collisions = collidingIdentities(rows.map((r) => r.identity));
+
+  const plan: ScanPlan = { targets: [], unidentified: 0, colliding: 0, alreadyReplied: 0 };
+  for (const row of rows) {
+    if (!row.identity || !row.writtenAt) {
+      plan.unidentified += 1;
+      continue;
+    }
+    if (collisions.has(row.identity)) {
+      plan.colliding += 1;
+      continue;
+    }
+    // ★ 이미 답글이 달린 리뷰는 초안을 만들지 않는다. 서버는 hasReply 를 보지 않으므로
+    //   여기서 거르지 않으면 답글이 달린 리뷰마다 유료 LLM 호출이 나간다.
+    if (deriveHasReply(row.raw.replyWriteButton)) {
+      plan.alreadyReplied += 1;
+      continue;
+    }
+    plan.targets.push({ raw: row.raw, identity: row.identity, writtenAt: row.writtenAt });
+  }
+  return plan;
+}
+
+async function scan(page: PageSpec, storeId: string | null): Promise<void> {
   const { items, misses } = extractReviews(document, page);
+  const plan = planScan(items);
+
+  // ★ 항상 콘솔에 남긴다. 확장이 도는지·몇 건을 보는지 확인할 유일한 창구다.
+  //   숫자만 남기고 본문·닉네임은 찍지 않는다(원문을 로그에 흘리지 않는다).
+  console.log(
+    `[리뷰파일럿] 리뷰 ${items.length}건 · 초안대상 ${plan.targets.length} · `
+      + `이미답글 ${plan.alreadyReplied} · 식별불가 ${plan.unidentified} · 충돌 ${plan.colliding}`
+      + (storeId ? "" : "  (미연결 — 서버로 보내지 않는다)"),
+  );
+
   for (const selectorKey of misses) {
     void sendToBackground({ type: "SELECTOR_MISS", selectorKey, pagePath: window.location.pathname });
   }
-  for (const item of items) {
-    await maskAndReport(item, storeId);
+  // 연결 전에는 여기서 멈춘다. 추출은 확인할 수 있고 전송은 하지 않는다.
+  if (!storeId) return;
+
+  for (const t of plan.targets) {
+    await maskAndReport(t.raw, storeId, t.identity, t.writtenAt);
   }
 }
 
@@ -132,7 +195,9 @@ function wirePublishDetection(page: PageSpec): void {
 }
 
 function tick(): void {
-  if (!currentSpec || !currentStoreId) return;
+  // ★ currentStoreId 가 없어도(페어링 전) 추출까지는 돌린다 — 콘솔로 수집 상태를
+  //   확인할 수 있어야 한다. 전송은 scan() 안에서 막힌다.
+  if (!currentSpec) return;
   const page = findPageSpec(currentSpec);
   if (!page) return;
 
