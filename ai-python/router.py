@@ -33,7 +33,7 @@ _LOW_RATING = 2
 
 
 def route(
-    rating: int,
+    rating: int | None,
     body: str,
     category: str,
     risk_level: int,
@@ -63,7 +63,9 @@ def route(
     if (
         risk_level == 2
         or issue_tag_count >= _MULTI_ISSUE
-        or (category == "COMPLAINT" and rating <= _LOW_RATING)
+        # ★ 별점 미상(None)은 저평점 취급하지 않는다. 접으면 별점 없는 리뷰가 전부
+        #   T2(sonnet, T1 의 1.4배)로 가서 원가가 조용히 오른다 — 근거 없는 승급이다.
+        or (category == "COMPLAINT" and rating is not None and rating <= _LOW_RATING)
     ):
         return "T2"
     return "T1"

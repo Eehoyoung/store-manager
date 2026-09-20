@@ -31,14 +31,20 @@ export function canTransition(from: QueueState, to: QueueState): boolean {
 
 export interface QueueItem {
   state: QueueState;
-  rating: number;
+  rating: number | null;
   blocked: boolean;
   riskLevel: number;
 }
 
-/** 일괄 승인 대상 조건. 별점 1~2 는 개별 확인을 강제한다(절대 규칙). */
+/**
+ * 일괄 승인 대상 조건. 별점 1~2 는 개별 확인을 강제한다(절대 규칙).
+ *
+ * ★ 별점 미상(null)도 제외한다. 낮은 별점인지 아닌지를 모르는 채로 한꺼번에
+ *   올리면 절대 규칙을 지켰다고 말할 수 없다. 모르면 개별 확인이다.
+ */
 export function bulkApprovable(item: QueueItem): boolean {
-  return item.state === "VIEWED" && item.rating >= 3 && !item.blocked && item.riskLevel < 2;
+  return item.state === "VIEWED" && item.rating !== null && item.rating >= 3
+    && !item.blocked && item.riskLevel < 2;
 }
 
 export function selectBulkTargets<T extends QueueItem>(items: T[]): T[] {

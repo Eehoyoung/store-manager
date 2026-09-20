@@ -178,8 +178,10 @@ public class NaverDraftService {
     private AiClientDtos.AnalyzeAndDraftRequest buildAiRequest(Store store, StorePersona persona, DraftRequest req) {
         // ★ 2차 방어 — 확장이 브라우저 로컬에서 1차 마스킹을 했더라도 여기서 다시 마스킹한다.
         // 신뢰 경계를 넘어온 입력은 항상 다시 검증한다(DraftService.buildAiRequest 와 동일한 이유).
+        // ★ 별점을 0 으로 접지 않는다. null 은 "별점 없음" 이고 0 은 최저 평점이다.
+        //   접으면 별점 없는 리뷰가 전부 COMPLAINT + T2 로 간다(실기동 2026-09-20).
         AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(
-                req.rating() == null ? 0 : req.rating(),
+                req.rating(),
                 PersonalIdentifierMasker.mask(req.body() == null ? "" : req.body()),
                 List.of(),
                 "NAVER");

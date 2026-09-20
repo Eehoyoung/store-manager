@@ -39,7 +39,10 @@ def require_internal_token(x_internal_token: str | None) -> None:
 class ReviewIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    rating: int = Field(ge=0, le=5)
+    # ★ None = "별점 없음". 0 과 다르다 — 네이버에는 별점이 안 붙는 리뷰가 실제로 있고
+    #   (실측 2026-09-20, 10건 중 2건), 0 으로 접으면 모델·라우터가 최저 평점으로 읽어
+    #   칭찬 리뷰가 COMPLAINT + T2(sonnet) 로 간다. 실기동에서 11건이 그렇게 됐다.
+    rating: int | None = Field(default=None, ge=0, le=5)
     body: str = Field(default="", max_length=10_000)
     menus: list[str] = Field(default_factory=list)
     platform: str
@@ -150,6 +153,15 @@ def _stub_classify(review: ReviewIn) -> prompts.ClassifyOutput:
     기존 스텁과 동일한 계약을 유지해 회귀를 막는다."""
     # tone 은 전부 CALM 이다 — 스텁은 문장을 읽지 않으므로 감정을 짐작할 근거가 없다.
     # 모르면 낮은 쪽이 안전하다(강도를 과하게 잡으면 가벼운 리뷰에 사죄문이 나간다).
+    #
+    # ★ 별점이 없으면 스텁은 아무 근거가 없다. 0 으로 접어 COMPLAINT 로 보내면
+    #   칭찬 리뷰에 사과문이 붙는다(실기동 2026-09-20에서 11건이 그렇게 됐다).
+    #   중립(IMPROVEMENT)으로 둔다 — 스텁은 품질 판정용이 아니라 배관 확인용이다.
+    if review.rating is None:
+        return prompts.ClassifyOutput(
+            category="IMPROVEMENT", tone="CALM", sentiment=0.0,
+            issue_tags=[], praised_tags=[], risk_level=0, risk_reasons=[],
+        )
     if review.rating >= 4:
         return prompts.ClassifyOutput(
             category="POSITIVE", tone="CALM", sentiment=1.0 if review.rating == 5 else 0.6,

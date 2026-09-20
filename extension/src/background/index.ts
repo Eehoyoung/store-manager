@@ -113,7 +113,9 @@ async function handleReviewDetected(message: Record<string, unknown>): Promise<v
   const req = {
     storeId,
     reviewHash,
-    rating: typeof message.rating === "number" ? message.rating : Number(message.rating ?? 0),
+    // ★ null 을 그대로 흘린다. NaverDtos.DraftRequest.rating 이 Integer(nullable) 라
+    //   계약은 원래 "모름" 을 표현할 수 있었는데 확장이 0 으로 접고 있었다.
+    rating: typeof message.rating === "number" ? message.rating : null,
     body: String(message.body ?? ""),
     createdAt: String(message.createdAt ?? new Date().toISOString()),
     hasReply: Boolean(message.hasReply),

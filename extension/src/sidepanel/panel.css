@@ -54,6 +54,13 @@ header .summary {
   background: #fff7f7;
 }
 
+/* 별점 미상 — 낮은 별점(붉은색)과 구분한다. 나쁜 리뷰가 아니라 모르는 리뷰다.
+   ★ 색만으로 구분하지 않는다. 배지 문구가 함께 나간다(docs/14 40~60대 설계 원칙). */
+.card.unrated {
+  border-color: #d4d4d4;
+  background: #fafafa;
+}
+
 .card .meta {
   font-size: 14px;
   color: #666;

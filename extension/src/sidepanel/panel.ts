@@ -8,6 +8,7 @@ import { bulkApprovable } from "../state/machine";
 import { createViewportTracker, type ViewportTracker } from "./viewportTracker";
 import { riskBanner } from "./riskBanner";
 import { approveErrorMessage, pairErrorMessage } from "./pairError";
+import { countNegative, ratingDisplay } from "./ratingLabel";
 
 const app = document.getElementById("app")!;
 
@@ -138,14 +139,15 @@ function openPinModal(onSubmit: (pin: string) => void | Promise<void>): void {
 
 function renderCard(entry: QueueEntry): HTMLElement {
   const card = document.createElement("div");
-  card.className = `card${entry.rating <= 2 ? " low-rating" : ""}${entry.riskLevel >= 2 ? " risky" : ""}`;
+  const rating = ratingDisplay(entry.rating);
+  card.className = `card${rating.className}${entry.riskLevel >= 2 ? " risky" : ""}`;
   card.dataset.reviewHash = entry.reviewHash;
 
-  // ★ 별점 1~2 는 일괄 승인 체크박스를 렌더하지 않는다(이중 방어) — 배지만 표시.
-  const lowRatingBadge = entry.rating <= 2 ? '<span class="badge">개별 확인 필요</span>' : "";
+  // ★ 별점 1~2 와 별점 미상은 일괄 승인에서 빠진다(이중 방어) — 배지로 이유를 밝힌다.
+  const lowRatingBadge = rating.badge ? `<span class="badge">${escapeHtml(rating.badge)}</span>` : "";
 
   card.innerHTML = `
-    <div class="meta">${"★".repeat(Math.max(0, entry.rating))} ${lowRatingBadge}</div>
+    <div class="meta">${escapeHtml(rating.stars)} ${lowRatingBadge}</div>
     ${riskBanner(entry)}
     <div class="body">${escapeHtml(entry.body)}</div>
     <textarea class="draft" data-role="draft">${escapeHtml(entry.draftContent)}</textarea>
@@ -197,7 +199,7 @@ async function renderQueue(): Promise<void> {
         <h1>리뷰파일럿</h1>
         <a href="#" id="open-settings" class="settings-link">⚙ 설정</a>
       </div>
-      <div class="summary">미확인 ${entries.filter((e) => e.state === "DRAFTED").length}건 · 부정 ${entries.filter((e) => e.rating <= 2).length}건</div>
+      <div class="summary">미확인 ${entries.filter((e) => e.state === "DRAFTED").length}건 · 부정 ${countNegative(entries.map((e) => e.rating))}건</div>
     </header>
     <div id="cards"></div>
     <div class="bulk-bar">

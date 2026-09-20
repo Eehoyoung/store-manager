@@ -266,8 +266,11 @@ public class DraftService {
         // ★ privacy.md §6.3 — 외부 AI 에는 비식별 처리된 정보만 보낸다. 여기서 만드는 사본에만 적용하고
         // review.getBody() 등 원본(unified_review.body)은 건드리지 않는다(WP-04, T-6).
         List<String> menus = PersonalIdentifierMasker.maskAll(parseStringList(review.getOrderedMenus()));
+        // ★ 별점 null 을 0 으로 접지 않는다 — 0 은 최저 평점이고 null 은 "모름" 이다.
+        //   배달은 DataAPI 가 별점을 주므로 실질 변화는 없지만, 못 읽었을 때 최저 평점으로
+        //   단정하면 칭찬 리뷰가 COMPLAINT + T2 로 간다(네이버 실기동 2026-09-20).
         AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(
-                review.getRating() == null ? 0 : review.getRating(),
+                review.getRating() == null ? null : review.getRating().intValue(),
                 PersonalIdentifierMasker.mask(review.getBody() == null ? "" : review.getBody()),
                 menus,
                 review.getPlatform());

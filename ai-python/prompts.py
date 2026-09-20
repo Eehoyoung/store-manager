@@ -449,8 +449,18 @@ CLASSIFY_SYSTEM_NAVER += """
 """
 
 
+def _rating_attr(rating: int | None) -> str:
+    """<review rating="..."> 에 넣을 값.
+
+    ★ 별점이 없는 리뷰가 실제로 있다(네이버 실측 2026-09-20). None 을 0 으로 접으면
+      모델이 **최악의 평점**으로 읽어 칭찬 리뷰가 불만으로 분류된다. 실기동에서
+      rating 0 으로 들어온 11건이 전부 COMPLAINT 가 됐다. 모르면 모른다고 적는다.
+    """
+    return "없음" if rating is None else str(rating)
+
+
 def build_classify_messages(
-    review_body: str, rating: int, menus: list[str] | None = None, platform: str | None = None,
+    review_body: str, rating: int | None, menus: list[str] | None = None, platform: str | None = None,
 ) -> tuple[str, str]:
     """(system, user) 프롬프트 쌍을 만든다. review_body 는 <review> 태그로 격리한다.
 
@@ -458,7 +468,7 @@ def build_classify_messages(
     system = CLASSIFY_SYSTEM_NAVER if is_visit_platform(platform) else CLASSIFY_SYSTEM
     menu_str = html.escape(", ".join(menus) if menus else "", quote=True)
     body = html.escape(review_body or "", quote=True)
-    user = f'<review rating="{rating}" menus="{menu_str}">\n{body}\n</review>'
+    user = f'<review rating="{_rating_attr(rating)}" menus="{menu_str}">\n{body}\n</review>'
     return system, user
 
 
@@ -1813,7 +1823,7 @@ def build_generate_messages(
     review_body = html.escape(review.body or "", quote=True)
     user = (
         f"{menu_line}"
-        f'<review rating="{review.rating}">\n{review_body}\n</review>\n\n'
+        f'<review rating="{_rating_attr(review.rating)}">\n{review_body}\n</review>\n\n'
         "위 <review> 태그 안의 내용에 대한 답글 본문만 출력하라. 따옴표, 머리말, 설명을 붙이지 마라."
     )
     return system, user

@@ -166,7 +166,8 @@ public class PersonaService {
                         bannedWordQueryRepository.findActiveGlobal(), saved.getLengthMin(), saved.getLengthMax(),
                         saved.getPersonaSeed());
 
-        AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(review.getRating() == null ? 0 : review.getRating(),
+        // ★ 별점 null 을 0 으로 접지 않는다(DraftService 와 같은 이유).
+        AiClientDtos.ReviewIn reviewIn = new AiClientDtos.ReviewIn(review.getRating() == null ? null : review.getRating().intValue(),
                 review.getBody() == null ? "" : review.getBody(), parseStringList(review.getOrderedMenus()),
                 review.getPlatform());
         AiClientDtos.AnalyzeAndDraftRequest aiReq = new AiClientDtos.AnalyzeAndDraftRequest(

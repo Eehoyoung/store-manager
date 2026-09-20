@@ -4,7 +4,8 @@ import type { QueueState } from "./machine";
 export interface QueueEntry {
   reviewHash: string;
   storeId: string;
-  rating: number;
+  /** 별점. ★ null 은 "별점 없음" 이고 0 과 다르다 — 0 은 최저 평점이다. */
+  rating: number | null;
   /** 마스킹된 리뷰 본문(1·2차 마스킹 완료). 원문이 아니다. */
   body: string;
   draftContent: string;

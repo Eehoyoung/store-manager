@@ -88,7 +88,9 @@ async function maskAndReport(
     storeId,
     reviewHash: hash,
     authorHash,
-    rating: typeof raw.rating === "number" ? raw.rating : 0,
+    // ★ 0 으로 접지 않는다. 네이버에는 별점이 안 붙는 리뷰가 있고(실측 10건 중 2건),
+    //   0 은 "최저 평점" 이라 서버가 칭찬 리뷰를 COMPLAINT + T2 로 보낸다.
+    rating: typeof raw.rating === "number" ? raw.rating : null,
     body: maskReviewBody(String(raw.body ?? "")),
     hasReply: false, // 여기 도달한 건 "답글 쓰기" 버튼이 남아 있는 리뷰뿐이다
     createdAt: writtenAt,

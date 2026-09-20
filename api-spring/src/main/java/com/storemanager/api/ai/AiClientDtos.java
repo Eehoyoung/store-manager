@@ -13,7 +13,12 @@ public final class AiClientDtos {
     private AiClientDtos() {
     }
 
-    public record ReviewIn(int rating, String body, List<String> menus, String platform) {
+    /**
+     * @param rating 별점. <b>null 은 "별점 없음"</b> 이고 0 과 다르다 — 네이버에는 별점이
+     *     안 붙는 리뷰가 있다(실측 2026-09-20). 0 으로 접으면 ai-python 이 최저 평점으로
+     *     읽어 칭찬 리뷰가 COMPLAINT + T2(sonnet) 로 간다. 접지 말 것.
+     */
+    public record ReviewIn(Integer rating, String body, List<String> menus, String platform) {
     }
 
     public record BannedWordIn(String word, String category, String matchType) {
