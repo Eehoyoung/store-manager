@@ -249,7 +249,7 @@ def _publish_error_result(payload: dict, reason: str) -> dict:
 
 @app.task(name="tasks.dispatch_polls")
 def dispatch_polls(account_lister=None) -> dict:
-    """정기 수집 팬아웃 — beat 가 하루 3회(10·16·20시 KST) 부른다.
+    """정기 수집 팬아웃 — beat 가 부른다(기본 하루 1회 10시 KST, COLLECT_POLL_HOURS).
 
     ★ beat 는 이 태스크 하나만 건다. 계정별 스케줄을 beat 에 넣으면 매장이 늘 때마다
       스케줄을 고쳐야 하고, 스케줄 파일이 곧 과금 대상 목록이 된다.

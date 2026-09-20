@@ -10,7 +10,10 @@
  * ★ 네이버에 요청을 보내지 않는다. 이미 저장된 파일만 읽는다(절대 규칙 1·3).
  *
  * 사용법:
- *   node scripts/check-selectors.mjs <page.html> [spec.json]
+ *   npm run check-selectors -- <page.html> [spec.json]
+ *
+ *   ★ node 로 직접 부르지 마라 — src/*.ts 를 임포트하므로 --experimental-strip-types
+ *     가 필요하고, 그 플래그는 package.json 의 이 스크립트에만 붙어 있다.
  *
  *   page.html  크롬 개발자도구에서 리뷰 목록을 감싸는 요소를 우클릭 → Copy → Copy outerHTML
  *              해서 붙여넣은 파일. 페이지 전체를 Ctrl+S 로 저장한 것도 된다.
@@ -38,7 +41,7 @@ const DEFAULT_SPEC = resolve(
 
 const [htmlPath, specPath = DEFAULT_SPEC] = process.argv.slice(2);
 if (!htmlPath) {
-  console.error("사용법: node scripts/check-selectors.mjs <page.html> [spec.json]");
+  console.error("사용법: npm run check-selectors -- <page.html> [spec.json]");
   process.exit(2);
 }
 
