@@ -130,7 +130,8 @@ public class ReviewService {
         }
         String[] flags = d.getGuardrailFlags();
         return new DraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent(),
-                d.getGeneratedBy(), flags == null ? List.of() : List.of(flags));
+                d.getGeneratedBy(), flags == null ? List.of() : List.of(flags),
+                d.getScheduledAt() == null ? null : d.getScheduledAt().toString());
     }
 
     private static AnalysisResponse toAnalysisResponse(ReviewAnalysis a) {

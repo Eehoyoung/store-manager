@@ -25,8 +25,10 @@ final class ReviewDtos {
      * <p>★ 최종 판정은 여전히 서버가 한다({@code RiskApprovalService.APPROVABLE_FLAG}).
      * 화면 검사는 사용자 편의일 뿐이며, 이 필드를 근거로 서버 검사를 줄이지 말 것.
      */
+    /** ★ scheduledAt 은 SCHEDULED 초안의 게시 예정 시각이다. 화면이 "언제 나가는지" 를 보여주고
+     *  게시 전에 멈출 수 있게 하는 데 쓴다(약관 제6조 제4항). 다른 상태에서는 null 이다. */
     record DraftSummaryResponse(String id, String status, String content, String generatedBy,
-            List<String> guardrailFlags) {
+            List<String> guardrailFlags, String scheduledAt) {
     }
 
     record ReviewSummaryResponse(String id, String platform, Integer rating, String body, String authorMasked,

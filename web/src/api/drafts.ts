@@ -31,6 +31,8 @@ export const draftsApi = {
   approve: (draftId: string, req: ApproveDraftRequest) =>
     apiRequest<DraftResponse>(`/drafts/${draftId}/approve`, { method: "POST", body: req }),
   reject: (draftId: string) => apiRequest<DraftResponse>(`/drafts/${draftId}/reject`, { method: "POST" }),
+  /** 예약된 답글을 게시 전에 취소한다(약관 제6조 제4항). 이미 게시 처리가 시작됐으면 서버가 거절한다. */
+  cancel: (draftId: string) => apiRequest<DraftResponse>(`/drafts/${draftId}/cancel`, { method: "POST" }),
 };
 
 /**

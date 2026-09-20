@@ -43,6 +43,12 @@ public class RiskApprovalController {
         return riskApprovalService.approve(CurrentUser.publicId(), draftId, acked, content);
     }
 
+    /** 예약된 답글을 게시 전에 취소한다(약관 제6조 제4항). 위험 초안 거절(reject)과 다른 경로다. */
+    @PostMapping("/api/v1/drafts/{draftId}/cancel")
+    public DraftResponse cancel(@PathVariable UUID draftId) {
+        return riskApprovalService.cancelScheduled(CurrentUser.publicId(), draftId);
+    }
+
     @PostMapping("/api/v1/drafts/{draftId}/reject")
     public DraftResponse reject(@PathVariable UUID draftId) {
         return riskApprovalService.reject(CurrentUser.publicId(), draftId);

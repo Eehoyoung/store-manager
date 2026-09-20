@@ -1592,3 +1592,21 @@
   height: 24px;
   accent-color: var(--color-primary);
 }
+
+/* 예약된 답글 안내 — 게시 전에 멈출 수 있다는 것을 보이게 한다.
+   위험 차단 안내(빨강)와 색을 달리한다. 이건 경고가 아니라 진행 중 상태다. */
+.queue-item__scheduled-notice {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.queue-item__scheduled-notice p {
+  margin: 0;
+}

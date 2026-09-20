@@ -37,6 +37,11 @@ public class PublishScheduler {
     private static final Logger log = LoggerFactory.getLogger(PublishScheduler.class);
     private static final short RISK_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3
     private static final String DISPATCH_KEY_PREFIX = "dispatch:draft:";
+
+    /** ★ 취소 경로(RiskApprovalService.cancelScheduled)가 같은 키를 본다. 한쪽만 바꾸지 말 것. */
+    static String dispatchKey(Long draftId) {
+        return DISPATCH_KEY_PREFIX + draftId;
+    }
     private static final String QUEUE_KEY = "q:publish";
     private static final Duration DISPATCH_TTL = Duration.ofSeconds(900);
     private static final int BATCH_SIZE = 100;
@@ -124,7 +129,7 @@ public class PublishScheduler {
             return;
         }
 
-        String dispatchKey = DISPATCH_KEY_PREFIX + draft.getId();
+        String dispatchKey = dispatchKey(draft.getId());
         String dispatchToken = UUID.randomUUID().toString();
         Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(dispatchKey, dispatchToken, DISPATCH_TTL);
         if (!Boolean.TRUE.equals(acquired)) {

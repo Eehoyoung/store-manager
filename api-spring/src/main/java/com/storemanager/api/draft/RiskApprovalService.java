@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.storemanager.api.review.ReplyStyleSample;
@@ -60,12 +61,13 @@ public class RiskApprovalService {
     private final AuditLogRepository auditLogRepository;
     private final StoreServiceGate serviceGate;
     private final ReplyStyleSampleRepository replyStyleSampleRepository;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public RiskApprovalService(ReplyDraftRepository replyDraftRepository,
             UnifiedReviewRepository unifiedReviewRepository, ReviewAnalysisRepository reviewAnalysisRepository,
             StoreRepository storeRepository, StorePersonaRepository storePersonaRepository,
             AppUserRepository appUserRepository, AuditLogRepository auditLogRepository, StoreServiceGate serviceGate,
-            ReplyStyleSampleRepository replyStyleSampleRepository) {
+            ReplyStyleSampleRepository replyStyleSampleRepository, StringRedisTemplate stringRedisTemplate) {
         this.replyDraftRepository = replyDraftRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
@@ -75,6 +77,44 @@ public class RiskApprovalService {
         this.auditLogRepository = auditLogRepository;
         this.serviceGate = serviceGate;
         this.replyStyleSampleRepository = replyStyleSampleRepository;
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
+
+    /**
+     * 예약된 답글을 게시 전에 취소한다.
+     *
+     * <p><b>★ 이미 워커로 넘어간 건은 취소할 수 없다.</b> {@code PublishScheduler} 가 디스패치할 때
+     * {@code dispatch:draft:{id}} 키를 잡는다. 그 키가 살아 있으면 게시 잡이 이미 나간 것이고,
+     * 여기서 상태만 BLOCKED 로 바꿔 봐야 <b>답글은 그대로 게시된다.</b> 그러면 화면은 "취소됨" 이라고
+     * 하는데 플랫폼에는 답글이 달린, 가장 나쁜 상태가 된다. 차라리 취소를 거절하고 사실대로 말한다.
+     *
+     * <p>키 이름을 {@code PublishScheduler} 와 맞춰야 한다 — 한쪽만 바꾸면 이 방어가 조용히 꺼진다.
+     */
+    @Transactional
+    public DraftDtos.DraftResponse cancelScheduled(UUID ownerPublicId, UUID draftPublicId) {
+        AppUser owner = resolveUser(ownerPublicId);
+        ReplyDraft draft = replyDraftRepository.findByPublicId(draftPublicId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        loadOwnedStore(owner, draft.getStoreId());
+
+        if (!"SCHEDULED".equals(draft.getStatus())) {
+            throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
+                    Map.of("currentStatus", draft.getStatus(), "reason", "예약된 답글만 취소할 수 있습니다."));
+        }
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(PublishScheduler.dispatchKey(draft.getId())))) {
+            throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
+                    Map.of("currentStatus", draft.getStatus(),
+                            "reason", "이미 게시 처리가 시작되어 취소할 수 없습니다."));
+        }
+
+        draft.cancelByOwner(owner.getId());
+        replyDraftRepository.save(draft);
+        auditLogRepository.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
+                .action("DRAFT_OWNER_CANCELED").targetType("REPLY_DRAFT").targetId(draft.getId()).build());
+
+        UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId())
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        return DraftDtos.DraftResponse.from(draft, review.getPublicId());
     }
 
     /**

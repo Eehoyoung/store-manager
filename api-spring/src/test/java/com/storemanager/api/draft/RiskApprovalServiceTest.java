@@ -2,6 +2,9 @@ package com.storemanager.api.draft;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import com.storemanager.api.audit.AuditLog;
@@ -50,6 +53,7 @@ class RiskApprovalServiceTest {
     @Mock private AuditLogRepository auditLogRepository;
     @Mock private StoreServiceGate serviceGate;
     @Mock private com.storemanager.api.review.ReplyStyleSampleRepository replyStyleSampleRepository;
+    @Mock private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     private RiskApprovalService service;
 
@@ -60,7 +64,7 @@ class RiskApprovalServiceTest {
     void setUp() {
         service = new RiskApprovalService(replyDraftRepository, unifiedReviewRepository, reviewAnalysisRepository,
                 storeRepository, storePersonaRepository, appUserRepository, auditLogRepository, serviceGate,
-                replyStyleSampleRepository);
+                replyStyleSampleRepository, stringRedisTemplate);
 
         AppUser owner = AppUser.builder().id(7L).publicId(ownerPublicId).email("o@t.com").name("사장").build();
         Store store = Store.builder().id(100L).ownerId(7L).name("시연점").build();
@@ -231,5 +235,54 @@ class RiskApprovalServiceTest {
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
         assertThat(d.isHumanApproved()).isFalse();
         assertThat(d.getGuardrailFlags()).contains("HUMAN_REJECTED");
+    }
+
+    /**
+     * ★ 약관 제6조 제4항이 "게시 예정 내역을 확인할 수 있다" 고 말하는 것의 실효 수단이다.
+     * 이 경로가 없으면 위험도 2 답글이 지연 시간 뒤 그대로 나가고 사장님이 막을 길이 없다.
+     */
+    @Test
+    void 예약된_답글을_사장님이_취소하면_BLOCKED_로_종결된다() {
+        ReplyDraft draft = ReplyDraft.builder().id(50L).publicId(draftPublicId).reviewId(10L).storeId(100L)
+                .content("고객님, 불편을 드려 죄송합니다.").status("SCHEDULED").generatedBy("AI")
+                .guardrailFlags(new String[0]).build();
+        when(replyDraftRepository.findByPublicId(draftPublicId)).thenReturn(Optional.of(draft));
+        when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var res = service.cancelScheduled(ownerPublicId, draftPublicId);
+
+        assertThat(res.status()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).contains("OWNER_CANCELED");
+    }
+
+    /**
+     * ★ 워커로 이미 넘어간 건을 "취소됨" 이라고 말하면 안 된다.
+     *
+     * <p>디스패치 키가 살아 있으면 게시 잡이 나간 것이다. 여기서 상태만 바꿔도 답글은 게시된다 —
+     * 화면은 취소됐다고 하는데 플랫폼에는 답글이 달린, 가장 나쁜 상태가 된다.
+     */
+    @Test
+    void 이미_디스패치된_답글은_취소를_거절한다() {
+        ReplyDraft draft = ReplyDraft.builder().id(50L).publicId(draftPublicId).reviewId(10L).storeId(100L)
+                .content("고객님, 불편을 드려 죄송합니다.").status("SCHEDULED").generatedBy("AI")
+                .guardrailFlags(new String[0]).build();
+        when(replyDraftRepository.findByPublicId(draftPublicId)).thenReturn(Optional.of(draft));
+        when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.cancelScheduled(ownerPublicId, draftPublicId))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("현재 상태");
+        assertThat(draft.getStatus()).isEqualTo("SCHEDULED");
+    }
+
+    @Test
+    void 예약_상태가_아닌_초안은_취소할_수_없다() {
+        ReplyDraft draft = ReplyDraft.builder().id(50L).publicId(draftPublicId).reviewId(10L).storeId(100L)
+                .content("내용").status("PUBLISHED").generatedBy("AI").guardrailFlags(new String[0]).build();
+        when(replyDraftRepository.findByPublicId(draftPublicId)).thenReturn(Optional.of(draft));
+
+        assertThatThrownBy(() -> service.cancelScheduled(ownerPublicId, draftPublicId))
+                .isInstanceOf(ApiException.class);
     }
 }

@@ -380,6 +380,8 @@ function ReviewDetailModal({
                 const generatedByLabel = describeGeneratedBy(d.generatedBy);
                 // drafts 는 재생성 이력 최신순이다 — 승인·거절은 가장 최근 초안(idx===0)에만 연다.
                 const isLatestBlocked = idx === 0 && d.status === "BLOCKED";
+                // 예약된 답글은 게시 전까지 멈출 수 있어야 한다 — 없으면 지연 시간이 지나면 그대로 나간다.
+                const isCancelable = idx === 0 && d.status === "SCHEDULED";
                 return (
                   <li key={d.id} className="review-detail__draft">
                     <Badge tone={meta.tone} icon={meta.icon}>
@@ -387,6 +389,16 @@ function ReviewDetailModal({
                     </Badge>
                     {generatedByLabel ? <Badge tone="info">{generatedByLabel}</Badge> : null}
                     <p>{d.content}</p>
+                    {isCancelable ? (
+                      <CancelScheduledPanel
+                        draftId={d.id}
+                        scheduledAt={d.scheduledAt}
+                        onDone={() => {
+                          reload();
+                          onDraftChanged();
+                        }}
+                      />
+                    ) : null}
                     {isLatestBlocked ? (
                       <RiskApprovalPanel
                         draftId={d.id}
@@ -407,6 +419,58 @@ function ReviewDetailModal({
         </div>
       ) : null}
     </Modal>
+  );
+}
+
+/**
+ * 예약된 답글을 게시 전에 멈추는 패널.
+ *
+ * ★ 이것이 없으면 위험도 2(화·분노) 답글이 지연 시간이 지나면 그대로 나가고 사장님이 막을
+ *   길이 없다. 약관 제6조 제4항이 "게시 전에 취소할 수 있다" 고 말하는 것의 실효 수단이다.
+ *
+ * ★ 서버가 거절할 수 있다. 워커로 이미 넘어간 건은 상태만 바꿔 봐야 답글이 나가므로
+ *   서버가 취소를 거부한다 — 그 메시지를 그대로 보여준다. "취소됐다" 고 거짓말하지 않는다.
+ */
+function CancelScheduledPanel({
+  draftId,
+  scheduledAt,
+  onDone,
+}: {
+  draftId: string;
+  scheduledAt: string | null;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCancel = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await draftsApi.cancel(draftId);
+      toast.show("게시하지 않기로 했습니다.", "info");
+      onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "취소 처리 중 오류가 발생했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="queue-item__scheduled-notice" role="group" aria-label="예약된 답글">
+      <p>
+        {scheduledAt
+          ? `${new Date(scheduledAt).toLocaleString("ko-KR")}에 게시될 예정입니다.`
+          : "게시 예정입니다."}{" "}
+        그 전까지는 멈추실 수 있습니다.
+      </p>
+      {error ? <p className="field__error" role="alert">{error}</p> : null}
+      <Button type="button" variant="secondary" loading={busy} onClick={() => void handleCancel()}>
+        게시하지 않기
+      </Button>
+    </div>
   );
 }
 

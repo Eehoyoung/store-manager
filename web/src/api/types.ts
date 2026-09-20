@@ -107,6 +107,8 @@ export interface DraftSummary {
   generatedBy: string | null;
   /** 차단 사유. BLOCKED 초안의 승인 가능 여부(RISK_LEVEL_TOO_HIGH 단독인가)를 미리 판정하는 근거다. */
   guardrailFlags: string[];
+  /** SCHEDULED 일 때의 게시 예정 시각. 그 전까지 사장님이 취소할 수 있다. */
+  scheduledAt: string | null;
 }
 
 /** GET /stores/{storeId}/reviews 항목(ReviewDtos.ReviewSummaryResponse). */

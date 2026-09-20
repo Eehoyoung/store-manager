@@ -219,6 +219,23 @@ public class ReplyDraft {
         return approvedBy != null && riskAckAt != null;
     }
 
+    /**
+     * 사장님이 예약된 답글을 게시 전에 취소한다.
+     *
+     * <p><b>★ 약관 제6조 제4항이 "게시 예정 내역을 확인할 수 있다" 고 말하는 것의 실효 수단이다.</b>
+     * 이것이 없으면 위험도 2(화·분노) 답글이 지연 시간 뒤 그대로 나가고 사장님이 막을 길이 없다.
+     *
+     * <p><b>★ 되돌리지 않는다.</b> BLOCKED 로 종결하고 다시 예약하지 않는다 — 취소는
+     * "이 답글은 안 나간다" 는 뜻이지 "나중에 다시 보자" 가 아니다. 다시 쓰려면 새로 만든다.
+     */
+    public void cancelByOwner(Long userId) {
+        requireStatus("SCHEDULED");
+        this.status = "BLOCKED";
+        this.approvedBy = userId;
+        this.approvedAt = Instant.now();
+        this.guardrailFlags = appendFlag(this.guardrailFlags, "OWNER_CANCELED");
+    }
+
     /** 예약 이후 필수 참조나 매장 활성 조건이 사라지면 fail-closed로 종결한다. */
     public void blockForScheduling(String reason) {
         requireStatus("SCHEDULED");
