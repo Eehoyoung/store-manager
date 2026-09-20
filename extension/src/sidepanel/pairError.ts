@@ -16,3 +16,28 @@ export function pairErrorMessage(reason?: string, baseUrl?: string): string {
   }
   return `서버가 오류를 돌려줬습니다 (${reason ?? "원인 미상"}). 잠시 후 다시 시도해 주세요.`;
 }
+
+/**
+ * 승인(초안 삽입) 실패 문구.
+ *
+ * ★ 초안은 **그 리뷰의** 입력창에만 넣는다. 열려 있는 아무 입력창에 넣으면 다른
+ *   손님 리뷰에 남의 답글이 게시된다. 그래서 못 넣는 경우가 정상적으로 존재하고,
+ *   그때 무엇을 해야 하는지 화면이 말해 줘야 한다. 조용히 실패하면 사장님은
+ *   승인이 된 줄 안다.
+ */
+export function approveErrorMessage(reason?: string): string {
+  switch (reason) {
+    case "BOX_NOT_OPEN":
+      return "네이버 화면에서 이 리뷰의 '답글 쓰기' 를 먼저 눌러 입력창을 열어 주세요.";
+    case "REVIEW_NOT_FOUND":
+      return "이 리뷰가 지금 화면에 보이지 않습니다. 리뷰 목록을 새로고침하거나 스크롤해 주세요.";
+    case "NO_TAB":
+      return "네이버 리뷰 페이지 탭을 찾지 못했습니다. 탭을 열고 다시 시도해 주세요.";
+    case "NOT_VIEWED":
+      return "먼저 리뷰 내용을 확인해 주세요.";
+    case "NO_SPEC":
+      return "리뷰 페이지 준비가 아직 끝나지 않았습니다. 잠시 후 다시 눌러 주세요.";
+    default:
+      return `승인하지 못했습니다 (${reason ?? "원인 미상"}).`;
+  }
+}

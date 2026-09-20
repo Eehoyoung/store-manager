@@ -29,9 +29,9 @@ const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 
 let currentSpec: SelectorSpec | null = null;
 let currentStoreId: string | null = null;
-// background 가 INSERT_DRAFT 로 밀어준 초안이 어느 리뷰의 것인지 추적한다.
-// 게시 감지 시점에는 DOM 에 리뷰 식별자가 없으므로 이 값으로만 매칭한다.
-let activeReviewHash: string | null = null;
+// ★ activeReviewHash 전역을 없앴다. "마지막으로 삽입한 리뷰" 하나만 들고 있으면
+//   그 사이 다른 리뷰가 게시될 때 오귀속된다. 이제 게시 리스너가 자기 리뷰의 해시를
+//   클로저로 들고 있어 전역 상태가 필요 없다.
 const wiredElements = new WeakSet<Element>();
 // 같은 결과를 반복해서 찍지 않는다 — 옵저버가 자주 깨우므로 콘솔이 금세 묻힌다.
 let lastScanLine = "";
@@ -220,10 +220,46 @@ function watchForChanges(): void {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
-/** 초안을 입력창에 삽입한다. 폼 열기·스크롤·포커스·값 설정은 UI 조작이지 콘텐츠 발행이 아니다. */
-export function insertDraft(page: PageSpec, content: string): boolean {
+/** INSERT_DRAFT 결과. 실패 이유를 반드시 구분한다 — 사장님이 할 일이 다르다. */
+export type InsertResult =
+  | { ok: true }
+  | { ok: false; reason: "REVIEW_NOT_FOUND" | "BOX_NOT_OPEN" | "NO_SPEC" };
+
+/**
+ * reviewHash 가 가리키는 리뷰 항목을 찾는다.
+ *
+ * ★ 이게 없으면 답글이 엉뚱한 손님에게 간다. 이전 구현은 전역
+ *   document.querySelector 로 "열려 있는 아무 입력창" 을 잡았다. 사장님이 A 리뷰의
+ *   입력창을 열어 둔 채 패널에서 B 카드를 승인하면 B의 답글이 A 입력창에 들어가고,
+ *   그대로 등록하면 **다른 손님 리뷰에 남의 답글이 게시된다.** 게다가 우리 기록은
+ *   "B 게시됨" 이라 사후에 알아낼 방법도 없다.
+ *
+ * ★ 셀렉터 지식을 여기 다시 쓰지 않는다 — extractReviews 가 이미 파싱한 값을 쓴다.
+ */
+async function findReviewItem(
+  page: PageSpec,
+  storeId: string,
+  targetHash: string,
+): Promise<Element | null> {
+  const { items, elements } = extractReviews(document, page);
+  for (let i = 0; i < items.length; i += 1) {
+    const { writtenAt, visitedAt } = parseReviewDates(String(items[i].dateBlock ?? ""));
+    const identity = reviewIdentity(String(items[i].authorRef ?? ""), writtenAt, visitedAt);
+    if (!identity) continue;
+    if ((await reviewHash(identity, storeId)) === targetHash) return elements[i];
+  }
+  return null;
+}
+
+/**
+ * 초안을 **그 리뷰의** 입력창에 삽입한다. 폼 열기·스크롤·포커스·값 설정은 UI 조작이지
+ * 콘텐츠 발행이 아니다. 게시 버튼은 건드리지 않는다(절대규칙 6·7·8).
+ *
+ * ★ item 범위 밖은 쳐다보지 않는다. 못 찾으면 조용히 다른 곳에 쓰지 말고 실패한다.
+ */
+export function insertDraft(item: Element, page: PageSpec, content: string): boolean {
   if (!page.replyInput) return false;
-  const textarea = document.querySelector<HTMLTextAreaElement>(page.replyInput);
+  const textarea = item.querySelector<HTMLTextAreaElement>(page.replyInput);
   if (!textarea) return false;
 
   textarea.scrollIntoView({ block: "center" });
@@ -239,28 +275,31 @@ export function isSessionExpired(page: PageSpec): boolean {
   return document.querySelector(page.container) === null;
 }
 
-/** 게시 감지 배선. onPosted 는 handlePublishEvent 를 통해서만 호출된다(isTrusted 게이트). */
-function wirePublishDetection(page: PageSpec): void {
-  const onPosted = () => {
-    void sendToBackground({
-      type: "REVIEW_POSTED",
-      pagePath: window.location.pathname,
-      reviewHash: activeReviewHash,
-    });
-    activeReviewHash = null;
-  };
-
-  const form = page.replyForm ? document.querySelector(page.replyForm) : null;
-  if (form && !wiredElements.has(form)) {
-    form.addEventListener("submit", (e) => handlePublishEvent(e, onPosted));
-    wiredElements.add(form);
-  }
-
-  const button = page.replySubmitButton ? document.querySelector(page.replySubmitButton) : null;
-  if (button && !wiredElements.has(button)) {
-    button.addEventListener("click", (e) => handlePublishEvent(e, onPosted));
-    wiredElements.add(button);
-  }
+/**
+ * 게시 감지 배선 — **초안을 넣은 그 리뷰의 등록 버튼에만** 건다.
+ *
+ * ★ onPosted 는 handlePublishEvent 를 통해서만 불린다(isTrusted 게이트).
+ *   합성 이벤트로는 절대 발화하지 않는다. 이것이 "사장님이 직접 눌렀다" 의 증거다.
+ *
+ * ★ replyForm 배선은 없앴다. 답글 영역에 <form> 이 존재하지 않는데(실측 2026-09-20)
+ *   전역 querySelector("form") 은 페이지의 다른 폼(검색·필터)을 잡는다. 사장님이
+ *   검색만 해도 isTrusted=true 인 submit 이 와서 게시하지 않은 답글이 POSTED 로
+ *   기록됐다. 되살리지 말 것.
+ */
+function wirePublishDetection(item: Element, page: PageSpec, hash: string): void {
+  if (!page.replySubmitButton) return;
+  const button = item.querySelector(page.replySubmitButton);
+  if (!button || wiredElements.has(button)) return;
+  wiredElements.add(button);
+  button.addEventListener("click", (e) =>
+    handlePublishEvent(e, () => {
+      void sendToBackground({
+        type: "REVIEW_POSTED",
+        pagePath: window.location.pathname,
+        reviewHash: hash,
+      });
+    }),
+  );
 }
 
 function tick(): void {
@@ -284,7 +323,6 @@ function tick(): void {
 
   sessionExpiryReported = false;
   hideBanner();
-  wirePublishDetection(page);
   void scan(page, currentStoreId);
 }
 
@@ -292,15 +330,32 @@ function startHeartbeat(): void {
   setInterval(() => void sendToBackground({ type: "HEARTBEAT" }), HEARTBEAT_INTERVAL_MS);
 }
 
+async function handleInsertDraft(hash: string, content: string): Promise<InsertResult> {
+  if (!currentSpec || !currentStoreId) return { ok: false, reason: "NO_SPEC" };
+  const page = findPageSpec(currentSpec);
+  if (!page) return { ok: false, reason: "NO_SPEC" };
+
+  const item = await findReviewItem(page, currentStoreId, hash);
+  if (!item) return { ok: false, reason: "REVIEW_NOT_FOUND" };
+  if (!insertDraft(item, page, content)) return { ok: false, reason: "BOX_NOT_OPEN" };
+
+  wirePublishDetection(item, page, hash);
+  return { ok: true };
+}
+
 function wireDraftInsertion(): void {
   // side panel 승인 후 background 가 밀어주는 초안을 입력창에 반영한다.
+  // ★ 반드시 결과를 돌려준다. 예전에는 fire-and-forget 이라 삽입이 실패해도
+  //   background 가 INSERTED 로 마킹했다 — 아무 데도 안 들어갔는데 기록만 남았다.
   chrome.runtime.onMessage.addListener(
-    (message: { type: string; reviewHash?: string; content?: string }) => {
-      if (message.type !== "INSERT_DRAFT" || !currentSpec || !message.reviewHash || !message.content) return;
-      const page = findPageSpec(currentSpec);
-      if (page && insertDraft(page, message.content)) {
-        activeReviewHash = message.reviewHash;
+    (message: { type: string; reviewHash?: string; content?: string }, _sender, sendResponse) => {
+      if (message.type !== "INSERT_DRAFT") return undefined;
+      if (!message.reviewHash || !message.content) {
+        sendResponse({ ok: false, reason: "NO_SPEC" } satisfies InsertResult);
+        return undefined;
       }
+      void handleInsertDraft(message.reviewHash, message.content).then(sendResponse);
+      return true; // 비동기 응답
     },
   );
 }

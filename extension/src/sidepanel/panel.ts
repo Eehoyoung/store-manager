@@ -7,7 +7,7 @@ import type { NaverStore } from "../api/client";
 import { bulkApprovable } from "../state/machine";
 import { createViewportTracker, type ViewportTracker } from "./viewportTracker";
 import { riskBanner } from "./riskBanner";
-import { pairErrorMessage } from "./pairError";
+import { approveErrorMessage, pairErrorMessage } from "./pairError";
 
 const app = document.getElementById("app")!;
 
@@ -153,14 +153,25 @@ function renderCard(entry: QueueEntry): HTMLElement {
       <button data-role="approve">승인</button>
       <button data-role="skip">건너뛰기</button>
     </div>
+    <p data-role="note" style="color:#b3261e;font-size:13px;margin:6px 0 0"></p>
   `;
 
   card.querySelector<HTMLTextAreaElement>('[data-role="draft"]')!.addEventListener("change", (e) => {
     const content = (e.target as HTMLTextAreaElement).value;
     void sendToBackground({ type: "EDIT_ITEM", reviewHash: entry.reviewHash, content });
   });
-  card.querySelector('[data-role="approve"]')!.addEventListener("click", () => {
-    void sendToBackground({ type: "APPROVE_ITEM", reviewHash: entry.reviewHash }).then(renderQueue);
+  card.querySelector('[data-role="approve"]')!.addEventListener("click", async () => {
+    const res = await sendToBackground<{ ok: boolean; reason?: string }>({
+      type: "APPROVE_ITEM",
+      reviewHash: entry.reviewHash,
+    });
+    if (!res.ok) {
+      // ★ 카드 안에 띄운다. 어느 리뷰 때문인지가 문구만큼 중요하다.
+      const note = card.querySelector<HTMLElement>('[data-role="note"]')!;
+      note.textContent = approveErrorMessage(res.reason);
+      return;
+    }
+    await renderQueue();
   });
   card.querySelector('[data-role="skip"]')!.addEventListener("click", () => {
     void sendToBackground({ type: "SKIP_ITEM", reviewHash: entry.reviewHash }).then(renderQueue);

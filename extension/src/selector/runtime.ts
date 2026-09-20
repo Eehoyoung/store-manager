@@ -14,6 +14,12 @@ export interface ExtractResult {
   misses: string[];
   /** 필드별 결손 건수. 부분 결손도 담는다 — 진단용이고 킬스위치를 돌리지 않는다. */
   fieldMisses: Record<string, number>;
+  /**
+   * items[i] 를 뽑아낸 항목 엘리먼트. 인덱스가 서로 대응한다.
+   * ★ 답글 삽입이 "어느 리뷰인지" 를 특정하려면 필요하다 — 전역 querySelector 로
+   *   아무 입력창이나 잡으면 다른 손님 리뷰에 답글이 들어간다.
+   */
+  elements: Element[];
 }
 
 /** 리뷰 식별자처럼 항목 루트 엘리먼트 자신에 속성이 붙는 경우도 있어 자신도 포함해 찾는다. */
@@ -66,7 +72,7 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
   const containers = root.querySelectorAll(page.container);
   if (containers.length === 0) {
     misses.push("container");
-    return { items: [], misses, fieldMisses };
+    return { items: [], misses, fieldMisses, elements: [] };
   }
 
   const itemEls: Element[] = [];
@@ -75,7 +81,7 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
   });
   if (itemEls.length === 0) {
     misses.push("item");
-    return { items: [], misses, fieldMisses };
+    return { items: [], misses, fieldMisses, elements: [] };
   }
 
   const items: RawReview[] = [];
@@ -101,5 +107,5 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
     if (count === itemEls.length) misses.push(`fields.${key}`);
   }
 
-  return { items, misses, fieldMisses };
+  return { items, misses, fieldMisses, elements: itemEls };
 }

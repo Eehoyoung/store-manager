@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pairErrorMessage } from "./pairError";
+import { approveErrorMessage, pairErrorMessage } from "./pairError";
 
 /**
  * ★ 실기동에서 이것 때문에 한참 헤맸다(2026-09-20). API 주소가 운영 서버로
@@ -21,5 +21,24 @@ describe("pairErrorMessage", () => {
 
   it("모르는 이유도 숨기지 않고 그대로 보여준다", () => {
     expect(pairErrorMessage("HTTP_503")).toContain("HTTP_503");
+  });
+});
+
+describe("approveErrorMessage", () => {
+  /**
+   * ★ 초안은 그 리뷰의 입력창에만 넣는다. 그래서 "못 넣음" 이 정상적으로 발생하고,
+   *   그때 무엇을 해야 하는지 화면이 말해 줘야 한다. 조용히 실패하면 사장님은
+   *   승인이 된 줄 안다.
+   */
+  it("입력창이 닫혀 있으면 '답글 쓰기' 를 누르라고 말한다", () => {
+    expect(approveErrorMessage("BOX_NOT_OPEN")).toContain("답글 쓰기");
+  });
+
+  it("화면 밖 리뷰면 스크롤·새로고침을 안내한다", () => {
+    expect(approveErrorMessage("REVIEW_NOT_FOUND")).toContain("스크롤");
+  });
+
+  it("모르는 이유도 숨기지 않는다", () => {
+    expect(approveErrorMessage("WAT")).toContain("WAT");
   });
 });

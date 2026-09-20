@@ -155,14 +155,27 @@ async function handleReviewPosted(message: Record<string, unknown>): Promise<voi
   await reportEvent(entry.storeId, reviewHash, "POSTED", entry.edited);
 }
 
-/** 승인된 초안을 활성 탭에 삽입 요청한다. 게시는 여전히 사람이 네이버 버튼을 눌러야 한다. */
-function pushInsertDraft(entry: QueueEntry): void {
-  if (activeNaverTabId === null) return; // 탭 미확인 — 다음 heartbeat 이후 재시도 대상(패널에서 재승인)
-  chrome.tabs.sendMessage(activeNaverTabId, {
-    type: "INSERT_DRAFT",
-    reviewHash: entry.reviewHash,
-    content: entry.draftContent,
-  });
+/** content script 가 돌려주는 삽입 결과. extension/src/content/index.ts 와 같은 모양. */
+type InsertResult = { ok: true } | { ok: false; reason: string };
+
+/**
+ * 승인된 초안을 활성 탭의 **그 리뷰** 입력창에 넣어 달라고 요청한다.
+ * 게시는 여전히 사장님이 네이버 등록 버튼을 직접 눌러야 한다(절대규칙 6·7·8).
+ *
+ * ★ 결과를 기다린다. 예전에는 fire-and-forget 이라 삽입이 실패해도 INSERTED 로
+ *   마킹했다 — 아무 데도 안 들어갔는데 큐에서는 처리된 것으로 사라졌다.
+ */
+async function pushInsertDraft(entry: QueueEntry): Promise<InsertResult> {
+  if (activeNaverTabId === null) return { ok: false, reason: "NO_TAB" };
+  try {
+    return (await chrome.tabs.sendMessage(activeNaverTabId, {
+      type: "INSERT_DRAFT",
+      reviewHash: entry.reviewHash,
+      content: entry.draftContent,
+    })) as InsertResult;
+  } catch {
+    return { ok: false, reason: "NO_TAB" }; // 탭이 닫혔거나 content script 미주입
+  }
 }
 
 async function checkHeartbeat(): Promise<void> {
@@ -258,11 +271,27 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
 
     case "APPROVE_ITEM": {
       const entry = (await getQueue())[String(message.reviewHash)];
-      if (!entry || !canTransition(entry.state, "APPROVED")) return { ok: false };
-      entry.state = "APPROVED";
-      await reportEvent(entry.storeId, entry.reviewHash, "APPROVED", entry.edited);
-      pushInsertDraft(entry);
-      entry.state = "INSERTED"; // APPROVED → INSERTED 는 항상 허용되는 전이다
+      if (!entry) return { ok: false, reason: "NOT_IN_QUEUE" };
+
+      // 일괄 승인으로 이미 APPROVED 인데 삽입만 실패한 건은 삽입만 다시 시도한다.
+      // (승인 이벤트를 두 번 보내지 않는다.)
+      const alreadyApproved = entry.state === "APPROVED";
+      if (!alreadyApproved && !canTransition(entry.state, "APPROVED")) {
+        return { ok: false, reason: "NOT_VIEWED" };
+      }
+
+      // ★ 삽입을 먼저 한다. 실패하면 상태를 그대로 둬야 사장님이 입력창을 연 뒤
+      //   같은 버튼으로 다시 시도할 수 있다. 상태를 먼저 옮기면 되돌릴 전이가 없어
+      //   카드가 영영 멈춘다.
+      const inserted = await pushInsertDraft(entry);
+      if (!inserted.ok) return { ok: false, reason: inserted.reason };
+
+      if (!alreadyApproved) {
+        entry.state = "APPROVED";
+        await setQueueEntry(entry);
+        await reportEvent(entry.storeId, entry.reviewHash, "APPROVED", entry.edited);
+      }
+      entry.state = "INSERTED";
       await setQueueEntry(entry);
       await reportEvent(entry.storeId, entry.reviewHash, "INSERTED", entry.edited);
       return { ok: true };
@@ -300,10 +329,14 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
         entry.state = "APPROVED";
         await setQueueEntry(entry);
         await reportEvent(entry.storeId, entry.reviewHash, "APPROVED", entry.edited);
-        pushInsertDraft(entry);
-        entry.state = "INSERTED";
-        await setQueueEntry(entry);
-        await reportEvent(entry.storeId, entry.reviewHash, "INSERTED", entry.edited);
+        // ★ 일괄 승인은 입력창이 하나뿐이라 대부분 삽입에 실패한다. 그래도 서버
+        //   승인은 이미 끝났으므로 상태는 APPROVED 로 남기고 INSERTED 로만 올리지
+        //   않는다 — 카드가 큐에 남아 사장님이 개별로 넣을 수 있다.
+        if ((await pushInsertDraft(entry)).ok) {
+          entry.state = "INSERTED";
+          await setQueueEntry(entry);
+          await reportEvent(entry.storeId, entry.reviewHash, "INSERTED", entry.edited);
+        }
       }
 
       const excludedKo: Record<string, string> = {};

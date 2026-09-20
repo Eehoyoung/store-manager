@@ -31,9 +31,25 @@ describe("답글 입력창 — 실측 스펙 × 열린 입력창 DOM", () => {
   });
 
   it("replyInput 이 textarea 를 찾고, 초안이 실제로 들어간다", () => {
-    const ok = insertDraft(page(), "소중한 후기 감사합니다. 웨이팅은 개선하겠습니다.");
-    expect(ok).toBe(true);
+    const li = document.querySelector('li[class*="Review_pui_review"]')!;
+    expect(insertDraft(li, page(), "소중한 후기 감사합니다. 웨이팅은 개선하겠습니다.")).toBe(true);
     expect(document.querySelector("textarea")!.value).toContain("웨이팅은 개선하겠습니다");
+  });
+
+  /**
+   * ★ 이 테스트가 이 파일에서 가장 중요하다. 이전 구현은 전역 querySelector 라
+   *   승인한 카드와 무관하게 "열려 있는 아무 입력창" 에 넣었다. 사장님이 A 리뷰
+   *   입력창을 열어 둔 채 B 카드를 승인하면 **B의 답글이 A 손님에게 게시된다.**
+   */
+  it("★ 다른 리뷰의 입력창에는 절대 쓰지 않는다", () => {
+    // 입력창이 없는 리뷰를 하나 앞에 끼워 넣는다. 페이지에는 뒤쪽 리뷰의 입력창만 열려 있다.
+    const list = document.querySelector('ul[class*="Review_columns_list"]')!;
+    const other = document.createElement("li");
+    other.className = "Review_pui_review__6lInP";
+    list.insertBefore(other, list.firstChild);
+
+    expect(insertDraft(other, page(), "엉뚱한 답글")).toBe(false);
+    expect(document.querySelector("textarea")!.value).toBe(""); // 남의 입력창은 그대로다
   });
 
   it("★ replyForm 을 두지 않는다 — 답글 영역에 <form> 이 없다", () => {
@@ -53,8 +69,8 @@ describe("답글 입력창 — 실측 스펙 × 열린 입력창 DOM", () => {
   });
 
   it("입력창이 닫혀 있으면 삽입은 조용히 실패한다 — 엉뚱한 곳에 쓰지 않는다", () => {
-    document.body.innerHTML = "<div><textarea id='남의것'></textarea></div>";
-    expect(insertDraft(page(), "내용")).toBe(false);
+    document.body.innerHTML = "<div id='항목'><textarea id='남의것'></textarea></div>";
+    expect(insertDraft(document.getElementById("항목")!, page(), "내용")).toBe(false);
     expect((document.getElementById("남의것") as HTMLTextAreaElement).value).toBe("");
   });
 });
