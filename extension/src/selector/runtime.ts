@@ -42,13 +42,20 @@ function parseField(el: Element, spec: FieldSpec): string | number | boolean | n
 
 export function extractReviews(root: Document | Element, page: PageSpec): ExtractResult {
   const misses: string[] = [];
-  const container = root.querySelector(page.container);
-  if (!container) {
+  // ★ 컨테이너가 여러 개일 수 있다. 스마트플레이스 리뷰 목록은 2열 레이아웃이라
+  //   같은 클래스의 <ul> 이 두 개이고, 리뷰가 그 둘에 나뉘어 들어간다(실측 2026-09-20:
+  //   6건 + 5건). querySelector 로 첫 번째만 보면 **절반이 조용히 사라진다** —
+  //   오류도 안 나고 건수만 줄어서 알아채기 가장 어려운 종류의 누락이다.
+  const containers = root.querySelectorAll(page.container);
+  if (containers.length === 0) {
     misses.push("container");
     return { items: [], misses };
   }
 
-  const itemEls = container.querySelectorAll(page.item);
+  const itemEls: Element[] = [];
+  containers.forEach((c) => {
+    c.querySelectorAll(page.item).forEach((el) => itemEls.push(el));
+  });
   if (itemEls.length === 0) {
     misses.push("item");
     return { items: [], misses };

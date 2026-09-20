@@ -84,3 +84,29 @@ describe("extractReviews", () => {
     expect(misses).toEqual(["item"]);
   });
 });
+
+// ★ 2026-09-20 실측 회귀 — 스마트플레이스는 2열 레이아웃이라 같은 클래스의 <ul> 이
+//   두 개이고 리뷰가 그 둘에 나뉜다(실측 6건 + 5건). 첫 컨테이너만 보면 절반이
+//   조용히 사라진다. 오류가 안 나고 건수만 줄어 알아채기 가장 어려운 누락이다.
+describe("컨테이너가 여러 개인 2열 레이아웃", () => {
+  it("모든 컨테이너의 항목을 합쳐서 추출한다", () => {
+    document.body.innerHTML = `
+      <ul class="Review_columns_list__QiSQh">
+        <li class="Review_pui_review__6lInP"><a data-pui-click-code="text">첫째 열 1</a></li>
+        <li class="Review_pui_review__6lInP"><a data-pui-click-code="text">첫째 열 2</a></li>
+      </ul>
+      <ul class="Review_columns_list__QiSQh">
+        <li class="Review_pui_review__6lInP"><a data-pui-click-code="text">둘째 열 1</a></li>
+      </ul>`;
+    const page: PageSpec = {
+      match: "/bizes/place/*/reviews",
+      container: 'ul[class*="Review_columns_list"]',
+      item: 'li[class*="Review_pui_review"]',
+      fields: { body: { selector: '[data-pui-click-code="text"]', parse: "text" } },
+    };
+    const { items, misses } = extractReviews(document, page);
+    expect(misses).toEqual([]);
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.body)).toEqual(["첫째 열 1", "첫째 열 2", "둘째 열 1"]);
+  });
+});
