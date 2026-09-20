@@ -32,6 +32,7 @@ import { JSDOM } from "jsdom";
 import { extractReviews } from "../src/selector/runtime.ts";
 import { maskReviewBody, hashAuthor, reviewHash } from "../src/masking/mask.ts";
 import { parseReviewDates, reviewIdentity } from "../src/selector/identity.ts";
+import { deriveHasReply } from "../src/selector/replyState.ts";
 import { validateSelectorSpec } from "../../packages/selector-spec/index.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -108,7 +109,9 @@ for (const [pageName, page] of Object.entries(spec.pages)) {
     seen.set(h, (seen.get(h) ?? 0) + 1);
   }
   const collisions = [...seen.values()].filter((n) => n > 1).length;
+  const replied = items.filter((it) => deriveHasReply(it.replyWriteButton)).length;
   console.log("\n  [식별자 점검]");
+  console.log(`    · 이미 답글 달림 ${replied}/${items.length}건 → 초안 대상은 ${items.length - replied}건`);
   console.log(`    ${unidentified === 0 ? "✓" : "✗"} 식별 불가 ${unidentified}/${items.length}건`
     + (unidentified ? "  ← authorRef 나 작성일을 못 읽었다. 이 건들은 처리되지 않는다." : ""));
   console.log(`    ${collisions === 0 ? "✓" : "✗"} 해시 충돌 ${collisions}건`
@@ -124,7 +127,7 @@ for (const [pageName, page] of Object.entries(spec.pages)) {
     console.log(`    reviewHash : ${hash ? hash.slice(0, 16) + "…" : "(식별 불가 — 건너뜀)"}`);
     console.log(`    rating     : ${it.rating ?? "(없음)"}`);
     console.log(`    writtenAt  : ${writtenAt ?? "(없음)"}   방문일 ${visitedAt ?? "(없음)"}`);
-    console.log(`    hasReply   : ${it.hasReply ?? "(없음)"}`);
+    console.log(`    hasReply   : ${deriveHasReply(it.replyWriteButton)}   ← "답글 쓰기" 버튼의 부재로 판정`);
     console.log(`    authorHash : ${author ?? "(없음)"}   ← 원본 닉네임은 전송되지 않는다`);
     console.log(`    body       : ${body.slice(0, 80)}${body.length > 80 ? "…" : ""}`);
     console.log("");

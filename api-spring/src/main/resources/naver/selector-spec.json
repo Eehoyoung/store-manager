@@ -1,6 +1,6 @@
 {
   "_note": "2026-09-20 실측 반영. 클래스 해시(__QiSQh 등)는 네이버 배포마다 바뀌므로 반드시 접두사 매칭([class*=...])으로만 쓴다. data-pui-click-code / data-area-code 는 네이버 분석 로그 키라 훨씬 안정적이므로 가능한 곳은 그쪽을 1순위로 쓴다.",
-  "_unverified": "hasReply 는 아직 미검증이다. 실측 시점에 답글 달린 리뷰가 0건이라 답글 완료 상태의 DOM 을 보지 못했다. 현재 값은 추정이며 확인 전까지 신뢰하지 말 것.",
+  "_unverified": "답글 완료 상태의 DOM 내부 구조는 아직 못 봤다. 답글이 달리면 '답글 쓰기' 버튼이 사라진다는 것만 실측으로 확인했고(2026-09-20, 10건 중 1건), hasReply 는 그 버튼의 부재로 판정한다(extension/src/selector/replyState.ts).",
   "version": "2026-09-20T00:00:00Z",
   "minExtensionVersion": "0.1.0",
   "pages": {
@@ -29,8 +29,8 @@
           "selector": "[data-pui-click-code=\"text\"]",
           "parse": "text"
         },
-        "hasReply": {
-          "selector": "[class*=\"Review_reply\"]",
+        "replyWriteButton": {
+          "selector": "[data-area-code=\"rv.replywrite\"]",
           "parse": "exists"
         }
       },
