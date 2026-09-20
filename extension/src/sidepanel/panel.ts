@@ -7,6 +7,7 @@ import type { NaverStore } from "../api/client";
 import { bulkApprovable } from "../state/machine";
 import { createViewportTracker, type ViewportTracker } from "./viewportTracker";
 import { riskBanner } from "./riskBanner";
+import { pairErrorMessage } from "./pairError";
 
 const app = document.getElementById("app")!;
 
@@ -53,7 +54,9 @@ async function renderSettings(onDone: () => void | Promise<void>): Promise<void>
   });
 }
 
-function renderPairing(): void {
+async function renderPairing(): Promise<void> {
+  // ★ 어디로 붙을지를 화면에 띄운다. 이게 없으면 주소가 안 바뀐 것을 알 길이 없다.
+  const { apiBaseUrl } = await sendToBackground<{ apiBaseUrl: string }>({ type: "GET_SETTINGS" });
   app.innerHTML = `
     <div class="pairing">
       <h1>리뷰파일럿 연결하기</h1>
@@ -61,17 +64,17 @@ function renderPairing(): void {
       <input id="pair-code" maxlength="8" placeholder="ABCD1234" />
       <button class="primary" id="pair-submit">연결</button>
       <p id="pair-error" style="color:#b3261e"></p>
+      <p style="font-size:12px;color:#666">서버 <code>${escapeHtml(apiBaseUrl)}</code></p>
       <p><a href="#" id="open-settings">API 주소 설정</a></p>
     </div>
   `;
   document.getElementById("pair-submit")!.addEventListener("click", async () => {
     const code = (document.getElementById("pair-code") as HTMLInputElement).value.trim();
-    const res = await sendToBackground<{ ok: boolean; storeId?: string | null; stores?: NaverStore[] }>({
-      type: "PAIR",
-      code,
-    });
+    const res = await sendToBackground<{
+      ok: boolean; storeId?: string | null; stores?: NaverStore[]; reason?: string; baseUrl?: string;
+    }>({ type: "PAIR", code });
     if (!res.ok) {
-      document.getElementById("pair-error")!.textContent = "코드가 올바르지 않습니다. 다시 확인해 주세요.";
+      document.getElementById("pair-error")!.textContent = pairErrorMessage(res.reason, res.baseUrl);
       return;
     }
     const stores = res.stores ?? [];
@@ -226,7 +229,7 @@ async function main(): Promise<void> {
     if (stores.length > 1) {
       renderStoreSelect(stores);
     } else {
-      renderPairing();
+      void renderPairing();
     }
     return;
   }

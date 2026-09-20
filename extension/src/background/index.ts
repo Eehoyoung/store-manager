@@ -8,7 +8,7 @@
  *   "tabs" 권한이 필요 없다(sender.tab.id 로 이미 확보한 tabId 에만 보낸다).
  *   chrome.tabs.query 등 권한이 필요한 API 는 쓰지 않는다.
  */
-import { ApiClient, DEFAULT_BASE_URL, type NaverStore, type QueueEvent } from "../api/client";
+import { ApiClient, ApiError, DEFAULT_BASE_URL, type NaverStore, type QueueEvent } from "../api/client";
 import { loadSpec, recordMiss, resetMissState, type CacheDeps } from "../selector/cache";
 import { drain, enqueue, type OfflineQueueDeps, type QueuedItem } from "../queue/offlineQueue";
 import { reportSelectorMiss } from "../telemetry/selectorMiss";
@@ -314,14 +314,26 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
     }
 
     case "PAIR": {
-      const { token, stores } = await client.pair(String(message.code ?? ""));
-      await storageSet(TOKEN_KEY, token);
-      const list: NaverStore[] = Array.isArray(stores) ? stores : [];
-      await storageSet(STORES_KEY, list);
-      const selected = list.length === 1 ? list[0].storeId : null;
-      await storageSet(STORE_ID_KEY, selected);
-      await resetMissState(specCacheDeps);
-      return { ok: true, stores: list, storeId: selected };
+      // ★ 실패 이유를 반드시 구분해서 돌려준다. 예전에는 무슨 일이 나든 패널이
+      //   "코드가 올바르지 않습니다" 하나만 띄웠다 — 실기동에서 서버 주소가 안 바뀐 것을
+      //   코드 오타로 오해해 한참 헤맸다. 사장님이 할 일이 완전히 다르다:
+      //   코드가 틀렸으면 재발급, 못 닿았으면 주소·서버 확인.
+      const baseUrl = await getBaseUrl();
+      try {
+        const { token, stores } = await client.pair(String(message.code ?? ""));
+        await storageSet(TOKEN_KEY, token);
+        const list: NaverStore[] = Array.isArray(stores) ? stores : [];
+        await storageSet(STORES_KEY, list);
+        const selected = list.length === 1 ? list[0].storeId : null;
+        await storageSet(STORE_ID_KEY, selected);
+        await resetMissState(specCacheDeps);
+        return { ok: true, stores: list, storeId: selected };
+      } catch (e) {
+        // ApiError 면 서버까지는 닿았다는 뜻이다. 아니면 fetch 자체가 실패했다.
+        const reason = e instanceof ApiError ? (e.status === 400 ? "BAD_CODE" : `HTTP_${e.status}`) : "UNREACHABLE";
+        console.error("[리뷰파일럿] 페어링 실패", reason, baseUrl, e);
+        return { ok: false, reason, baseUrl };
+      }
     }
 
     default:
