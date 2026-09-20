@@ -305,8 +305,30 @@ function wireDraftInsertion(): void {
   );
 }
 
+/**
+ * 페어링·매장선택을 즉시 반영한다.
+ *
+ * ★ 없으면 연결해도 아무 일이 일어나지 않는다(실측 2026-09-20). content script 는
+ *   페이지 로드 때 storeId 를 한 번 읽는데, 페어링은 그 뒤에 **사이드패널에서** 일어난다.
+ *   이미 떠 있는 content script 는 그 사실을 영영 모르고 scan() 이 전송 직전에 멈춘다.
+ *   화면에는 "미확인 0건" 으로만 보여서 어디가 막혔는지 알 수 없다.
+ *
+ * ★ 메시지 배선 대신 chrome.storage.onChanged 를 쓴다 — 누가 어느 컨텍스트에서
+ *   바꾸든 똑같이 잡힌다(사이드패널이 큐를 갱신하는 방식과 같다).
+ */
+function watchStoreId(): void {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes.storeId) return;
+    currentStoreId = (changes.storeId.newValue as string | null) ?? null;
+    if (!currentStoreId) return;
+    // 페어링 전에는 셀렉터 스펙을 401 로 못 받아 번들 폴백을 쓰고 있었다. 이제 서버 것을 받는다.
+    void loadSpecFromBackground().then(tick);
+  });
+}
+
 async function main(): Promise<void> {
   wireDraftInsertion();
+  watchStoreId();
   const { storeId } = await sendToBackground<{ storeId: string | null }>({ type: "GET_STORE_ID" });
   currentStoreId = storeId;
   await loadSpecFromBackground();
