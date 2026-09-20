@@ -3,6 +3,8 @@
 문서 12 §4 G1~G9 전부를 다룬다. 가드레일마다 걸리는 케이스/안 걸리는 케이스를
 최소 1쌍씩 둔다.
 """
+import pytest
+
 from guardrails import check, sanitize_review
 
 # G1 하한(60자)을 넘기기 위한 공용 "깨끗한" 답글 (다른 가드레일에는 걸리지 않는다)
@@ -244,3 +246,57 @@ def test_backward_compatible_two_arg_call():
     """review_body/recent_replies 없이도(기존 시그니처) 정상 동작해야 한다."""
     flags = check(CLEAN, 0)
     assert list(flags) == []
+
+
+# ── G3 '서비스로 … 보답' 오탐 (실측 2026-09-20) ────────────────────────────
+#
+# ★ 스텁 템플릿 5종 중 1종("더 좋은 맛과 서비스로 보답해 드리겠습니다")이 G3 에 걸려
+#   실기동에서 초안 6건이 통째로 사라졌다. 여기서 '서비스' 는 공짜로 주는 물건이 아니라
+#   접객 품질이고, 이 표현은 사장님 답글의 상투구다. 유료 모델을 켜면 진짜 답글도
+#   같은 이유로 죽는다.
+#
+# ★ 방향에 주의 — 오탐이 나면 '서비스로' 를 목록에서 *지우는* 게 아니라 *좁힌다*.
+#   아래 두 묶음이 **함께** 통과해야 한다.
+
+_G3_MUST_BLOCK = [
+    "이건 서비스로 드릴게요",
+    "다음에 서비스로 하나 더 드리겠습니다",
+    "음료는 서비스로 제공해 드리겠습니다",
+    "무료로 드리겠습니다",
+    "공짜로 넣어 드릴게요",
+    "덤으로 넣어 드릴게요",
+    "환불 처리 도와드리겠습니다",
+    "전액 환불 해 드리겠습니다",
+    "할인 쿠폰 드리겠습니다",
+    "다시 조리해 드리겠습니다",
+]
+
+_G3_MUST_NOT_BLOCK = [
+    "더 좋은 맛과 서비스로 보답해 드리겠습니다",
+    "앞으로 더 나은 서비스로 보답하겠습니다",
+    "서비스로 정말 보답 드리겠습니다",          # ★ 사이에 말이 끼어도 오탐이면 안 된다
+    "정성과 서비스로 보답해 드릴 것을 약속드립니다",
+    "환불 규정을 안내해 드리겠습니다",           # 안내지 약속이 아니다
+    "젓가락은 다음에 추가로 넣어 드리겠습니다",   # 일회용품 재제공(기존 회귀)
+]
+
+_G3_SORRY = "불편을 드려 진심으로 죄송합니다. 다시 한번 사과의 말씀 올립니다. "
+_G3_THANKS = "찾아주시고 후기까지 남겨주셔서 진심으로 감사드립니다. "
+
+
+@pytest.mark.parametrize("sentence", _G3_MUST_BLOCK)
+def test_G3_금전_약속은_그대로_막는다(sentence):
+    assert "G3_COMPENSATION" in check(_G3_SORRY + sentence, risk_level=0)
+
+
+@pytest.mark.parametrize("sentence", _G3_MUST_NOT_BLOCK)
+def test_G3_평범한_사장님_문장을_막지_않는다(sentence):
+    assert "G3_COMPENSATION" not in check(_G3_THANKS + sentence, risk_level=0)
+
+
+def test_G3_스텁_템플릿_전종이_통과한다():
+    """★ 우리 템플릿이 우리 가드레일에 걸리면 초안이 조용히 사라진다."""
+    import llm
+
+    for template in llm._STUB_TEMPLATES:
+        assert "G3_COMPENSATION" not in check(template, risk_level=0), template
