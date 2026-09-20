@@ -34,6 +34,17 @@ public class SecurityConfig {
     @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:http://localhost:5173}")
     private String allowedOrigins;
 
+    /**
+     * 네이버 확장의 chrome-extension:// 오리진. 쉼표 구분.
+     *
+     * <p>★ 개발 기본값이 와일드카드인 이유 — 압축해제 로드한 확장의 ID 는 설치 경로에서
+     * 파생돼 기기마다 다르다. 운영에서는 웹스토어가 준 고정 ID 를 환경변수로 박는다
+     * ({@code APP_CORS_ALLOWED_EXTENSION_ORIGINS=chrome-extension://<고정ID>}).
+     */
+    @org.springframework.beans.factory.annotation.Value(
+            "${app.cors.allowed-extension-origins:chrome-extension://*}")
+    private String allowedExtensionOrigins;
+
     public SecurityConfig(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = objectMapper;
@@ -51,9 +62,11 @@ public class SecurityConfig {
      * 임의 사이트가 로그인된 사장님 세션으로 API 를 호출할 수 있게 된다.
      * 운영 도메인은 APP_CORS_ORIGINS 환경변수로 주입한다.
      *
-     * <p>★ 네이버 확장(extension/)의 chrome-extension:// 오리진은 여기 넣지 않는다. 확장은
-     * service worker/확장 페이지에서 fetch 하고 manifest.json 의 host_permissions 로 접근을
-     * 허가받으므로 애초에 브라우저 CORS 검사 대상이 아니다(IMPLEMENTATION_PLAN_NAVER.md §6).
+     * <p>★ 확장이 CORS 대상이 아니라는 것은 <b>틀린 가정이었다</b>(실측 2026-09-20).
+     * host_permissions 는 <b>브라우저 쪽</b> 검사를 면제할 뿐, 크롬은 여전히
+     * {@code Origin: chrome-extension://<id>} 를 붙여 보낸다. 서버는 host_permissions 를
+     * 알 도리가 없으므로 Spring CorsFilter 가 "Invalid CORS request" 로 403 을 낸다.
+     * 페어링이 통째로 막혀 있었다. 그래서 {@code /api/v1/naver/**} 는 따로 등록한다.
      */
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
@@ -67,9 +80,41 @@ public class SecurityConfig {
         config.setMaxAge(3600L);
         org.springframework.web.cors.UrlBasedCorsConfigurationSource source =
                 new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+        // ★ 등록 순서가 곧 우선순위다(첫 매치 승). 좁은 패턴을 먼저 넣는다.
+        //   네이버 경로는 확장 오리진을 함께 허용해야 하므로 /api/v1/** 보다 앞이다.
+        source.registerCorsConfiguration("/api/v1/naver/**", naverCorsConfiguration());
         // ★ /internal/** 은 제외한다. 워커 전용 경로이며 브라우저에서 호출될 일이 없다.
         source.registerCorsConfiguration("/api/v1/**", config);
         return source;
+    }
+
+    /**
+     * {@code /api/v1/naver/**} 전용 CORS — 웹 대시보드 오리진에 확장 오리진을 더한다.
+     *
+     * <p>★ 경로를 쪼개지 않고 이 경로 전체에 확장 오리진을 허용하는 이유는
+     * {@code /naver/status} 를 웹과 확장이 <b>둘 다</b> 부르기 때문이다.
+     *
+     * <p>★ allowCredentials 는 true 로 둔다. 웹 클라이언트가 모든 호출에
+     * {@code credentials:"include"} 를 붙이기 때문이다(web/src/api/client.ts).
+     * 그래도 이 경로에는 <b>주변권한(ambient authority)이 없다</b> — 유일한 쿠키인
+     * refresh 토큰이 {@code path=/api/v1/auth} 라 여기로는 전송되지 않는다.
+     * 인증은 {@code Authorization: Bearer} 와 {@code X-Extension-Token} 헤더로만 이뤄지고,
+     * 둘 다 적대적 오리진이 CORS 로 가져갈 수 없는 값이다.
+     *
+     * <p>★ 그래도 {@code "*"} 로 열지 않는다. 허용하는 것은 임의의 웹사이트가 아니라
+     * 사용자가 자기 크롬에 설치한 확장뿐이고, 운영에서는 고정 ID 하나로 좁힌다.
+     */
+    private org.springframework.web.cors.CorsConfiguration naverCorsConfiguration() {
+        org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
+        java.util.List<String> patterns = new java.util.ArrayList<>(java.util.List.of(allowedOrigins.split(",")));
+        patterns.addAll(java.util.List.of(allowedExtensionOrigins.split(",")));
+        config.setAllowedOriginPatterns(patterns.stream().map(String::trim).filter(o -> !o.isEmpty()).toList());
+        config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "Idempotency-Key",
+                "X-Extension-Token"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+        return config;
     }
 
     /**
