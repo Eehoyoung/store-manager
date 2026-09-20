@@ -2009,12 +2009,24 @@ _T0_TEMPLATES_VISIT = [
 
 
 def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji: bool, signature: str | None,
-                       platform: str | None = None) -> str:
-    """persona_seed 로 5종 중 하나를 골라 반복을 피한다(문서 12 §8).
+                       platform: str | None = None, review_body: str = "") -> str:
+    """5종 중 하나를 골라 반복을 피한다(문서 12 §8).
+
+    ★ persona_seed 만으로는 반복을 **전혀** 피하지 못했다(실기동 2026-09-20).
+      persona_seed 는 매장당 고정값이라 한 매장의 T0 리뷰가 전부 같은 문장을 받는다.
+      "굳" 과 "👍" 두 리뷰에 글자 하나 다르지 않은 답글이 나갔다. 매장 페이지는
+      공개돼 있고, 같은 문장이 쌓이면 자동 생성이라는 게 그대로 드러난다.
+      review_body 를 섞어 **리뷰마다** 가른다.
+
+    ★ crc32 를 쓴다. 파이썬 내장 hash() 는 프로세스마다 솔트가 달라 같은 리뷰가
+      재기동 후 다른 문장을 받는다 — 결정론이 깨지면 테스트를 짤 수 없다.
+
+    ★ 5종이 상한이다. T0 리뷰가 50건이면 같은 문장이 10번씩 나간다. 전부 같은
+      것보다는 낫지만 근본 해법은 아니다 — 늘릴 때는 문구를 손으로 다듬을 것.
 
     platform 기본값(None)은 배달판이다 — 인자를 안 넘기는 기존 호출부가 그대로 돌아야 한다."""
     pool = _T0_TEMPLATES_VISIT if is_visit_platform(platform) else _T0_TEMPLATES
-    idx = (persona_seed or 0) % len(pool)
+    idx = ((persona_seed or 0) + zlib.crc32(review_body.encode("utf-8"))) % len(pool)
     emoji = " :)" if use_emoji else ""
     text = pool[idx].format(title=customer_title, emoji=emoji)
     if signature:

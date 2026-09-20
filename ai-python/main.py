@@ -240,8 +240,11 @@ def _generate_draft(
             continue
         if attempt_tier == "T0":
             seed = (persona.persona_seed or 0) + variant_idx
+            # ★ 본문을 함께 넘긴다. 없으면 한 매장의 T0 리뷰가 전부 같은 문장을 받는다
+            #   (persona_seed 는 매장당 고정값이다 — 실기동 2026-09-20).
             content = prompts.render_t0_template(
-                persona.customer_title, seed, persona.use_emoji, persona.signature, req.review.platform
+                persona.customer_title, seed, persona.use_emoji, persona.signature,
+                req.review.platform, req.review.body
             )
             content = content[: guardrails.MAX_LENGTH]
             return content, "rule-template", "T0", 0, 0, 0.0, list(dict.fromkeys(req.recent_replies))
