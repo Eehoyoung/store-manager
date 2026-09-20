@@ -1,0 +1,38 @@
+<!--
+  실측 답글 입력창 DOM 골격 (2026-09-20). 리뷰 한 건의 "답글 쓰기" 를 눌러 입력창을
+  띄운 상태다. 본문·닉네임·안내문구는 가짜로 바꿨다(NAVER ABSOLUTE RULES 3).
+
+  ★ <form> 이 없다. 등록 버튼 클릭이 유일한 게시 신호다.
+  ★ textarea 에 class·name·maxlength 가 없다. 부모 div 의 Review_textarea_wrap 만이
+    안정적인 앵커다.
+  ★ 입력창이 열린 리뷰에는 "답글 쓰기"(rv.replywrite) 버튼이 없다 — 대신
+    rv.replydone(등록) / rv.replyclose(닫기) 가 생긴다.
+-->
+<div class="Review_columns_wrap__1Vk7r">
+  <ul class="Review_columns_list__QiSQh">
+    <li class="Review_pui_review__6lInP">
+      <div class="pui__q2fg8o pui__A7NplK">
+        <a class="pui__hvyFHZ" data-pui-click-code="profile" href="https://m.place.naver.com/my/dddddddddddddddddddddddd/review">
+          <div class="pui__JiVbY3"><span class="pui__uslU0d">박손님</span></div>
+        </a>
+      </div>
+      <div class="pui__Py6QlM">
+        <div class="pui__4rEbt5"><span class="pui__ewpNGR">작성일</span><span class="pui__m7nkds"><time>2026. 9. 18(금)</time></span></div>
+      </div>
+      <div class="pui__F2t42c">
+        <span class="pui__ETqMYH"><span class="Review_rating_in_names__g5gLW"><div class="pui__6abRMf">별점3점</div></span></span>
+      </div>
+      <div class="pui__vn15t2"><a class="" data-pui-click-code="text">웨이팅이 길었지만 음식은 좋았어요</a></div>
+      <div class="Review_textarea_wrap__RPDp_">
+        <div class="Review_textarea_box__z0dbg">
+          <textarea class="" placeholder="욕설, 비방, 명예훼손성 표현은 사용하지 말아주세요."></textarea>
+        </div>
+        <button class="Review_guide_text__Fnsky" type="button">답글작성 유의사항</button>
+      </div>
+      <div class="Review_btn_group__Zlpww">
+        <button class="Review_btn__a_059 Review_btn_enter__TFs_5" data-area-code="rv.replydone" data-nlog-area="smp_rv.replydone">등록</button>
+        <button class="Review_btn__a_059 Review_btn_close__JSzBf" data-area-code="rv.replyclose" data-nlog-area="smp_rv.replyclose">닫기</button>
+      </div>
+    </li>
+  </ul>
+</div>

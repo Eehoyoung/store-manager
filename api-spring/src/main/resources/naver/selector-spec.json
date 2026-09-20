@@ -1,7 +1,8 @@
 {
-  "_note": "2026-09-20 실측 반영. 클래스 해시(__QiSQh 등)는 네이버 배포마다 바뀌므로 반드시 접두사 매칭([class*=...])으로만 쓴다. data-pui-click-code / data-area-code 는 네이버 분석 로그 키라 훨씬 안정적이므로 가능한 곳은 그쪽을 1순위로 쓴다.",
-  "_unverified": "답글 완료 상태의 DOM 내부 구조는 아직 못 봤다. 답글이 달리면 '답글 쓰기' 버튼이 사라진다는 것만 실측으로 확인했고(2026-09-20, 10건 중 1건), hasReply 는 그 버튼의 부재로 판정한다(extension/src/selector/replyState.ts).",
-  "version": "2026-09-20T00:00:00Z",
+  "_note": "2026-09-20 실측 반영. 클래스 해시(__QiSQh 등)는 네이버 배포마다 바뀌므로 반드시 접두사 매칭([class*=...])으로만 쓴다. data-area-code / data-pui-click-code 는 네이버 분석 로그 키라 훨씬 안정적이므로 가능한 곳은 그쪽을 1순위로 쓴다.",
+  "_replyNote": "2026-09-20 답글 입력창 실측. (1) <form> 이 없다 — replyForm 을 되살리지 말 것. 예전 'form' 값은 페이지의 다른 폼(검색·필터)을 잡아 사장님이 검색만 해도 POSTED 로 기록될 수 있었다. 게시 감지는 replySubmitButton 클릭 + isTrusted 로만 한다. (2) textarea 에 class·name·maxlength 가 전부 없다. 유일한 안정 앵커가 부모 div 의 Review_textarea_wrap 이다. (3) 답글 상한은 DOM 에서 읽을 수 없다(maxlength 없음) — 여전히 미확인이다.",
+  "_repliedMarkers": "이미 답글이 달린 리뷰에는 rv.replyedit(수정)·rv.replydelete(삭제)·rv.replyfold 가 붙는다. 다만 hasReply 판정은 계속 rv.replywrite 의 '부재'로 한다 — 실패 방향이 안전하기 때문이다(extension/src/selector/replyState.ts). 입력창이 열려 있는 리뷰도 답글 쓰기 버튼이 사라져 그 스캔에서는 제외되는데, 닫으면 다음 스캔에 돌아오므로 그대로 둔다.",
+  "version": "2026-09-20T12:00:00Z",
   "minExtensionVersion": "0.1.0",
   "pages": {
     "reviewList": {
@@ -35,8 +36,8 @@
         }
       },
       "replyOpenButton": "[data-area-code=\"rv.replywrite\"]",
-      "replyInput": "textarea",
-      "replyForm": "form"
+      "replyInput": "div[class*=\"Review_textarea_wrap\"] textarea",
+      "replySubmitButton": "[data-area-code=\"rv.replydone\"]"
     }
   }
 }
