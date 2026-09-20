@@ -72,8 +72,15 @@ export async function loadSpec(deps: CacheDeps): Promise<SpecState> {
   return { status: "disabled" };
 }
 
-/** 미스 카운터를 증가시키고, 임계치 도달 시 true(비활성화됨)를 반환한다. */
+/**
+ * 미스 카운터를 증가시키고, **이번 호출로 비활성화됐을 때만** true 를 반환한다.
+ *
+ * ★ 이미 꺼져 있으면 false 다. 예전에는 임계치를 넘은 뒤 매번 true 를 돌려줘
+ *   background 가 "일시 점검 중" 알림을 미스마다 다시 띄웠다 — 실기동에서 초당
+ *   여러 번 떴다. 상태 전이에서만 알린다.
+ */
 export async function recordMiss(deps: CacheDeps): Promise<boolean> {
+  if (await deps.storageGet(DISABLED_KEY)) return false;
   const count = ((await deps.storageGet(MISS_KEY)) as number | undefined) ?? 0;
   const next = count + 1;
   await deps.storageSet(MISS_KEY, next);

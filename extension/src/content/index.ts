@@ -152,12 +152,19 @@ export function scanSummary(
   plan: ScanPlan,
   misses: string[],
   connected: boolean,
+  fieldMisses: Record<string, number> = {},
 ): string {
   const missKeys = [...new Set(misses)];
+  // ★ 부분 결손은 미스와 분리해서 보여준다. 둘을 한 덩어리로 찍으면 "본문 없는
+  //   리뷰가 2건" 과 "본문 셀렉터가 깨졌다" 가 화면에서 똑같이 보인다.
+  const partial = Object.entries(fieldMisses)
+    .filter(([, n]) => n < itemCount)
+    .map(([k, n]) => `${k} ${n}/${itemCount}`);
   return (
     `리뷰 ${itemCount}건 · 초안대상 ${plan.targets.length} · 이미답글 ${plan.alreadyReplied}`
     + ` · 식별불가 ${plan.unidentified} · 충돌 ${plan.colliding}`
-    + (missKeys.length ? ` · 미스: ${missKeys.join(", ")}` : "")
+    + (partial.length ? ` · 빈 필드: ${partial.join(", ")}` : "")
+    + (missKeys.length ? ` · ★미스: ${missKeys.join(", ")}` : "")
     + (connected ? "" : "  (미연결 — 서버로 보내지 않는다)")
   );
 }
@@ -166,10 +173,10 @@ async function scan(page: PageSpec, storeId: string | null): Promise<void> {
   if (scanning) return;
   scanning = true;
   try {
-    const { items, misses } = extractReviews(document, page);
+    const { items, misses, fieldMisses } = extractReviews(document, page);
     const plan = planScan(items);
 
-    const line = scanSummary(items.length, plan, misses, Boolean(storeId));
+    const line = scanSummary(items.length, plan, misses, Boolean(storeId), fieldMisses);
     if (line !== lastScanLine) {
       lastScanLine = line;
       console.log(`[리뷰파일럿] ${line}`);

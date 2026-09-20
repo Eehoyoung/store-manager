@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateSelectorSpec } from "@selector-spec";
 import { extractReviews } from "../selector/runtime";
+import type { PageSpec } from "@selector-spec";
 import { planScan, scanSummary } from "./index";
 
 /**
@@ -20,6 +21,12 @@ const SPEC_PATH = resolve(
   "../../../api-spring/src/main/resources/naver/selector-spec.json",
 );
 const FIXTURE_PATH = resolve(__dirname, "../selector/fixtures/smartplace-review-item.html");
+
+function specPage(): PageSpec {
+  const checked = validateSelectorSpec(JSON.parse(readFileSync(SPEC_PATH, "utf-8")));
+  if (!checked.ok) throw new Error(`배포 스펙이 유효하지 않다: ${checked.errors.join(", ")}`);
+  return checked.spec.pages.reviewList;
+}
 
 function extractFromFixture() {
   const checked = validateSelectorSpec(JSON.parse(readFileSync(SPEC_PATH, "utf-8")));
@@ -104,5 +111,47 @@ describe("scanSummary", () => {
   it("정상이면 미스 표기가 없고, 연결 여부를 밝힌다", () => {
     expect(scanSummary(9, empty, [], true)).not.toContain("미스");
     expect(scanSummary(9, empty, [], false)).toContain("미연결");
+  });
+});
+
+describe("부분 결손은 셀렉터 고장이 아니다", () => {
+  /**
+   * ★ 실기동에서 이것 때문에 "일시 점검 중" 알림이 초당 여러 번 떴다(2026-09-20).
+   *   네이버에는 본문 없는 키워드 리뷰가 있고("이런 점이 좋았어요" 만 고른 리뷰),
+   *   스크롤로 방금 붙은 <li> 를 그려지는 중에 잡을 수도 있다. 전부 정상 변동이다.
+   *   한 건 비었다고 misses 에 넣으면 킬스위치(MAX_MISSES 3)가 즉시 돈다.
+   */
+  it("일부만 비면 misses 에 넣지 않는다 — fieldMisses 로만 센다", () => {
+    const { items, misses, fieldMisses } = extractFromFixture();
+    // ★ 첫 리뷰의 본문 앵커를 전부 지운다 — 한 개만 지우면 "더보기" 앵커가 남아
+    //   여전히 잡힌다(픽스처의 첫 li 에는 본문 + 더보기 두 개가 있다).
+    const first = document.body.querySelector('li[class*="Review_pui_review"]')!;
+    for (const el of first.querySelectorAll('[data-pui-click-code="text"]')) el.remove();
+    const again = extractReviews(document, specPage());
+
+    expect(items).toHaveLength(3);
+    expect(misses).not.toContain("fields.body");
+    expect(fieldMisses.body ?? 0).toBe(0);
+
+    // 3건 중 1건만 본문이 없어졌다 → 미스가 아니라 결손 1건
+    expect(again.misses).not.toContain("fields.body");
+    expect(again.fieldMisses.body).toBe(1);
+  });
+
+  it("전건이 비면 그때는 셀렉터 고장이다", () => {
+    document.body.innerHTML = readFileSync(FIXTURE_PATH, "utf-8");
+    for (const el of document.body.querySelectorAll('[data-pui-click-code="text"]')) el.remove();
+    const { items, misses, fieldMisses } = extractReviews(document, specPage());
+    expect(items).toHaveLength(3);
+    expect(misses).toContain("fields.body");
+    expect(fieldMisses.body).toBe(3);
+  });
+
+  it("요약이 부분 결손과 셀렉터 미스를 구분해 보여준다", () => {
+    const empty = { targets: [], unidentified: 0, colliding: 0, alreadyReplied: 0 };
+    const line = scanSummary(10, empty, ["fields.rating"], true, { body: 2, rating: 10 });
+    expect(line).toContain("빈 필드: body 2/10");
+    expect(line).toContain("★미스: fields.rating");
+    expect(line).not.toContain("빈 필드: rating"); // 전건 결손은 미스 쪽에만
   });
 });

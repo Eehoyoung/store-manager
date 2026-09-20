@@ -79,3 +79,28 @@ describe("loadSpec", () => {
     expect(await loadSpec(deps)).toEqual({ status: "disabled" });
   });
 });
+
+describe("recordMiss — 알림은 상태 전이에서만", () => {
+  /**
+   * ★ 실기동에서 "일시 점검 중" 알림이 초당 여러 번 떴다(2026-09-20).
+   *   임계치를 넘은 뒤에도 매번 true 를 돌려줘 background 가 미스마다 다시 알렸다.
+   */
+  it("이미 비활성화된 뒤에는 false 다 — 같은 알림을 반복하지 않는다", async () => {
+    const storage = makeMemoryStorage();
+    const deps = { ...storage, fetchSpec: async () => validSpec };
+
+    const results: boolean[] = [];
+    for (let i = 0; i < MAX_MISSES + 3; i += 1) results.push(await recordMiss(deps));
+
+    expect(results.filter(Boolean)).toHaveLength(1); // 꺼지는 순간 딱 한 번
+    expect(results[MAX_MISSES - 1]).toBe(true);
+  });
+
+  it("resetMissState 후에는 다시 셀 수 있다", async () => {
+    const storage = makeMemoryStorage();
+    const deps = { ...storage, fetchSpec: async () => validSpec };
+    for (let i = 0; i < MAX_MISSES; i += 1) await recordMiss(deps);
+    await resetMissState(deps);
+    expect(await recordMiss(deps)).toBe(false); // 카운터가 1 로 돌아갔다
+  });
+});

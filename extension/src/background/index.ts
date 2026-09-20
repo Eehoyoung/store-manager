@@ -330,9 +330,19 @@ async function handleMessage(message: Message, senderTabId: number | undefined):
 }
 
 chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-  handleMessage(message, sender.tab?.id).then(sendResponse);
+  // ★ 반드시 응답한다. 여기서 예외가 새면 두 가지가 한꺼번에 일어난다 —
+  //   unhandled rejection 이 콘솔을 채우고(서버가 없으면 fetch 가 매번 던진다),
+  //   sendResponse 가 영영 불리지 않아 **사이드패널이 멈춘 채로 남는다**
+  //   (PAIR 이 대표적이다: 코드를 틀리거나 서버가 없으면 버튼이 먹통이 된다).
+  handleMessage(message, sender.tab?.id)
+    .then(sendResponse)
+    .catch((e: unknown) => sendResponse({ ok: false, error: String(e) }));
   return true; // 비동기 응답
 });
+
+// 새 버전은 대개 셀렉터를 고친 버전이다. 설치·업데이트 때 킬스위치를 푼다.
+// (개발 중 "확장 새로고침" 으로 막힌 상태를 빠져나오는 길이기도 하다.)
+chrome.runtime.onInstalled.addListener(() => void resetMissState(specCacheDeps));
 
 chrome.alarms.create(SPEC_ALARM, { periodInMinutes: 360 }); // 6시간
 chrome.alarms.create(HEARTBEAT_CHECK_ALARM, { periodInMinutes: 2 });

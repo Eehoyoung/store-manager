@@ -25,7 +25,13 @@ export async function reportSelectorMiss(
   if (last !== undefined && now - last < DEDUPE_WINDOW_MS) return;
 
   lastSentAt.set(selectorKey, now);
-  await deps.client.postSelectorMiss({ selectorKey, pagePath, extensionVersion: deps.extensionVersion });
+  try {
+    await deps.client.postSelectorMiss({ selectorKey, pagePath, extensionVersion: deps.extensionVersion });
+  } catch {
+    // ★ 진단용 텔레메트리다. 못 보냈다고 호출부를 깨뜨리지 않는다 —
+    //   서버가 없으면(개발·점검) 여기서 던진 예외가 그대로 unhandled rejection 이 된다.
+    //   재시도도 하지 않는다. 1시간 dedupe 창이 지나면 어차피 다시 보낸다.
+  }
 }
 
 /** 테스트 전용: 모듈 전역 dedupe 상태 초기화. */

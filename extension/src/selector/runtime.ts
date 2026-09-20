@@ -7,7 +7,13 @@ export type RawReview = Record<string, string | number | boolean | null>;
 
 export interface ExtractResult {
   items: RawReview[];
+  /**
+   * 셀렉터가 깨졌다고 판단되는 것만 담는다 — 이 값이 킬스위치를 돌린다.
+   * ★ 필드는 **전건이 비었을 때만** 여기 들어온다. 아래 fieldMisses 주석 참고.
+   */
   misses: string[];
+  /** 필드별 결손 건수. 부분 결손도 담는다 — 진단용이고 킬스위치를 돌리지 않는다. */
+  fieldMisses: Record<string, number>;
 }
 
 /** 리뷰 식별자처럼 항목 루트 엘리먼트 자신에 속성이 붙는 경우도 있어 자신도 포함해 찾는다. */
@@ -56,10 +62,11 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
   //   같은 클래스의 <ul> 이 두 개이고, 리뷰가 그 둘에 나뉘어 들어간다(실측 2026-09-20:
   //   6건 + 5건). querySelector 로 첫 번째만 보면 **절반이 조용히 사라진다** —
   //   오류도 안 나고 건수만 줄어서 알아채기 가장 어려운 종류의 누락이다.
+  const fieldMisses: Record<string, number> = {};
   const containers = root.querySelectorAll(page.container);
   if (containers.length === 0) {
     misses.push("container");
-    return { items: [], misses };
+    return { items: [], misses, fieldMisses };
   }
 
   const itemEls: Element[] = [];
@@ -68,7 +75,7 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
   });
   if (itemEls.length === 0) {
     misses.push("item");
-    return { items: [], misses };
+    return { items: [], misses, fieldMisses };
   }
 
   const items: RawReview[] = [];
@@ -78,12 +85,21 @@ export function extractReviews(root: Document | Element, page: PageSpec): Extrac
       const value = parseField(el, fieldSpec);
       // exists 필드는 부재 자체가 유효한 값(false)이므로 미스로 세지 않는다.
       if (value === null && fieldSpec.parse !== "exists") {
-        misses.push(`fields.${key}`);
+        fieldMisses[key] = (fieldMisses[key] ?? 0) + 1;
       }
       record[key] = value;
     }
     items.push(record);
   });
 
-  return { items, misses };
+  // ★ 한 건이 비었다고 셀렉터가 깨진 게 아니다. 네이버에는 본문 없는 키워드 리뷰가
+  //   있고("이런 점이 좋았어요" 만 고른 리뷰), 별점이 안 붙는 리뷰도 있다. 스크롤로
+  //   방금 붙은 <li> 를 그려지는 중에 잡을 수도 있다. 전부 정상 데이터 변동이다.
+  //   **전건이 비었을 때만** 셀렉터 고장으로 본다 — 그때는 데이터가 아니라 DOM 이
+  //   바뀐 것이다. 이 구분을 없애면 본문 없는 리뷰 하나에 기능이 통째로 꺼진다.
+  for (const [key, count] of Object.entries(fieldMisses)) {
+    if (count === itemEls.length) misses.push(`fields.${key}`);
+  }
+
+  return { items, misses, fieldMisses };
 }
