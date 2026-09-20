@@ -29,6 +29,23 @@ export function canTransition(from: QueueState, to: QueueState): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+/**
+ * 서버가 준 status 문자열을 큐 상태로 읽는다.
+ *
+ * ★ 왜 필요한가 — 확장 로컬 큐가 사라져도(POS 프로필 초기화·크롬 재설치·확장 재설치)
+ *   서버에는 진행 상태가 그대로 남아 있다. 그걸 안 읽고 무조건 DRAFTED 로 저장하면
+ *   **어제 승인까지 끝낸 리뷰가 "미확인" 으로 되살아난다.** 사장님은 처리한 일을 다시
+ *   처리하게 되고, 화면의 "미확인 N건" 을 믿을 수 없게 된다.
+ *
+ * ★ 모르는 값은 DRAFTED 로 떨어뜨린다. 서버가 상태를 늘렸을 때 큐가 깨지는 것보다
+ *   "한 번 더 확인해 주세요" 가 안전하다 — 건너뛰는 쪽으로 틀리지 않는다.
+ *   ★ 특히 APPROVED·POSTED 로 **추측해서** 올리지 말 것. 확인하지 않은 답글이
+ *     확인된 것처럼 보이면 그게 가장 나쁘다.
+ */
+export function parseQueueState(status: string | null | undefined): QueueState {
+  return status != null && status in TRANSITIONS ? (status as QueueState) : "DRAFTED";
+}
+
 export interface QueueItem {
   state: QueueState;
   rating: number | null;

@@ -12,7 +12,7 @@ import { ApiClient, ApiError, DEFAULT_BASE_URL, type NaverStore, type QueueEvent
 import { loadSpec, recordMiss, resetMissState, type CacheDeps } from "../selector/cache";
 import { drain, enqueue, type OfflineQueueDeps, type QueuedItem } from "../queue/offlineQueue";
 import { reportSelectorMiss } from "../telemetry/selectorMiss";
-import { canTransition, selectBulkTargets } from "../state/machine";
+import { canTransition, parseQueueState, selectBulkTargets } from "../state/machine";
 import type { QueueEntry } from "../state/queueEntry";
 import { isHeartbeatStale } from "./heartbeat";
 
@@ -135,8 +135,10 @@ async function handleReviewDetected(message: Record<string, unknown>): Promise<v
       blocked: draft.blocked,
       riskLevel: draft.riskLevel,
       riskReasons: draft.riskReasons ?? [],
-      state: "DRAFTED",
-      edited: false,
+      // ★ 서버 상태를 그대로 따른다. 무조건 DRAFTED 로 쓰면 로컬 큐가 사라졌을 때
+      //   (POS 프로필 초기화·확장 재설치) 이미 처리한 리뷰가 "미확인" 으로 되살아난다.
+      state: parseQueueState(draft.status),
+      edited: draft.status === "EDITED",
       detectedAt: Date.now(),
     });
   } catch {
