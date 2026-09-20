@@ -54,9 +54,32 @@ export function parseReviewDates(dateBlock: string | null | undefined): ReviewDa
 export function reviewIdentity(
   authorRef: string | null | undefined,
   writtenAt: string | null | undefined,
+  visitedAt?: string | null,
 ): string | null {
   const ref = (authorRef ?? "").trim();
   const day = (writtenAt ?? "").trim();
   if (!ref || !day) return null;
-  return `${ref}|${day}`;
+  // ★ 방문일까지 넣는다 (실측 2026-09-20). 작성자+작성일만으로는 부족했다 —
+  //   같은 손님이 **같은 날 두 번의 방문**(5/24, 6/27)에 대해 각각 리뷰를 쓰고
+  //   본문까지 같은 경우가 실제 데이터에 있었다. 서로 다른 리뷰인데 해시가 겹쳤다.
+  //   방문일이 없는 리뷰도 있으므로 있을 때만 붙인다(빈 문자열이면 종전과 동일).
+  return `${ref}|${day}|${(visitedAt ?? "").trim()}`;
+}
+
+/**
+ * 한 번의 스캔 안에서 중복된 식별자를 찾는다.
+ *
+ * ★ 마지막 방어선이다. 위 조합으로도 못 가르는 리뷰가 남을 수 있다(방문일이 둘 다
+ *   없고 같은 손님이 같은 날 두 건을 쓴 경우). 그때 그냥 두면 두 번째 리뷰가 첫
+ *   번째의 답글로 덮이거나 중복 취급돼 조용히 사라진다.
+ *   호출부는 여기 담긴 식별자를 **건너뛰고** 셀렉터 미스로 보고해야 한다.
+ *   식별할 수 없으면 처리하지 않는다 — 잘못 붙이는 것보다 낫다.
+ */
+export function collidingIdentities(identities: (string | null)[]): Set<string> {
+  const count = new Map<string, number>();
+  for (const id of identities) {
+    if (!id) continue;
+    count.set(id, (count.get(id) ?? 0) + 1);
+  }
+  return new Set([...count.entries()].filter(([, n]) => n > 1).map(([id]) => id));
 }

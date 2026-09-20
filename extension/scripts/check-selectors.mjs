@@ -99,8 +99,8 @@ for (const [pageName, page] of Object.entries(spec.pages)) {
   const seen = new Map();
   let unidentified = 0;
   for (const it of items) {
-    const { writtenAt } = parseReviewDates(it.dateBlock);
-    const identity = reviewIdentity(it.authorRef, writtenAt);
+    const { writtenAt, visitedAt } = parseReviewDates(it.dateBlock);
+    const identity = reviewIdentity(it.authorRef, writtenAt, visitedAt);
     if (!identity) {
       unidentified += 1;
       continue;
@@ -122,7 +122,7 @@ for (const [pageName, page] of Object.entries(spec.pages)) {
     const body = maskReviewBody(String(it.body ?? ""));
     const author = it.authorName ? await hashAuthor(String(it.authorName), "demo-salt") : null;
     const { visitedAt, writtenAt } = parseReviewDates(it.dateBlock);
-    const identity = reviewIdentity(it.authorRef, writtenAt);
+    const identity = reviewIdentity(it.authorRef, writtenAt, visitedAt);
     const hash = identity ? await reviewHash(identity, "demo-store") : null;
     console.log(`    reviewHash : ${hash ? hash.slice(0, 16) + "…" : "(식별 불가 — 건너뜀)"}`);
     console.log(`    rating     : ${it.rating ?? "(없음)"}`);

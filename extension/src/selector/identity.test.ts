@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReviewDates, reviewIdentity } from "./identity";
+import { collidingIdentities, parseReviewDates, reviewIdentity } from "./identity";
 
 // 실측 텍스트 (2026-09-20). 라벨과 날짜가 공백 없이 이어져 온다.
 const REAL = "방문일2026. 9. 10(목)1번째작성일2026. 9. 16(수)영수증 인증";
@@ -55,5 +55,38 @@ describe("reviewIdentity", () => {
     expect(reviewIdentity(A, null)).toBeNull();
     expect(reviewIdentity("", "")).toBeNull();
     expect(reviewIdentity("  ", "2026-09-16")).toBeNull();
+  });
+});
+
+describe("reviewIdentity — 방문일까지 넣는다 (실측 2026-09-20 충돌)", () => {
+  const A = "https://m.place.naver.com/my/aaaaaaaaaaaaaaaaaaaaaaaa/review";
+
+  /**
+   * ★ 실제 데이터에서 나온 충돌이다. 같은 손님이 같은 날(2026-07-12) 두 번의 방문
+   *   (5/24, 6/27)에 대해 각각 리뷰를 썼고 본문까지 같았다. 작성자+작성일만으로는
+   *   서로 다른 두 리뷰가 같은 해시를 받아, 두 번째가 답글을 못 받았다.
+   */
+  it("같은 작성자·같은 작성일이어도 방문일이 다르면 다른 식별자다", () => {
+    expect(reviewIdentity(A, "2026-07-12", "2026-05-24"))
+      .not.toBe(reviewIdentity(A, "2026-07-12", "2026-06-27"));
+  });
+
+  it("방문일이 없어도 종전처럼 동작한다", () => {
+    expect(reviewIdentity(A, "2026-07-12")).toBe(reviewIdentity(A, "2026-07-12", null));
+    expect(reviewIdentity(A, "2026-07-12")).not.toBeNull();
+  });
+});
+
+describe("collidingIdentities", () => {
+  it("중복된 식별자만 골라낸다", () => {
+    expect(collidingIdentities(["a", "b", "a", "c"])).toEqual(new Set(["a"]));
+  });
+
+  it("중복이 없으면 빈 집합이다", () => {
+    expect(collidingIdentities(["a", "b", "c"]).size).toBe(0);
+  });
+
+  it("null 은 세지 않는다 — 식별 불가는 이미 별도로 걸러진다", () => {
+    expect(collidingIdentities([null, null, "a"]).size).toBe(0);
   });
 });
