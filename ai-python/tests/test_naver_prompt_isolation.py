@@ -303,7 +303,7 @@ def test_T0_방문판에는_주문_어휘가_없다():
     for seed in range(len(prompts._T0_TEMPLATES_VISIT)):
         text = prompts.render_t0_template("고객님", seed, True, None, "NAVER")
         assert "주문" not in text, text
-        assert len(text) >= 60, text  # 폴백 경로에서 COMPLAINT 하한을 넘어야 한다
+        assert 20 <= len(text) <= 90, text  # T0 대상인 칭찬·긍정·내용 없음의 길이 범위
     assert "주문" in prompts.render_t0_template("고객님", 1, True, None)  # 배달판은 그대로
 
 

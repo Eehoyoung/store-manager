@@ -201,16 +201,21 @@ def test_태그가_없으면_원인을_지어내지_말라고_지시한다():
 
 
 def test_T0_템플릿이_금지_상투구를_쓰지_않는다():
-    """생성 프롬프트가 금지한 표현을 T0 템플릿이 쓰고 있었다(소중한 리뷰·소중한 시간).
+    """실제 매장 답글에서 반복된 상투구를 무료 규칙형 답글도 쓰지 않는다.
 
-    ★ 길이는 줄이지 말 것 — T0 은 T1 실패 시 폴백이라 COMPLAINT 하한(60자)을 만족해야 한다."""
+    T0 은 PRAISE·POSITIVE·NOISE 전용이라 칭찬 하한만 만족하면 된다. 쓸 말이 없는
+    짧은 리뷰에 불만 답글 분량을 강제하면 자동 생성 티가 나는 다짐 문장이 붙는다."""
     금지 = ("소중한 의견", "소중한 리뷰", "소중한 시간", "더욱 노력", "항상 최선을 다하",
-            "너그러운 양해", "초심을 잃지 않", "빠른 시일 내", "각별히 신경", "적극 반영")
-    for seed in range(len(prompts._T0_TEMPLATES)):
-        # 최악 조건: 호칭 2자 + 이모지 없음
-        text = prompts.render_t0_template("고객", seed, False, None)
-        assert len(text) >= guardrails.MIN_LENGTH, (seed, len(text))
-        assert not [w for w in 금지 if w in text], (seed, text)
+            "너그러운 양해", "초심을 잃지 않", "빠른 시일 내", "각별히 신경", "적극 반영",
+            "앞으로도", "정성껏", "보답", "힘이 납니다", "기쁜 마음", "준비한 보람")
+    for platform, pool in (("BAEMIN", prompts._T0_TEMPLATES),
+                           ("NAVER", prompts._T0_TEMPLATES_VISIT)):
+        for seed in range(len(pool)):
+            # 최악 조건: 호칭 2자 + 이모지 없음
+            text = prompts.render_t0_template("고객", seed, False, None, platform)
+            assert len(text) >= guardrails.min_length_for("PRAISE"), (platform, seed, len(text))
+            assert len(text) <= 90, (platform, seed, len(text))
+            assert not [w for w in 금지 if w in text], (platform, seed, text)
 
 
 # ── 2026-09-17: 머리말·맺음말 기본 세트와 이모지 기본값 ────────────────────────────
@@ -259,16 +264,21 @@ def test_사장님이_적은_머리말이_기본세트를_이긴다():
     assert "'먹어주셔서 고맙습니다'" in _style("PRAISE", "rev-1", opening="먹어주셔서 고맙습니다")
 
 
-def test_이모지는_기본_2개이고_위험_불만에만_0개다():
-    """운영자 지시(2026-09-17)는 기본 2개 이상이다. 예외는 위험 사유가 붙은 불만 하나뿐 —
-    식중독·이물질 주장에 이모지가 붙으면 사안을 가볍게 다루는 것으로 읽힌다."""
-    assert prompts.emoji_count_for("PRAISE", None, True, 2) == 2
-    assert prompts.emoji_count_for("COMPLAINT", [], True, 2) == 2
+def test_이모지는_칭찬에_최대_1개이고_불만에는_쓰지_않는다():
+    """실매장 90일 답글에서 거의 매번 붙은 이모지가 자동 생성 티를 키웠다."""
+    assert prompts.emoji_count_for("PRAISE", None, True, 2) == 1
+    assert prompts.emoji_count_for("COMPLAINT", [], True, 2) == 0
     assert prompts.emoji_count_for("COMPLAINT", ["HYGIENE"], True, 2) == 0
     assert prompts.emoji_count_for("COMPLAINT", ["FOOD_POISONING"], True, 2) == 0
     assert prompts.emoji_count_for("PRAISE", None, False, 2) == 0  # 사장님이 이모지를 껐으면 0
-    assert "이모지는 2개 쓴다" in _style("PRAISE", "rev-1")
+    assert "이모지는 1개 이하" in _style("PRAISE", "rev-1")
     assert "이모지를 쓰지 마라" in _style("COMPLAINT", "rev-1", ["FOREIGN_OBJECT"])
+
+
+def test_짧은_답글에_머리말과_맺음말을_동시에_강제하지_않는다():
+    hint = _style("PRAISE", "rev-1")
+    assert "후보" in hint
+    assert "둘 중 하나만" in hint
 
 
 def test_위험_불만_머리말은_사실을_인정하지_않는다():
@@ -384,14 +394,11 @@ def test_무거운_맥락의_칭찬에는_들뜬_인사를_쓰지_않는다():
     assert prompts._opening_pool("COMPLAINT", somber) == prompts._OPENING_POOL["COMPLAINT"]
 
 
-def test_불만_답글은_이모지를_맺음말에만_붙인다():
-    """COMPLAINT 머리말 8종은 전부 사과·유감 문장이다 — '머리말 끝' 이 곧 '사과 문장 뒤' 다.
-
-    "머리말 끝에 붙여라" 와 "사과 문장 뒤에 붙이면 조롱" 이 한 프롬프트에 같이 있었다."""
+def test_불만_답글은_이모지를_쓰지_않는다():
+    """실매장 스타일 고도화 뒤에는 일반 불만도 이모지 없이 진지하게 답한다."""
     hint = _style("COMPLAINT", "rev-1")
-    assert "전부 맺음말 끝에만 붙인다" in hint and "머리말에는 붙이지 마라" in hint
-    assert "이모지는 2개 쓴다" in hint          # 개수는 운영자 지시대로 유지
-    assert "머리말 끝과 맺음말 끝에만" in _style("PRAISE", "rev-1")  # 칭찬은 그대로
+    assert "이모지를 쓰지 마라" in hint
+    assert "이모지는 1개 이하" in _style("PRAISE", "rev-1")
 
 
 def test_상황지침에_거짓_전제를_두지_않는다():
@@ -479,20 +486,28 @@ def test_점주_형식_슬롯과_기본값():
     assert prompts.style_slot_for("NOISE") == "GENERAL"
 
     금지 = ("소중한 의견", "소중한 리뷰", "소중한 시간", "더욱 노력", "항상 최선을 다하",
-            "너그러운 양해", "초심을 잃지 않", "빠른 시일 내", "각별히 신경", "적극 반영")
+            "너그러운 양해", "초심을 잃지 않", "빠른 시일 내", "각별히 신경", "적극 반영",
+            "앞으로도", "정성껏", "보답", "힘이 납니다", "기쁜 마음")
     for kind in prompts.STYLE_SAMPLE_TYPES:
         pool = prompts.DEFAULT_STYLE_SAMPLES[kind]
         # ★ 하나만 두면 미입력 매장 답글이 전부 같은 뼈대를 갖는다
         assert len(pool) >= 3, kind
         for text in pool:
             assert not [w for w in 금지 if w in text], (kind, text)
-            assert len(text) <= 280
+            assert len(text) <= 120
         # 매장마다 다른 것이 걸린다
         assert len({prompts.default_style_sample(kind, seed) for seed in range(6)}) == len(pool)
 
     # 사과 형식에 금전 약속이 없어야 한다(절대규칙 4)
     for text in prompts.DEFAULT_STYLE_SAMPLES["APOLOGY"]:
         assert not [w for w in ("환불", "보상", "할인", "쿠폰", "무료") if w in text], text
+
+
+def test_실매장_원본_예시는_길이와_상투구의_정답으로_취급하지_않는다():
+    system = _build_cat("PRAISE")
+    assert "예시의 길이·문장 수·상투구는 따라 하지 마라" in system
+    for phrase in ("저희도 기쁜 마음", "준비한 보람", "앞으로도", "보답"):
+        assert phrase in system
 
 
 def test_분류_프롬프트에_자기모순이_없다():

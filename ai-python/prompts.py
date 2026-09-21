@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 #   버전 문자열은 CLASSIFY_SYSTEM 안에 들어가지 않으므로 이 값을 올려도 캐시는 유지된다.
 # ★ v2.3 (2026-09-20) — 표기 흔들림을 두 층에서 함께 받는다. 결정론 룰은 자모 수준
 #   매칭으로(연음·자모분리·된소리), 모델은 "뜻으로 읽어라" 지침으로.
-PROMPT_VERSION = "v2.3"  # 소리나는 대로 쓴 리뷰가 위험 룰을 통째로 비껴가고 있었다
+PROMPT_VERSION = "v2.4"  # 실매장 90일 답글에서 확인한 장문·상투어·과한 이모지 패턴을 축소
 
 
 # ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
@@ -145,7 +145,7 @@ def issue_tags_for(platform: str | None) -> list[str]:
 #   자백 금지' 바구니에서 빼고(모델이 7건 중 5건에서 지침을 무시했는데 모델이 옳았다),
 #   교육·징계 약속 금지에서 '특정 직원 지목' 조건절을 떼고, PRAISE 근거에 방문 예시를 넣었다.
 #   그리고 방문 경로는 카테고리로 초안을 막지 않는다 — 네이버는 전건 사람 승인이다.
-NAVER_PROMPT_VERSION = "naver-v0.5"
+NAVER_PROMPT_VERSION = "naver-v0.6"
 
 
 def prompt_version_for(platform: str | None) -> str:
@@ -1531,7 +1531,7 @@ def has_meta_complaint(body: str) -> bool:
 
 
 _TONE_LABELS = {"POLITE": "정중한 존댓말", "FRIENDLY": "친근한 존댓말", "CHEERFUL": "밝고 경쾌", "CONCISE": "간결"}
-# 0=사용 안 함 · 1=1개 · 2=2~3개(기본, V34) · 3=자유. 숫자는 DB CHECK(0..3) 와 같다.
+# 0=사용 안 함 · 1~3=사용 의향. 실제 생성은 자동 생성 티를 줄이기 위해 칭찬에 최대 1개만 쓴다.
 _EMOJI_LABELS = {0: "사용 안 함", 1: "1개", 2: "2~3개", 3: "자유"}
 _EMOJI_COUNT = {0: 0, 1: 1, 2: 2, 3: 3}
 
@@ -1641,15 +1641,11 @@ def emoji_count_for(category: str, risk_reasons: list[str] | None, use_emoji: bo
                     tone: str | None = None) -> int:
     """이 답글에 넣을 이모지 개수.
 
-    ★ 기본은 2개다(운영자 지시 2026-09-17, V34 로 DB 기본값도 2). 예외는 하나뿐이다 —
-      위험 사유가 붙은 불만에는 **0개**. 식중독·이물질 주장에 "확인하겠습니다" 뒤로
-      이모지가 붙으면 위로가 아니라 사안을 가볍게 다루는 것으로 읽힌다. 이 초안은 사람
-      검수 화면에 그대로 뜨므로(절대규칙 3) 검수자가 보는 첫 화면부터 진지해야 한다."""
-    if not use_emoji:
+    ★ 실매장 90일 답글에서 이모지가 거의 매번 반복돼 자동 생성 티를 키웠다.
+      칭찬에는 최대 1개만 허용하고, 개선·불만에는 위험도와 무관하게 쓰지 않는다."""
+    if not use_emoji or emoji_level == 0:
         return 0
-    if _style_key(category, risk_reasons, tone) == "COMPLAINT_RISK":
-        return 0
-    return _EMOJI_COUNT.get(emoji_level, 2)
+    return 1 if _style_key(category, risk_reasons, tone) == "PRAISE" else 0
 
 
 def style_hint(category: str, risk_reasons: list[str] | None, persona, review_id: str,
@@ -1664,10 +1660,11 @@ def style_hint(category: str, risk_reasons: list[str] | None, persona, review_id
     n = emoji_count_for(category, risk_reasons, persona.use_emoji, persona.emoji_level, tone)
 
     lines = [
-        "\n[머리말·맺음말]",
-        f"- '{opening}' 와 비슷한 말로 시작하라. 토씨까지 같을 필요는 없다.",
-        f"- '{closing}' 와 비슷한 말로 끝내라.",
-        "- 이 두 문장은 껍데기다. 가운데 본문에서 리뷰에 실제로 답하라.",
+        "\n[말투 후보]",
+        f"- 첫 문장이 필요하면 '{opening}' 와 비슷한 말로 시작할 수 있다.",
+        f"- 끝맺음이 필요하면 '{closing}' 와 비슷한 말을 쓸 수 있다.",
+        "- 짧은 답글에서는 둘 중 하나만 골라라. 머리말과 맺음말을 모두 넣으려고 내용을 늘리지 마라.",
+        "- 후보는 문체 참고일 뿐이다. 리뷰의 구체적인 한 가지에 바로 답하는 문장이 우선이다.",
     ]
     if n == 0:
         lines.append("- 이모지를 쓰지 마라. 이 리뷰에는 어울리지 않는다.")
@@ -1675,11 +1672,11 @@ def style_hint(category: str, risk_reasons: list[str] | None, persona, review_id
         close_pool = f"{{{', '.join(_EMOJI_CLOSE)}}}"
         if key in ("COMPLAINT", "COMPLAINT_RISK"):
             # 이 풀의 머리말은 전부 사과·유감 문장이라, '머리말 끝' 이 곧 '사과 문장 뒤' 다.
-            lines.append(f"- 이모지는 {n}개 쓴다. 전부 맺음말 끝에만 붙인다{close_pool}."
+            lines.append(f"- 이모지는 {n}개 이하로 쓴다. 전부 맺음말 끝에만 붙인다{close_pool}."
                          " 머리말에는 붙이지 마라.")
         else:
             pools = f"머리말 {{{', '.join(_EMOJI_OPEN)}}} / 맺음말 {close_pool}"
-            lines.append(f"- 이모지는 {n}개 쓴다. 머리말 끝과 맺음말 끝에만 붙인다({pools}).")
+            lines.append(f"- 이모지는 {n}개 이하로 쓰고, 필요 없으면 생략한다. 쓴다면 머리말 또는 맺음말 끝에만 붙인다({pools}).")
         lines.append(
             "- ★ 사과·원인·조치 문장 뒤에는 절대 붙이지 마라. 사과 문장 뒤에 웃는 이모지가"
             " 붙으면 위로가 아니라 조롱으로 읽힌다."
@@ -1786,7 +1783,8 @@ def build_generate_messages(
         "- 리뷰에 언급된 메뉴가 있으면 자연스럽게 한 번 언급한다.\n"
         f"- {sentence_hint}으로 끝내라. 주방에서 짬을 내 쓴 글이지 안내문이 아니다.\n"
         "- 아래 예시는 이 매장 사장님이 실제로 쓴(혹은 승인된) 답글이다. 문장 리듬과 어휘를"
-        " 참고하되 내용을 복사하지 마라.\n\n"
+        " 참고하되 내용을 복사하지 마라. 예시의 길이·문장 수·상투구는 따라 하지 마라."
+        " 예시가 길거나 반복돼도 위 작성 지침이 우선이다.\n\n"
         + (f"\n[이 리뷰의 상황]\n{situation_text}\n" if situation_text else "")
         + store_facts_line(store_facts, issue_tags, praised_tags)
         + (f"\n[손님이 좋다고 한 것]\n{praised_text}\n"
@@ -1807,6 +1805,9 @@ def build_generate_messages(
         "  만족스러운 서비스로 보답 / 항상 최선을 다하 / 불편을 드려 대단히 죄송\n"
         "  너그러운 양해 / 초심을 잃지 않 / 빠른 시일 내에 / 각별히 신경 / 적극 반영\n"
         "  다시 한번 죄송 / 앞으로 더 나은 모습으로\n"
+        "  저희도 기쁜 마음 / 준비한 보람 / 힘이 납니다 / 앞으로도 / 보답 / 정성껏\n"
+        "- 감사 → 리뷰 요약 → 운영 다짐 → 재방문 권유의 네 단계를 매번 반복하지 마라.\n"
+        "- '~'·'ㅎㅎ' 같은 친근한 표시는 실제로 필요한 한 곳에만 선택적으로 쓴다.\n"
         "- 사과는 한 번만 한다. 같은 말을 표현만 바꿔 반복하지 마라.\n"
         "- 미사여구보다 구체가 낫다. '더 신경쓰겠습니다' 보다 '간을 다시 보겠습니다' 가 낫다.\n"
         "- 돈이 들지 않는 조치를 하나는 말하라. 추상적인 다짐 하나로 끝내지 마라.\n"
@@ -1868,9 +1869,9 @@ STYLE_SAMPLE_TYPES = ("THANKS", "APOLOGY", "GENERAL")
 
 DEFAULT_STYLE_SAMPLES: dict[str, tuple[str, ...]] = {
     "THANKS": (
-        "맛있게 드셨다니 저희가 더 기쁩니다. 다음에도 같은 맛으로 준비해 두겠습니다.",
-        "좋게 봐주셔서 고맙습니다. 오늘도 하나하나 정성껏 담았습니다. 또 뵙겠습니다.",
-        "이렇게 남겨주시니 힘이 납니다. 늘 지금 맛 그대로 준비하겠습니다.",
+        "맛있게 드셔주셔서 감사해요. 다음 주문도 잘 챙겨둘게요 😊",
+        "메뉴가 입맛에 맞으셨다니 좋네요. 또 생각날 때 편하게 찾아주세요 😊",
+        "잘 드셨다는 한마디가 큰 힘이 돼요. 감사해요 😊",
     ),
     "APOLOGY": (
         "불편을 드려 죄송합니다. 포장 전 확인 절차를 다시 챙기겠습니다.",
@@ -1878,9 +1879,9 @@ DEFAULT_STYLE_SAMPLES: dict[str, tuple[str, ...]] = {
         "기대에 못 미쳐 죄송합니다. 조리 과정부터 다시 점검하겠습니다.",
     ),
     "GENERAL": (
-        "남겨주신 말씀 잘 읽었습니다. 알려주신 부분은 그대로 챙기겠습니다.",
-        "글 남겨주셔서 고맙습니다. 말씀해 주신 점 새겨두겠습니다.",
-        "읽어보았습니다. 다음 준비에 그대로 반영하겠습니다.",
+        "남겨주신 말씀 잘 읽었어요. 알려주신 부분은 다음 준비에서 챙겨볼게요.",
+        "글 남겨주셔서 감사해요. 말씀하신 점은 매장에서 확인해볼게요.",
+        "말씀해주신 내용 확인했습니다. 다음 준비 때 놓치지 않을게요.",
     ),
 }
 
@@ -1979,32 +1980,26 @@ def t0_template_allowed(category: str) -> bool:
 
 
 # ── T0 룰 템플릿 (docs/12 §8, LLM 미사용 — 원가 0) ──────────────────────────
-# guardrails.MIN_LENGTH(60자)를 title 이 짧고(2자) emoji 가 꺼져 있는 최악의 경우에도
-# 항상 만족하도록, title/emoji 를 뺀 본문만으로 65자 이상이 되게 여유 있게 작성한다.
+# T0 은 PRAISE·POSITIVE·NOISE 전용이다. 짧은 리뷰에 불만 답글 분량을 억지로 채우면
+# 다짐·상투구가 붙으므로, 칭찬 하한만 넘기되 한두 문장으로 끝낸다.
 _T0_TEMPLATES = [
-    # ★ 생성 프롬프트가 금지한 상투구(소중한 리뷰·소중한 시간)를 여기서 쓰고 있었다(2026-09-17).
-    #   같은 매장 답글인데 T0 만 자동 답글 티가 나면 나머지 노력이 무의미하다.
-    # ★ 길이는 그대로 넉넉히 둔다 — T0 은 T1 실패 시 폴백 경로이기도 해서
-    #   COMPLAINT 하한(60자)을 만족해야 한다. 짧게 줄이지 말 것(tests 가 잠근다).
-    "{title}, 별점 남겨주셔서 감사합니다{emoji} 덕분에 오늘도 힘내서 준비했습니다. 다음에도 맛있게 드실 수 있도록 정성껏 만들어 두겠습니다.",
-    "{title}, 주문해 주셔서 감사합니다{emoji} 남겨주신 별점 잘 보았습니다. 다음 주문에도 같은 맛으로 준비해 두겠다는 말씀 드립니다.",
-    "{title}, 찾아주셔서 고맙습니다{emoji} 오늘도 한 그릇 한 그릇 정성껏 담았습니다. 다음에도 변함없는 맛으로 준비해 두겠습니다.",
-    "{title}, 주문 감사합니다{emoji} 맛있게 드셨기를 바랍니다. 재료 손질부터 포장까지 늘 같은 손으로 챙기고 있으니 다음에도 편하게 찾아주세요.",
-    "{title}, 오늘도 저희 가게 찾아주셔서 감사합니다{emoji} 다음 주문에도 지금과 같은 맛과 양으로 정성껏 준비해 두겠습니다.",
+    "{title}, 별점 남겨주셔서 감사해요{emoji} 맛있게 드셨다면 좋겠습니다. 남겨주신 마음도 잘 받았어요.",
+    "{title}, 주문해 주셔서 고마워요{emoji} 메뉴가 생각날 때 편하게 찾아주세요. 다음 한 끼도 잘 챙겨둘게요.",
+    "{title}, 반가운 별점 감사합니다{emoji} 한 끼가 든든하고 맛있었기를 바라요. 다시 찾아주시면 반갑게 맞겠습니다.",
+    "{title}, 오늘 주문도 감사해요{emoji} 짧게 남겨주신 별점까지 잘 봤습니다. 맛있게 드셨기를 바라요.",
+    "{title}, 저희 가게를 골라주셔서 고마워요{emoji} 남겨주신 별점 덕분에 오늘 하루가 조금 더 반갑네요.",
 ]
 
 
 # 방문판. ★ 배달 5종 중 3종이 "주문해 주셔서"·"다음 주문에도" 로 열고 닫는다 —
 #   홀에 앉아 드시고 간 손님에게 쓸 말이 아니다(2026-09-19). T0 은 LLM 을 타지 않는
 #   룰 템플릿이라 프롬프트를 아무리 갈라도 여기는 갈라지지 않는다. 별도 목록을 둔다.
-# ★ 길이는 배달판과 같은 이유로 넉넉히 둔다 — T0 은 폴백 경로이기도 해서 COMPLAINT
-#   하한(60자)을 만족해야 한다.
 _T0_TEMPLATES_VISIT = [
-    "{title}, 별점 남겨주셔서 감사합니다{emoji} 덕분에 오늘도 힘내서 준비했습니다. 다음에도 맛있게 드실 수 있도록 정성껏 만들어 두겠습니다.",
-    "{title}, 찾아와 주셔서 감사합니다{emoji} 남겨주신 별점 잘 보았습니다. 다음에 오실 때도 같은 맛으로 준비해 두겠다는 말씀 드립니다.",
-    "{title}, 찾아주셔서 고맙습니다{emoji} 오늘도 한 그릇 한 그릇 정성껏 담았습니다. 다음에도 변함없는 맛으로 준비해 두겠습니다.",
-    "{title}, 들러주셔서 감사합니다{emoji} 맛있게 드셨기를 바랍니다. 재료 손질부터 상에 내는 것까지 늘 같은 손으로 챙기고 있으니 다음에도 편하게 찾아주세요.",
-    "{title}, 오늘도 저희 가게 찾아주셔서 감사합니다{emoji} 다음에 오실 때도 지금과 같은 맛과 양으로 정성껏 준비해 두겠습니다.",
+    "{title}, 별점 남겨주셔서 감사해요{emoji} 맛있게 드셨다면 좋겠습니다. 남겨주신 마음도 잘 받았어요.",
+    "{title}, 찾아와 주셔서 고마워요{emoji} 메뉴가 생각날 때 편하게 들러주세요. 반갑게 맞을게요.",
+    "{title}, 반가운 별점 감사합니다{emoji} 식사 시간이 든든하고 맛있었기를 바라요. 다시 뵈면 반갑겠습니다.",
+    "{title}, 오늘 발걸음해 주셔서 감사해요{emoji} 짧게 남겨주신 별점까지 잘 봤습니다. 편안한 식사였기를 바라요.",
+    "{title}, 저희 가게에 들러주셔서 고마워요{emoji} 남겨주신 별점 덕분에 오늘 하루가 조금 더 반갑네요.",
 ]
 
 
@@ -2027,7 +2022,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
     platform 기본값(None)은 배달판이다 — 인자를 안 넘기는 기존 호출부가 그대로 돌아야 한다."""
     pool = _T0_TEMPLATES_VISIT if is_visit_platform(platform) else _T0_TEMPLATES
     idx = ((persona_seed or 0) + zlib.crc32(review_body.encode("utf-8"))) % len(pool)
-    emoji = " :)" if use_emoji else ""
+    emoji = " 😊" if use_emoji else ""
     text = pool[idx].format(title=customer_title, emoji=emoji)
     if signature:
         text = f"{text} {signature}"
@@ -2035,7 +2030,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v2.3"
+    assert PROMPT_VERSION == "v2.4"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]

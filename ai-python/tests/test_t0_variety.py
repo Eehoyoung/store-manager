@@ -36,7 +36,7 @@ def test_본문을_안_넘기면_종전과_동일하다():
     """기존 호출부가 그대로 돌아야 한다(review_body 기본값 "")."""
     for seed in range(len(prompts._T0_TEMPLATES_VISIT)):
         assert (prompts.render_t0_template("고객님", seed, True, None, "NAVER")
-                == prompts._T0_TEMPLATES_VISIT[seed].format(title="고객님", emoji=" :)"))
+                == prompts._T0_TEMPLATES_VISIT[seed].format(title="고객님", emoji=" 😊"))
 
 
 def test_방문판과_배달판은_여전히_갈린다():
