@@ -82,6 +82,7 @@ class NaverExtensionCorsTest {
         CorsConfiguration cfg = config.corsConfigurationSource().getCorsConfiguration(req);
 
         assertThat(cfg.checkOrigin(EXT_ORIGIN)).isEqualTo(EXT_ORIGIN);
+        assertThat(cfg.checkOrigin("https://review.sodamlabs.kr")).isEqualTo("https://review.sodamlabs.kr");
         assertThat(cfg.checkOrigin("chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).isNull();
     }
 }

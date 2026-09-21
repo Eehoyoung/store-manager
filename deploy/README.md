@@ -12,8 +12,12 @@
 - 디스크: DB + 백업 14일치. 매장 100개 기준 최소 50GB 권장
 
 ### 1.2 도메인
-`SITE_DOMAIN` 의 A 레코드가 서버 IP 를 가리켜야 한다. Caddy 가 Let's Encrypt 인증서를
+운영 도메인은 `review.sodamlabs.kr`이다. 이 호스트의 A 레코드가 서버 IP 를 가리켜야 한다.
+Caddy 가 Let's Encrypt 인증서를
 자동으로 발급·갱신한다 — DNS 가 안 붙은 상태로 올리면 발급에 실패하고 재시도 한도에 걸린다.
+
+도메인·웹 CORS·알림톡 링크·DataAPI 운영계·공개 사업자 기본정보는 운영 Compose에 고정한다.
+개발 `.env`가 운영 배포 명령에 섞여도 localhost나 개발계로 되돌아가지 않게 하기 위해서다.
 
 ### 1.3 비밀값
 
@@ -37,6 +41,13 @@ openssl rand -base64 32   # INTERNAL_TOKEN
 필수 항목은 `.env.example` 의 `[필수]` 표시를 따른다. 빠지면 컨테이너가 기동하지 않는다
 (fail-closed — 비밀값이 조용히 빈 문자열로 도는 것보다 낫다).
 
+Chrome Web Store 에서 발급된 고정 확장 ID도 운영 CORS에 반드시 지정한다. 개발 기본값인
+`chrome-extension://*`는 운영에서 허용하지 않는다.
+
+```bash
+PRODUCTION_EXTENSION_ORIGIN=chrome-extension://<Chrome-Web-Store-고정-ID>
+```
+
 ## 2. 배포
 
 ```bash
@@ -50,9 +61,9 @@ Flyway 가 기동 시 마이그레이션을 적용한다. 실패하면 api-sprin
 ### 2.1 첫 배포 후 확인
 
 ```bash
-curl -sI https://$SITE_DOMAIN | head -3               # 200 + HSTS 헤더
-curl -s  https://$SITE_DOMAIN/internal/collect-result # 404 여야 한다 (외부 차단 확인)
-curl -s  https://$SITE_DOMAIN/actuator/health         # 404 여야 한다
+curl -sI https://review.sodamlabs.kr | head -3               # 200 + HSTS 헤더
+curl -s  https://review.sodamlabs.kr/internal/collect-result # 404 여야 한다 (외부 차단 확인)
+curl -s  https://review.sodamlabs.kr/actuator/health         # 404 여야 한다
 ```
 
 `/internal/*` 가 404 가 아니면 **즉시 중단하라.** 그 경로의 `X-Internal-Token` 하나로

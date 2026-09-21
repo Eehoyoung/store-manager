@@ -28,7 +28,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      SITE_DOMAIN: "${SITE_DOMAIN:?SITE_DOMAIN 을 설정하세요 - 예 app.example.com}"
+      SITE_DOMAIN: review.sodamlabs.kr
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data      # 발급받은 인증서. 이걸 잃으면 재발급 한도에 걸릴 수 있다
@@ -87,7 +87,10 @@ services:
       REDIS_PORT: 6379
       AI_SERVICE_BASE_URL: http://ai-python:8001
       # Caddy 가 같은 오리진으로 넘기므로 교차 오리진 요청이 없다.
-      APP_CORS_ALLOWED_ORIGINS: https://${SITE_DOMAIN}
+      APP_CORS_ALLOWED_ORIGINS: https://review.sodamlabs.kr
+      # 운영 확장은 Chrome Web Store 의 고정 ID 하나만 허용한다. 개발의 chrome-extension://* 를
+      # 운영에 흘리지 않도록 값이 없으면 기동 전에 Compose 단계에서 실패시킨다.
+      APP_CORS_ALLOWED_EXTENSION_ORIGINS: ${PRODUCTION_EXTENSION_ORIGIN:?Chrome Web Store 확장 origin을 설정하세요}
       JWT_SECRET: ${JWT_SECRET:?}
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
       CREDENTIAL_KEY_ID: ${CREDENTIAL_KEY_ID:-prod}
@@ -97,13 +100,13 @@ services:
       APP_ADMIN_USER_IDS: ${APP_ADMIN_USER_IDS:-}
       AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.
-      BUSINESS_NAME: ${BUSINESS_NAME:-소담}
-      BUSINESS_SERVICE_NAME: ${BUSINESS_SERVICE_NAME:-리뷰파일럿}
-      BUSINESS_REPRESENTATIVE: ${BUSINESS_REPRESENTATIVE:-}
+      BUSINESS_NAME: 소담랩스
+      BUSINESS_SERVICE_NAME: Review Pilot
+      BUSINESS_REPRESENTATIVE: 이호영
       BUSINESS_ADDRESS: ${BUSINESS_ADDRESS:-}
       BUSINESS_PHONE: ${BUSINESS_PHONE:-}
       BUSINESS_EMAIL: ${BUSINESS_EMAIL:-}
-      BUSINESS_REGISTRATION_NUMBER: ${BUSINESS_REGISTRATION_NUMBER:-}
+      BUSINESS_REGISTRATION_NUMBER: 358-23-02207
       BUSINESS_MAIL_ORDER_NUMBER: ${BUSINESS_MAIL_ORDER_NUMBER:-}
       BUSINESS_PRIVACY_OFFICER: ${BUSINESS_PRIVACY_OFFICER:-}
       BUSINESS_INFO_REQUIRED: ${BUSINESS_INFO_REQUIRED:-false}
@@ -115,7 +118,7 @@ services:
       SOLAPI_SENDER_PHONE: ${SOLAPI_SENDER_PHONE:-}
       SOLAPI_TEMPLATE_RISK_REVIEW: ${SOLAPI_TEMPLATE_RISK_REVIEW:-}
       SOLAPI_TEMPLATE_DAILY_BRIEFING: ${SOLAPI_TEMPLATE_DAILY_BRIEFING:-}
-      ALIMTALK_LINK_BASE_URL: ${ALIMTALK_LINK_BASE_URL:-http://localhost:15173}
+      ALIMTALK_LINK_BASE_URL: https://review.sodamlabs.kr
       PRIVACY_RETENTION_DAYS: ${PRIVACY_RETENTION_DAYS:-1095}
       PUBLISH_SCHEDULER_ENABLED: ${PUBLISH_SCHEDULER_ENABLED:-true}
       DRAFT_SCHEDULER_ENABLED: ${DRAFT_SCHEDULER_ENABLED:-true}
@@ -156,7 +159,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       SPRING_INTERNAL_URL: http://api-spring:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
-      DATAAPI_BASE_URL: ${DATAAPI_BASE_URL:?}
+      # 개발 Compose 의 개발계 기본값은 유지하고, 운영 Compose 에서만 운영계를 기본으로 쓴다.
+      DATAAPI_BASE_URL: https://api.mydatahub.co.kr
       DATAAPI_TOKEN: ${DATAAPI_TOKEN:?}
       # ★ 기본 false 를 유지한다. 댓글 등록은 되돌릴 수 없다(수정 API 스펙 미수령).
       DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-false}
