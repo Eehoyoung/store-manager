@@ -24,6 +24,9 @@ app:
     bank-name: 테스트은행
     account-no: "000-0000-0000"
     account-holder: 테스트예금주
+  promotion:
+    # 테스트 전용 쿠폰번호 - 운영 값은 env(PROMOTION_CODE)로만 준다
+    code: OPEN30
   jwt:
     # 테스트 전용 더미 시크릿(base64, 32바이트) - 운영 값 아님
     secret: /HbJWF+hl5rgq8axtp6NmSqJlE3UL7WDQmT2PswcCNg=

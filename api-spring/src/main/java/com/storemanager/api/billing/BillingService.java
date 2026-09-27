@@ -55,8 +55,7 @@ public class BillingService {
     private static final long OVERDUE_NOTIFY_D7 = 7;
     private static final long PAST_DUE_DAYS = 14;
     private static final long SUSPEND_DAYS = 21;
-    public static final String LAUNCH_PROMOTION_CODE = "OPEN30";
-    private static final int LAUNCH_PROMOTION_LIMIT = 30;
+    private static final int TRIAL_DAYS = 30;
 
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentRepository paymentRepository;
@@ -69,6 +68,12 @@ public class BillingService {
     private final String bankName;
     private final String accountNo;
     private final String accountHolder;
+    /**
+     * 무료체험 쿠폰번호(2026-09-28). 개별 전달하는 비공개 코드라 저장소에 적지 않고 env 로만 준다.
+     * ★ 비어 있으면 어떤 코드도 받지 않는다(fail-closed). 코드가 곧 DataAPI·LLM 비용이다.
+     */
+    private final String promotionCode;
+    private final int promotionLimit;
 
     public BillingService(SubscriptionRepository subscriptionRepository, PaymentRepository paymentRepository,
             StoreRepository storeRepository, AppUserRepository appUserRepository,
@@ -76,7 +81,9 @@ public class BillingService {
             AuditLogRepository auditLogRepository, EntityManager entityManager,
             @Value("${app.billing.bank-name}") String bankName,
             @Value("${app.billing.account-no}") String accountNo,
-            @Value("${app.billing.account-holder}") String accountHolder) {
+            @Value("${app.billing.account-holder}") String accountHolder,
+            @Value("${app.promotion.code:}") String promotionCode,
+            @Value("${app.promotion.limit:30}") int promotionLimit) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.storeRepository = storeRepository;
@@ -88,31 +95,33 @@ public class BillingService {
         this.bankName = bankName;
         this.accountNo = accountNo;
         this.accountHolder = accountHolder;
+        this.promotionCode = promotionCode == null ? "" : promotionCode.trim().toUpperCase(java.util.Locale.ROOT);
+        this.promotionLimit = promotionLimit;
     }
 
     // ── 구독 ─────────────────────────────────────────────────────────────
 
-    /** 가입 트랜잭션 안에서 OPEN30 한 달 무료체험을 원자적으로 귀속한다. */
+    /** 가입 트랜잭션 안에서 쿠폰 30일 무료체험을 원자적으로 귀속한다. */
     @Transactional
     public Subscription startLaunchTrial(Store store, String rawPromotionCode) {
         String code = rawPromotionCode == null ? "" : rawPromotionCode.trim().toUpperCase(java.util.Locale.ROOT);
-        if (!LAUNCH_PROMOTION_CODE.equals(code)) {
+        if (promotionCode.isEmpty() || !promotionCode.equals(code)) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "INVALID_PROMOTION_CODE"));
         }
         if (subscriptionRepository.findByStoreIdAndStatusNot(store.getId(), "CANCELED").isPresent()) {
             throw new ApiException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        // 동시에 여러 가입이 들어와도 30개를 넘지 않도록 프로모션 코드 단위 트랜잭션 락을 잡는다.
+        // 동시에 여러 가입이 들어와도 한도를 넘지 않도록 프로모션 코드 단위 트랜잭션 락을 잡는다.
         entityManager.createNativeQuery("select pg_advisory_xact_lock(hashtext(?1))")
                 .setParameter(1, code)
                 .getSingleResult();
-        if (subscriptionRepository.countByPromotionCode(code) >= LAUNCH_PROMOTION_LIMIT) {
+        if (subscriptionRepository.countByPromotionCode(code) >= promotionLimit) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "PROMOTION_SOLD_OUT"));
         }
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Instant trialEnd = now.atZone(KST).plusMonths(1).toInstant();
+        Instant trialEnd = now.plus(TRIAL_DAYS, ChronoUnit.DAYS);
         return subscriptionRepository.save(Subscription.builder()
                 .storeId(store.getId())
                 .priceKrw(PRICE_KRW)

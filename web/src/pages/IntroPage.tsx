@@ -3,13 +3,12 @@ import { LegalFooter } from "../layout/LegalFooter";
 import { Link, useLocation } from "react-router-dom";
 import "./intro.css";
 
-const OFFER_CODE = "OPEN30";
 
 // ★ 검색 노출용 제목·설명. scripts/prerender.mjs 가 intro.html <head> 에도 같은 값을 쓴다.
 //   "자동 답글"이라고 쓰지 말 것 — 자동 게시는 매장별 선택이고 민감 리뷰는 차단된다.
 export const INTRO_TITLE = "소담리뷰 | 배달 리뷰 AI 답글 관리 서비스";
 export const INTRO_DESCRIPTION =
-  "배달앱 리뷰 내용과 매장 말투를 반영해 사장님 답글을 준비하고, 위생·이물질·법적 분쟁처럼 민감한 리뷰는 자동 게시하지 않는 리뷰 답글 관리 서비스. 선착순 30개 매장, 첫 1개월 0원.";
+  "배달앱 리뷰 내용과 매장 말투를 반영해 사장님 답글을 준비하고, 위생·이물질·법적 분쟁처럼 민감한 리뷰는 자동 게시하지 않는 리뷰 답글 관리 서비스. 쿠폰 무료체험 30일 0원.";
 
 const benefits = [
   {
@@ -42,7 +41,7 @@ const faqs = [
   },
   {
     question: "무료 이용 후 가격은 얼마인가요?",
-    answer: "첫 1개월은 0원이며, 2개월차부터 매장당 월 33,000원(VAT 포함)입니다.",
+    answer: "첫 30일은 0원이며, 그 뒤부터 매장당 월 33,000원(VAT 포함)입니다.",
   },
   {
     question: "리뷰 내용도 만들어 주나요?",
@@ -58,9 +57,10 @@ export function IntroPage() {
   useEffect(() => setHydrated(true), []);
   const search = hydrated ? location.search : "";
   const signupPath = useMemo(() => {
+    // 쿠폰번호는 비공개로 개별 전달한다(2026-09-28). 여기서 채우지 않는다.
     const params = new URLSearchParams(search);
-    params.set("promo", OFFER_CODE);
-    return `/signup?${params.toString()}`;
+    const query = params.toString();
+    return query ? `/signup?${query}` : "/signup";
   }, [search]);
 
   useEffect(() => {
@@ -85,7 +85,6 @@ export function IntroPage() {
           <span className="intro-brand__divider" aria-hidden="true" />
           <span>소담리뷰</span>
         </Link>
-        <span className="intro-header__code">모집 코드 <strong>{OFFER_CODE}</strong></span>
       </header>
 
       <main>
@@ -98,16 +97,16 @@ export function IntroPage() {
             </p>
 
             <div className="intro-offer-line" aria-label="무료체험 조건">
-              <strong>첫 1개월 0원</strong>
+              <strong>첫 30일 0원</strong>
               <span>선착순 30개 매장</span>
               <span>이후 월 33,000원(VAT 포함)</span>
             </div>
 
             <Link className="intro-cta intro-cta--primary" to={signupPath}>
-              1개월 무료체험 신청하기
+              30일 무료체험 신청하기
               <span aria-hidden="true">→</span>
             </Link>
-            <p className="intro-hero__fine">신청할 때 모집 코드 {OFFER_CODE}을 확인해 주세요.</p>
+            <p className="intro-hero__fine">가입할 때 안내받은 쿠폰번호를 입력해 주세요.</p>
           </div>
 
           <div className="reply-console" aria-label="리뷰 내용을 반영한 답글 예시">
@@ -181,7 +180,7 @@ export function IntroPage() {
             <h2 id="process-title">시작은 세 단계면 됩니다.</h2>
           </div>
           <ol>
-            <li><span>1</span><div><strong>무료체험 신청</strong><p>매장 정보와 모집 코드 {OFFER_CODE}을 확인합니다.</p></div></li>
+            <li><span>1</span><div><strong>무료체험 신청</strong><p>가입하면서 안내받은 쿠폰번호를 입력합니다.</p></div></li>
             <li><span>2</span><div><strong>매장 답글 기준 설정</strong><p>호칭·문장 길이·피하고 싶은 표현을 정합니다.</p></div></li>
             <li><span>3</span><div><strong>실제 리뷰로 확인</strong><p>답글의 구체성과 민감 리뷰 정지를 한 달 동안 확인합니다.</p></div></li>
           </ol>
@@ -194,14 +193,14 @@ export function IntroPage() {
             <p>실제 매장 리뷰에 어떤 답글이 작성되는지 확인한 뒤 계속 사용할지 결정하세요.</p>
           </div>
           <div className="intro-offer__price">
-            <p>첫 1개월 이용료</p>
+            <p>첫 30일 이용료</p>
             <strong>0원</strong>
             <dl>
-              <div><dt>모집 코드</dt><dd>{OFFER_CODE}</dd></div>
-              <div><dt>2개월차부터</dt><dd>월 33,000원</dd></div>
+              <div><dt>신청 방법</dt><dd>쿠폰번호 입력</dd></div>
+              <div><dt>체험 이후</dt><dd>월 33,000원</dd></div>
               <div><dt>부가세</dt><dd>포함</dd></div>
             </dl>
-            <Link className="intro-cta intro-cta--light" to={signupPath}>OPEN30으로 무료체험 신청하기</Link>
+            <Link className="intro-cta intro-cta--light" to={signupPath}>30일 무료체험 신청하기</Link>
           </div>
         </section>
 
@@ -221,8 +220,8 @@ export function IntroPage() {
         <section className="intro-final" aria-labelledby="final-title">
           <p className="intro-section-label">오늘 쌓인 답글부터</p>
           <h2 id="final-title">한 달 동안 직접 써보고 결정하세요.</h2>
-          <Link className="intro-cta intro-cta--primary" to={signupPath}>첫 1개월 0원으로 신청하기 <span aria-hidden="true">→</span></Link>
-          <p>선착순 30개 매장 · 2개월차부터 월 33,000원(VAT 포함)</p>
+          <Link className="intro-cta intro-cta--primary" to={signupPath}>첫 30일 0원으로 신청하기 <span aria-hidden="true">→</span></Link>
+          <p>선착순 30개 매장 · 체험 이후 월 33,000원(VAT 포함)</p>
         </section>
       </main>
 
@@ -235,7 +234,7 @@ export function IntroPage() {
       </footer>
 
       <div className="intro-sticky" aria-label="무료체험 신청">
-        <div><strong>첫 1개월 0원</strong><span>이후 월 33,000원</span></div>
+        <div><strong>첫 30일 0원</strong><span>이후 월 33,000원</span></div>
         <Link to={signupPath}>무료체험 신청</Link>
       </div>
     </div>

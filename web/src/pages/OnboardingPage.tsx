@@ -19,7 +19,7 @@ function steps(storeId: string | null, promotionApplied: boolean): Step[] {
   {
     title: "3. 구독 결제",
     description: promotionApplied
-      ? "OPEN30 첫 1개월 무료체험이 적용되었습니다. 무료기간에는 이용료를 청구하지 않습니다."
+      ? "쿠폰 30일 무료체험이 적용되었습니다. 무료기간에는 이용료를 청구하지 않습니다."
       : "무료 파일럿 기간에는 결제하지 않습니다. 정식 출시 때 결제대행사(KG이니시스) 결제창이 열립니다.",
     state: promotionApplied ? "done" : "available",
     action: promotionApplied ? undefined : { label: "결제하러 가기", to: storeId ? `/stores/${storeId}/billing` : "/stores" },

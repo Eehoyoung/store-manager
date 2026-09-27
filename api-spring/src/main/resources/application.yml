@@ -55,6 +55,12 @@ app:
     bank-name: ${BILLING_BANK_NAME:}
     account-no: ${BILLING_ACCOUNT_NO:}
     account-holder: ${BILLING_ACCOUNT_HOLDER:}
+  promotion:
+    # 가입 시 쿠폰번호를 넣으면 30일 무료체험(TRIAL + promotion_code)이 열린다(2026-09-28).
+    # ★ 비공개 코드다. 저장소에 적지 말고 env 로만 준다. 비면 어떤 코드도 받지 않는다.
+    code: ${PROMOTION_CODE:}
+    # 코드 하나로 체험을 여는 매장 수 상한. 체험 매장도 DataAPI·LLM 비용이 나간다.
+    limit: ${PROMOTION_LIMIT:30}
   jwt:
     secret: ${JWT_SECRET}
     access-ttl-seconds: 1800

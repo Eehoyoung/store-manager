@@ -31,7 +31,7 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
      * ★ 페르소나가 없으면 생성할 수 없으므로 조인으로 거른다.
      * ★ 구독이 살아 있는 매장만 대상으로 한다 — 미납·해지 매장에 LLM 비용을 쓰면 못 받을 돈을
      *   우리가 대신 내는 셈이다. 조건을 여기(집합 단위)에 두어 건당 조회를 만들지 않는다.
-     *   상태 문자열은 StoreServiceGate.SERVICEABLE_SUBSCRIPTION_STATUSES 와 같아야 한다 - 함께 바꿀 것.
+     *   조건은 Subscription.isServiceableAt 과 같아야 한다 - 함께 바꿀 것(쿠폰 체험 포함, 2026-09-28).
      */
     @Query("""
             SELECT r FROM UnifiedReview r
@@ -43,7 +43,10 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
                             WHERE s.id = r.storeId AND s.deletedAt IS NULL AND s.activatedAt IS NOT NULL)
                AND EXISTS (SELECT 1 FROM StorePersona p WHERE p.storeId = r.storeId)
                AND EXISTS (SELECT 1 FROM Subscription sub
-                            WHERE sub.storeId = r.storeId AND sub.status = 'ACTIVE')
+                            WHERE sub.storeId = r.storeId
+                              AND (sub.status = 'ACTIVE'
+                                   OR (sub.status = 'TRIAL' AND sub.promotionCode IS NOT NULL
+                                       AND sub.trialEndsAt > CURRENT_TIMESTAMP)))
              ORDER BY r.collectedAt ASC
             """)
     List<UnifiedReview> findNeedingDraft(Pageable pageable);

@@ -140,6 +140,9 @@ services:
       # ★ 개인정보 파기 배치. 운영에서 끄면 보유기간을 정해 두고 영구 보관하게 된다.
       RETENTION_SCHEDULER_ENABLED: ${RETENTION_SCHEDULER_ENABLED:-true}
       BILLING_SCHEDULER_ENABLED: ${BILLING_SCHEDULER_ENABLED:-false}
+      # 무료체험 쿠폰번호(비공개, 개별 전달). 비면 체험을 열지 않는다.
+      PROMOTION_CODE: ${PROMOTION_CODE:-}
+      PROMOTION_LIMIT: ${PROMOTION_LIMIT:-30}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
       interval: 30s

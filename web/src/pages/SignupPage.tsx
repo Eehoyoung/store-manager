@@ -110,9 +110,9 @@ export function SignupPage() {
       } else if (err instanceof ApiError && err.code === "INVALID_FRANCHISE_CODE") {
         setFieldErrors((current) => ({ ...current, franchiseCode: "가맹코드를 다시 확인해 주세요." }));
       } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "INVALID_PROMOTION_CODE") {
-        setFieldErrors((current) => ({ ...current, promoCode: "프로모션 코드를 다시 확인해 주세요." }));
+        setFieldErrors((current) => ({ ...current, promoCode: "쿠폰번호를 다시 확인해 주세요." }));
       } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "PROMOTION_SOLD_OUT") {
-        setFieldErrors((current) => ({ ...current, promoCode: "OPEN30 선착순 신청이 마감되었습니다." }));
+        setFieldErrors((current) => ({ ...current, promoCode: "이 쿠폰의 무료체험 신청이 마감되었습니다." }));
       } else {
         setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
       }
@@ -148,8 +148,8 @@ export function SignupPage() {
             error={fieldErrors.phone}
           />
           <Field
-            label="프로모션 코드 (선택)"
-            hint="OPEN30 안내를 보고 오셨다면 코드가 자동으로 입력됩니다."
+            label="쿠폰번호 (선택)"
+            hint="안내받은 쿠폰번호를 입력하시면 30일 무료체험이 시작됩니다."
             autoCapitalize="characters"
             value={form.promoCode}
             onChange={(e) => setForm((c) => ({ ...c, promoCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32) }))}
