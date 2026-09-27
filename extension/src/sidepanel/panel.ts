@@ -60,7 +60,7 @@ async function renderPairing(): Promise<void> {
   const { apiBaseUrl } = await sendToBackground<{ apiBaseUrl: string }>({ type: "GET_SETTINGS" });
   app.innerHTML = `
     <div class="pairing">
-      <h1>리뷰파일럿 연결하기</h1>
+      <h1>소담리뷰 연결하기</h1>
       <p>웹 대시보드에서 발급받은 8자 코드를 입력하세요.</p>
       <input id="pair-code" maxlength="8" placeholder="ABCD1234" />
       <button class="primary" id="pair-submit">연결</button>
@@ -196,7 +196,7 @@ async function renderQueue(): Promise<void> {
   app.innerHTML = `
     <header>
       <div class="header-row">
-        <h1>리뷰파일럿</h1>
+        <h1>소담리뷰</h1>
         <a href="#" id="open-settings" class="settings-link">⚙ 설정</a>
       </div>
       <div class="summary">미확인 ${entries.filter((e) => e.state === "DRAFTED").length}건 · 부정 ${countNegative(entries.map((e) => e.rating))}건</div>

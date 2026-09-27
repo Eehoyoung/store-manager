@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "리뷰파일럿 — 네이버 답글 도우미",
+  "name": "소담리뷰 — 네이버 답글 도우미",
   "description": "네이버 스마트플레이스 리뷰 답글 초안을 만들어 드립니다. 게시는 항상 사장님이 직접 클릭합니다.",
   "version": "0.1.0",
   "icons": {
@@ -11,7 +11,7 @@
   },
   "permissions": ["storage", "alarms", "sidePanel", "notifications"],
   "action": {
-    "default_title": "리뷰파일럿 열기"
+    "default_title": "소담리뷰 열기"
   },
   "host_permissions": [
     "https://new.smartplace.naver.com/*",

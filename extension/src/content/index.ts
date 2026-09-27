@@ -181,7 +181,7 @@ async function scan(page: PageSpec, storeId: string | null): Promise<void> {
     const line = scanSummary(items.length, plan, misses, Boolean(storeId), fieldMisses);
     if (line !== lastScanLine) {
       lastScanLine = line;
-      console.log(`[리뷰파일럿] ${line}`);
+      console.log(`[소담리뷰] ${line}`);
     }
 
     // ★ "item" 미스는 셀렉터 고장이 아니라 아직 안 그려진 것일 때가 대부분이다.

@@ -53,7 +53,7 @@ class PasswordPolicyTest {
     @Test
     void 이메일_이름이_들어가면_거절한다() {
         // 계정이 털렸을 때 가장 먼저 시도되는 조합이다.
-        assertThatThrownBy(() -> PasswordPolicy.validate("reviewpilot9x", "reviewpilot@example.com", "홍길동"))
+        assertThatThrownBy(() -> PasswordPolicy.validate("sodamlabs9x", "sodamlabs@sodamlabs.example", "홍길동"))
                 .isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> PasswordPolicy.validate("xxhoyoung77", "a@b.com", "hoyoung"))
                 .isInstanceOf(ApiException.class);

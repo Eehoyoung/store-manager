@@ -26,9 +26,9 @@ import org.springframework.stereotype.Component;
 public class BusinessInfoProperties {
 
     /** 상호. 약관·처리방침이 "회사" 로 부르는 그 주체다(기본값은 두 문서와 같아야 한다). */
-    private String name = "소담";
+    private String name = "소담랩스";
     /** 서비스명. 상호와 다를 수 있다(전자상거래법상 표시는 상호 기준). */
-    private String serviceName = "리뷰파일럿";
+    private String serviceName = "소담리뷰";
     private String representative = "";
     private String address = "";
     private String phone = "";

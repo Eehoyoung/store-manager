@@ -31,7 +31,7 @@ class AlimtalkDispatcherTest {
     @BeforeEach
     void setUp() {
         AlimtalkProperties properties = new AlimtalkProperties();
-        properties.setLinkBaseUrl("https://reviewpilot.example");
+        properties.setLinkBaseUrl("https://sodamlabs.example");
         dispatcher = new AlimtalkDispatcher(transactions, stores, sender, new ObjectMapper(), properties);
     }
 

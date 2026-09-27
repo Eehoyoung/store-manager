@@ -38,8 +38,8 @@ export function LegalFooter() {
           <div><dt>개인정보 보호책임자</dt><dd>{field(info.privacyOfficer)}</dd></div>
         </dl>
       ) : null}
-      <p className="legal-footer__copy">
-        © {new Date().getFullYear()} {info?.name ?? "소담"} · {info?.serviceName ?? "리뷰파일럿"}
+      <p className="legal-footer__copy" suppressHydrationWarning>
+        © {new Date().getFullYear()} {info?.name ?? "소담랩스"} · {info?.serviceName ?? "소담리뷰"}
       </p>
     </footer>
   );

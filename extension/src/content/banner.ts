@@ -1,7 +1,7 @@
 /**
  * 세션 만료 / 점검 중 배너. shadow DOM 으로 격리해 네이버 DOM 개입을 최소화한다.
  */
-const BANNER_HOST_ID = "review-pilot-banner-host";
+const BANNER_HOST_ID = "sodam-review-banner-host";
 
 export function showBanner(message: string): void {
   let host = document.getElementById(BANNER_HOST_ID);
