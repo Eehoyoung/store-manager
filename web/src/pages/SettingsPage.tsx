@@ -11,12 +11,13 @@ import { Field } from "../components/Field";
 import { Skeleton } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../auth/AuthContext";
-import { agreementsApi, type AgreementHistoryRow } from "../api/agreements";
+import { agreementsApi, type AgreementHistoryRow, type HqWithdrawalStatus } from "../api/agreements";
 import { naverExtensionApi } from "../api/naverExtension";
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"account" | "connections" | "agreements">("account");
   const load = () => accountApi.get().then(setProfile).catch((e) => setError(e instanceof ApiError ? e.message : "계정 정보를 불러오지 못했습니다."));
   useEffect(() => { void load(); }, []);
 
@@ -26,25 +27,37 @@ export function SettingsPage() {
   return (
     <div className="settings-page">
       <h1>설정</h1>
-      <p className="settings-page__intro">계정 정보와 보안 설정을 관리합니다.</p>
-      <ProfileCard profile={profile} onUpdated={setProfile} />
-      <PasswordCard />
-      <NaverPairingCard />
-      <NaverPinCard />
-      <AgreementHistoryCard />
-      <Card className="settings-page__security-note">
-        <h2>서비스 보안</h2>
-        <p>배달앱 비밀번호는 별도 봉투암호화로 저장되며 이 화면에 표시하지 않습니다.</p>
-        <p>DataAPI 토큰과 LOGINPWD 공식 규격 확인 전에는 외부 계정 검증을 수행하지 않습니다.</p>
-      </Card>
-      <Card>
-        <h2>빠른 이동</h2>
-        <div className="settings-page__links">
-          <Link to="/platform-accounts" className="btn btn--secondary">배달앱 계정 연동</Link>
-          <Link to="/stores" className="btn btn--secondary">매장 관리</Link>
-        </div>
-      </Card>
-      <SessionCard />
+      <p className="settings-page__intro">계정과 연결, 동의 기록을 필요한 항목별로 관리합니다.</p>
+      <div className="settings-page__tabs" role="tablist" aria-label="설정 항목">
+        {([["account", "계정·보안"], ["connections", "서비스 연결"], ["agreements", "동의 기록"]] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} aria-controls={`settings-panel-${id}`}
+            className={`settings-page__tab${tab === id ? " settings-page__tab--active" : ""}`} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <section id="settings-panel-account" role="tabpanel" hidden={tab !== "account"}>
+        <ProfileCard profile={profile} onUpdated={setProfile} />
+        <PasswordCard />
+        <SessionCard />
+      </section>
+      <section id="settings-panel-connections" role="tabpanel" hidden={tab !== "connections"}>
+        <Card className="settings-page__card">
+          <h2>배달앱 계정 연결</h2>
+          <p>배민·요기요·쿠팡이츠 계정과 매장별 연결 상태를 관리합니다.</p>
+          <Link to="/platform-accounts" className="btn btn--secondary">배달앱 계정 관리</Link>
+        </Card>
+        <NaverPairingCard />
+        <NaverPinCard />
+        <Card className="settings-page__security-note">
+          <h2>서비스 보안</h2>
+          <p>배달앱 비밀번호는 별도 봉투암호화로 저장되며 이 화면에 표시하지 않습니다.</p>
+          <p>DataAPI 토큰과 LOGINPWD 공식 규격 확인 전에는 외부 계정 검증을 수행하지 않습니다.</p>
+        </Card>
+      </section>
+      <section id="settings-panel-agreements" role="tabpanel" hidden={tab !== "agreements"}>
+        <AgreementHistoryCard />
+      </section>
     </div>
   );
 }
@@ -52,17 +65,44 @@ export function SettingsPage() {
 function AgreementHistoryCard() {
   const [rows, setRows] = useState<AgreementHistoryRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
-  useEffect(() => { agreementsApi.history().then(setRows).catch(() => setMessage("동의 내역을 불러오지 못했습니다.")); }, []);
+  const [withdrawal, setWithdrawal] = useState<HqWithdrawalStatus | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    agreementsApi.history().then(setRows).catch(() => setMessage("동의 내역을 불러오지 못했습니다."));
+    agreementsApi.hqWithdrawalStatus().then(setWithdrawal).catch(() => setMessage("소속 해제 요청 상태를 확인하지 못했습니다."));
+  }, []);
   const withdraw = async () => {
-    await agreementsApi.requestHqWithdrawal();
-    setMessage("가맹본부 소속 해제 요청이 접수되었습니다. 실제 해제는 운영자가 처리합니다.");
-    setRows(await agreementsApi.history());
+    if (!withdrawal?.canRequest || withdrawal.requested || submitting) return;
+    setSubmitting(true);
+    try {
+      await agreementsApi.requestHqWithdrawal();
+      setWithdrawal({ ...withdrawal, canRequest: false, requested: true });
+      setMessage("가맹본부 소속 해제 요청이 접수되었습니다. 실제 해제는 운영자가 처리합니다.");
+      const [historyResult, statusResult] = await Promise.allSettled([agreementsApi.history(), agreementsApi.hqWithdrawalStatus()]);
+      if (historyResult.status === "fulfilled") setRows(historyResult.value);
+      if (statusResult.status === "fulfilled") setWithdrawal(statusResult.value);
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : "해제 요청을 접수하지 못했습니다. 다시 확인해 주세요.");
+      agreementsApi.hqWithdrawalStatus().then(setWithdrawal).catch(() => undefined);
+    } finally {
+      setSubmitting(false);
+    }
   };
   return <Card className="settings-page__card"><h2>동의 내역</h2>
+    <p className="field__hint">동의 여부, 적용한 문서 버전과 시각을 확인할 수 있습니다.</p>
     {message ? <p role="status">{message}</p> : null}
-    <ul>{rows.map((row, index) => <li key={`${row.code}-${row.agreedAt}-${index}`}><strong>{row.code}</strong> · {row.agreed ? "동의" : "철회/거부"} · {new Date(row.agreedAt).toLocaleString("ko-KR")} · 문서 {row.docVersion} · <Link to={row.documentUrl}>전문 보기</Link></li>)}</ul>
+    {rows.length ? <ul className="settings-page__agreement-list">{rows.map((row, index) => <li key={`${row.code}-${row.agreedAt}-${index}`}>
+      <strong>{row.code}</strong><span>{row.agreed ? "동의" : "철회/거부"}</span>
+      <time dateTime={row.agreedAt}>{new Date(row.agreedAt).toLocaleString("ko-KR")}</time>
+      <span>문서 {row.docVersion}</span><Link to={row.documentUrl}>전문 보기</Link>
+    </li>)}</ul> : <p>표시할 동의 내역이 없습니다.</p>}
     <p>필수 동의는 이 화면에서 철회할 수 없으며 회원 탈퇴로만 철회할 수 있습니다.</p>
-    <Button type="button" variant="secondary" onClick={() => void withdraw()}>가맹본부 소속 해제 요청</Button>
+    {withdrawal?.canRequest && !withdrawal.requested ? <div className="settings-page__withdraw">
+      <p>{withdrawal.brandName ? `${withdrawal.brandName} 소속 해제 요청을 접수할 수 있습니다. 실제 해제는 운영자가 처리합니다.` : "가맹본부 소속 해제 요청을 접수할 수 있습니다."}</p>
+      <Button type="button" variant="secondary" loading={submitting} disabled={submitting} onClick={() => void withdraw()}>소속 해제 요청</Button>
+    </div> : null}
+    {withdrawal?.requested ? <p role="status">가맹본부 소속 해제 요청이 접수되어 처리 중입니다.</p> : null}
+    {withdrawal && !withdrawal.canRequest && !withdrawal.requested && !withdrawal.brandName ? <p>현재 가맹본부 소속 매장이 없어 해제 요청을 할 수 없습니다.</p> : null}
   </Card>;
 }
 

@@ -26,7 +26,16 @@ record SignupRequest(
         Boolean agreedHqDataSharing,
         @NotBlank @Size(max = 20) String docVersion,
         @Pattern(regexp = "^$|^[A-Za-z0-9]{4,32}$", message = "프로모션 코드 형식이 올바르지 않습니다.")
-        @Size(max = 32) String promoCode) {
+        @Size(max = 32) String promoCode,
+        String businessNumber,
+        String openingDate,
+        String representativeName) {
+    SignupRequest(String email, String password, String name, String phone, String franchiseCode,
+            String storeName, String storeAddress, boolean agreedTerms, boolean agreedPrivacy,
+            Boolean agreedHqDataSharing, String docVersion, String promoCode) {
+        this(email, password, name, phone, franchiseCode, storeName, storeAddress,
+                agreedTerms, agreedPrivacy, agreedHqDataSharing, docVersion, promoCode, null, null, null);
+    }
 }
 
 record LoginRequest(

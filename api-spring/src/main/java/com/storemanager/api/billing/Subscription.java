@@ -71,6 +71,23 @@ public class Subscription {
     @Column(name = "cancellation_requested_at")
     private Instant cancellationRequestedAt;
 
+    @Column(name = "billing_key")
+    private String billingKey;
+
+    @Column(name = "billing_channel_key")
+    private String billingChannelKey;
+
+    @Builder.Default
+    @Column(name = "auto_renew", nullable = false)
+    private boolean autoRenew = false;
+
+    @Column(name = "next_billing_at")
+    private Instant nextBillingAt;
+
+    @Builder.Default
+    @Column(name = "renewal_failures", nullable = false)
+    private int renewalFailures = 0;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -124,6 +141,42 @@ public class Subscription {
         this.currentPeriodStart = periodStart;
         this.currentPeriodEnd = periodEnd;
         this.canceledAt = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void activateFromProvider(Instant periodStart, Instant periodEnd) {
+        this.status = "ACTIVE";
+        this.currentPeriodStart = periodStart;
+        this.currentPeriodEnd = periodEnd;
+        this.canceledAt = null;
+        this.updatedAt = Instant.now();
+    }
+
+    public void enableAutoRenew(String billingKey, String channelKey, Instant paidAt, Instant nextBillingAt) {
+        this.billingKey = billingKey;
+        this.billingChannelKey = channelKey;
+        this.autoRenew = true;
+        this.renewalFailures = 0;
+        activateFromProvider(paidAt, nextBillingAt);
+        this.nextBillingAt = nextBillingAt;
+    }
+
+    public void recordRenewal(Instant paidAt, Instant nextBillingAt) {
+        this.currentPeriodStart = paidAt;
+        this.currentPeriodEnd = nextBillingAt;
+        this.nextBillingAt = nextBillingAt;
+        this.renewalFailures = 0;
+        this.status = "ACTIVE";
+        this.updatedAt = paidAt;
+    }
+
+    public void recordRenewalFailure() {
+        this.renewalFailures++;
+        this.updatedAt = Instant.now();
+    }
+
+    public void disableAutoRenew() {
+        this.autoRenew = false;
         this.updatedAt = Instant.now();
     }
 

@@ -101,32 +101,33 @@ export function AppShell() {
       <StatusBanner storeId={storeId} />
       <div className="shell__body">
         <nav className="shell__nav" aria-label="주 메뉴">
-          <NavLink to="/stores" className={navLinkClass}>
-            매장
-          </NavLink>
-          <NavLink to={reviewsPath} className={navLinkClass}>
-            리뷰
-          </NavLink>
-          <NavLink to={dashboardPath} className={navLinkClass}>
-            대시보드
-          </NavLink>
-          <NavLink to={personaPath} className={navLinkClass}>
-            페르소나
-          </NavLink>
-          <NavLink to="/platform-accounts" className={navLinkClass}>
-            배달앱 연동
-          </NavLink>
-          {isHq ? (
+          <div className="shell__nav-group">
+            <span className="shell__nav-group-title">매장 운영</span>
+            <NavLink to="/stores" className={navLinkClass}>매장</NavLink>
+            <NavLink to={reviewsPath} className={navLinkClass}>리뷰</NavLink>
+            <NavLink to={dashboardPath} className={navLinkClass}>대시보드</NavLink>
+          </div>
+          <div className="shell__nav-group">
+            <span className="shell__nav-group-title">답글 관리</span>
+            <NavLink to={personaPath} className={navLinkClass}>페르소나</NavLink>
+            <NavLink to="/platform-accounts" className={navLinkClass}>배달앱 연동</NavLink>
+          </div>
+          {isHq ? <div className="shell__nav-group">
+            <span className="shell__nav-group-title">가맹본부</span>
             <NavLink to="/hq/brands" className={navLinkClass}>
               가맹본부
             </NavLink>
-          ) : null}
-          {isAdmin ? <NavLink to="/admin" className={navLinkClass}>소속 승인</NavLink> : null}
-          {isAdmin ? <NavLink to="/admin/subscriptions" className={navLinkClass}>서비스 상태</NavLink> : null}
-          {isAdmin ? <NavLink to="/admin/failures" className={navLinkClass}>실패 건</NavLink> : null}
-          <NavLink to="/settings" className={navLinkClass}>
-            설정
-          </NavLink>
+          </div> : null}
+          {isAdmin ? <div className="shell__nav-group">
+            <span className="shell__nav-group-title">관리자</span>
+            <NavLink to="/admin" className={navLinkClass}>소속 승인</NavLink>
+            <NavLink to="/admin/subscriptions" className={navLinkClass}>서비스 상태</NavLink>
+            <NavLink to="/admin/failures" className={navLinkClass}>실패 건</NavLink>
+          </div> : null}
+          <div className="shell__nav-group shell__nav-group--account">
+            <span className="shell__nav-group-title">계정</span>
+            <NavLink to="/settings" className={navLinkClass}>설정</NavLink>
+          </div>
         </nav>
         <main className="shell__main">
           <Outlet context={{ storeId, setStoreId } satisfies ShellContext} />

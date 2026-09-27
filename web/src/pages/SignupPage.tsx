@@ -19,6 +19,9 @@ interface FormState {
   franchiseCode: string;
   storeName: string;
   storeAddress: string;
+  businessNumber: string;
+  openingDate: string;
+  representativeName: string;
   promoCode: string;
 }
 
@@ -31,6 +34,9 @@ const INITIAL_FORM: FormState = {
   franchiseCode: "",
   storeName: "",
   storeAddress: "",
+  businessNumber: "",
+  openingDate: "",
+  representativeName: "",
   promoCode: "",
 };
 
@@ -57,6 +63,9 @@ export function SignupPage() {
   const [agreedTerms, setAgreedTerms] = useState(false);
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
   const [agreedHq, setAgreedHq] = useState(false);
+  const [step, setStep] = useState(0);
+
+  const stepTitles = ["계정 정보", "매장 정보", "약관 동의"];
 
   useEffect(() => {
     agreementsApi.catalog().then((catalog) => setDocVersion(catalog.currentVersion)).catch(() => setError("동의 문서를 불러오지 못했습니다."));
@@ -67,13 +76,46 @@ export function SignupPage() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
+    if (!form.name.trim()) errs.name = "이름을 입력해 주세요.";
+    if (!form.email.trim()) errs.email = "이메일을 입력해 주세요.";
     if (!form.storeName.trim()) errs.storeName = "매장명을 입력해 주세요.";
     if (!form.storeAddress.trim()) errs.storeAddress = "주소를 검색해 선택해 주세요.";
+    if (!/^\d{10}$/.test(form.businessNumber)) errs.businessNumber = "사업자등록번호 숫자 10자리를 입력해 주세요.";
+    if (!/^\d{8}$/.test(form.openingDate)) errs.openingDate = "개업일자를 8자리로 입력해 주세요.";
+    if (!form.representativeName.trim()) errs.representativeName = "대표자명을 입력해 주세요.";
     if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
     if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
     if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요합니다.";
     if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요합니다.";
     setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateStep = (current: number): boolean => {
+    const errs: Record<string, string> = {};
+    if (current === 0) {
+      if (!form.name.trim()) errs.name = "이름을 입력해 주세요.";
+      if (!form.email.trim()) errs.email = "이메일을 입력해 주세요.";
+      if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
+      if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
+    } else if (current === 1) {
+      if (!form.storeName.trim()) errs.storeName = "매장명을 입력해 주세요.";
+      if (!form.storeAddress.trim()) errs.storeAddress = "주소를 검색해 선택해 주세요.";
+      if (!/^\d{10}$/.test(form.businessNumber)) errs.businessNumber = "사업자등록번호 숫자 10자리를 입력해 주세요.";
+      if (!/^\d{8}$/.test(form.openingDate)) errs.openingDate = "개업일자를 8자리로 입력해 주세요.";
+      if (!form.representativeName.trim()) errs.representativeName = "대표자명을 입력해 주세요.";
+    } else {
+      if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요합니다.";
+      if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요합니다.";
+    }
+    const stepFields = current === 0
+      ? ["name", "email", "password", "passwordConfirm", "promoCode"]
+      : current === 1 ? ["storeName", "storeAddress", "businessNumber", "openingDate", "representativeName", "franchiseCode"] : ["agreedTerms", "agreedPrivacy"];
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      stepFields.forEach((key) => delete next[key]);
+      return { ...next, ...errs };
+    });
     return Object.keys(errs).length === 0;
   };
 
@@ -91,6 +133,9 @@ export function SignupPage() {
         franchiseCode: form.franchiseCode || undefined,
         storeName: form.storeName,
         storeAddress: form.storeAddress,
+        businessNumber: form.businessNumber,
+        openingDate: form.openingDate,
+        representativeName: form.representativeName.trim(),
         agreedTerms,
         agreedPrivacy,
         agreedHqDataSharing: form.franchiseCode ? agreedHq : undefined,
@@ -104,14 +149,20 @@ export function SignupPage() {
       } });
     } catch (err) {
       if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.fields) {
-        setFieldErrors(err.details.fields as Record<string, string>);
+        const fields = err.details.fields as Record<string, string>;
+        setFieldErrors(fields);
+        setStep(Object.keys(fields).some((key) => ["storeName", "storeAddress", "businessNumber", "openingDate", "representativeName", "franchiseCode"].includes(key)) ? 1
+          : Object.keys(fields).some((key) => key.startsWith("agreed")) ? 2 : 0);
       } else if (err instanceof ApiError && err.code === "DUPLICATE_RESOURCE") {
         setError("이미 가입된 이메일입니다.");
       } else if (err instanceof ApiError && err.code === "INVALID_FRANCHISE_CODE") {
+        setStep(1);
         setFieldErrors((current) => ({ ...current, franchiseCode: "가맹코드를 다시 확인해 주세요." }));
       } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "INVALID_PROMOTION_CODE") {
+        setStep(0);
         setFieldErrors((current) => ({ ...current, promoCode: "쿠폰번호를 다시 확인해 주세요." }));
       } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "PROMOTION_SOLD_OUT") {
+        setStep(0);
         setFieldErrors((current) => ({ ...current, promoCode: "이 쿠폰의 무료체험 신청이 마감되었습니다." }));
       } else {
         setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
@@ -124,9 +175,21 @@ export function SignupPage() {
   return (
     <div className="auth-page">
       <AuthAside />
-      <Card className="auth-card">
+      <Card className="auth-card signup-card">
         <h1 className="auth-card__title">회원가입</h1>
+        <ol className="signup-steps" aria-label="회원가입 단계">
+          {stepTitles.map((title, index) => (
+            <li key={title} aria-current={step === index ? "step" : undefined} className={step === index ? "signup-steps__item signup-steps__item--current" : index < step ? "signup-steps__item signup-steps__item--complete" : "signup-steps__item"}>
+              <span aria-hidden="true">{index + 1}</span>{title}
+            </li>
+          ))}
+        </ol>
         <form onSubmit={handleSubmit} noValidate>
+          <div className="signup-card__step-title">
+            <h2 id={`signup-step-${step}`}>{stepTitles[step]}</h2>
+            <p>{step === 0 ? "로그인과 안내에 필요한 정보를 입력해 주세요." : step === 1 ? "리뷰를 연결할 매장 정보를 입력해 주세요." : "서비스 안내를 확인하고 필수 항목에 동의해 주세요."}</p>
+          </div>
+          {step === 0 ? <div role="tabpanel" aria-labelledby="signup-step-0">
           <Field label="이름" required value={form.name} onChange={update("name")} error={fieldErrors.name} />
           <Field
             label="이메일"
@@ -155,6 +218,27 @@ export function SignupPage() {
             onChange={(e) => setForm((c) => ({ ...c, promoCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32) }))}
             error={fieldErrors.promoCode}
           />
+          <Field
+            label="비밀번호"
+            type="password"
+            autoComplete="new-password"
+            required
+            hint="8자 이상 입력해 주세요."
+            value={form.password}
+            onChange={update("password")}
+            error={fieldErrors.password}
+          />
+          <Field
+            label="비밀번호 확인"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={form.passwordConfirm}
+            onChange={update("passwordConfirm")}
+            error={fieldErrors.passwordConfirm}
+          />
+          </div> : null}
+          {step === 1 ? <div role="tabpanel" aria-labelledby="signup-step-1">
           <Field
             label="가맹코드 (선택)"
             hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요. 대소문자는 구분하지 않습니다."
@@ -194,6 +278,35 @@ export function SignupPage() {
             onChange={update("storeName")}
             error={fieldErrors.storeName}
           />
+          <Field
+            label="사업자등록번호"
+            required
+            inputMode="numeric"
+            maxLength={10}
+            hint="하이픈 없이 숫자 10자리를 입력해 주세요. 국세청 진위확인에 사용합니다."
+            value={form.businessNumber}
+            onChange={(e) => setForm((current) => ({ ...current, businessNumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+            error={fieldErrors.businessNumber}
+          />
+          <Field
+            label="개업일자"
+            required
+            inputMode="numeric"
+            maxLength={8}
+            placeholder="예: 20260928"
+            hint="사업자등록증의 개업일자를 연월일 8자리로 입력해 주세요."
+            value={form.openingDate}
+            onChange={(e) => setForm((current) => ({ ...current, openingDate: e.target.value.replace(/\D/g, "").slice(0, 8) }))}
+            error={fieldErrors.openingDate}
+          />
+          <Field
+            label="대표자명"
+            required
+            hint="사업자등록증에 적힌 대표자명과 같아야 합니다."
+            value={form.representativeName}
+            onChange={update("representativeName")}
+            error={fieldErrors.representativeName}
+          />
           <AddressField
             label="매장 주소"
             required
@@ -204,25 +317,8 @@ export function SignupPage() {
               setFieldErrors((c) => ({ ...c, storeAddress: "" }));
             }}
           />
-          <Field
-            label="비밀번호"
-            type="password"
-            autoComplete="new-password"
-            required
-            hint="8자 이상 입력해 주세요."
-            value={form.password}
-            onChange={update("password")}
-            error={fieldErrors.password}
-          />
-          <Field
-            label="비밀번호 확인"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={form.passwordConfirm}
-            onChange={update("passwordConfirm")}
-            error={fieldErrors.passwordConfirm}
-          />
+          </div> : null}
+          {step === 2 ? <div role="tabpanel" aria-labelledby="signup-step-2">
           <section className="service-notice">
             <h2>이 서비스가 하는 일을 먼저 확인해 주세요.</h2>
             <ul><li>사장님 매장에 달린 배달앱 리뷰를 자동으로 가져옵니다.</li><li>AI가 답글을 만들어 <strong>사장님 이름으로 배달앱에 자동으로 올립니다.</strong></li><li><strong>한 번 올라간 답글은 저희 서비스에서 지우거나 고칠 수 없습니다.</strong> 수정은 배달앱 사장님 화면에서 직접 하셔야 합니다.</li><li>위생·이물질·법적 다툼처럼 민감한 리뷰에는 답글을 <strong>자동으로 올리지 않습니다.</strong></li></ul>
@@ -236,14 +332,17 @@ export function SignupPage() {
             <div className="consent-table-wrap"><table><thead><tr><th>수집 항목</th><th>이용 목적</th><th>보유 기간</th></tr></thead><tbody><tr><td>이름, 이메일, 비밀번호</td><td>회원 가입·본인 확인·로그인</td><td>이용계약 종료 시까지</td></tr><tr><td>전화번호 (선택)</td><td>중요 안내 연락</td><td>이용계약 종료 시까지</td></tr><tr><td>매장명, 매장 주소</td><td>매장 등록·리뷰 관리</td><td>이용계약 종료 시까지</td></tr></tbody></table></div>
             <p>동의를 거부하실 수 있으나, 필수 항목에 동의하지 않으시면 서비스에 가입하실 수 없습니다. 전화번호는 선택 항목이며, 입력하지 않으셔도 가입하실 수 있습니다.</p>
           </section>
+          </div> : null}
           {error ? (
             <p className="auth-card__error" role="alert">
               {error}
             </p>
           ) : null}
-          <Button type="submit" loading={loading} disabled={!docVersion} className="auth-card__submit">
-            가입하기
-          </Button>
+          <div className="signup-card__actions">
+            {step > 0 ? <Button type="button" variant="secondary" onClick={() => setStep(step - 1)}>이전</Button> : null}
+            {step < 2 ? <Button type="button" onClick={() => { if (validateStep(step)) setStep(step + 1); }}>다음</Button>
+              : <Button type="submit" loading={loading} disabled={!docVersion} className="auth-card__submit">가입하기</Button>}
+          </div>
         </form>
         <p className="auth-card__switch">
           이미 계정이 있으신가요? <Link to="/login">로그인</Link>

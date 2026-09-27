@@ -13,14 +13,17 @@ import org.springframework.stereotype.Component;
 public class BillingScheduler {
 
     private final BillingService billingService;
+    private final PortOnePaymentService portOnePaymentService;
 
-    public BillingScheduler(BillingService billingService) {
+    public BillingScheduler(BillingService billingService, PortOnePaymentService portOnePaymentService) {
         this.billingService = billingService;
+        this.portOnePaymentService = portOnePaymentService;
     }
 
     /** 매일 새벽 3시(KST) — 기간 만료 구독 청구서 발행 + 기간 이월. */
     @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Seoul")
     public void invoiceBatch() {
+        portOnePaymentService.renewDue();
         billingService.runDailyInvoiceBatch();
     }
 

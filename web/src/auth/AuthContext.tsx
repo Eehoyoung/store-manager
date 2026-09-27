@@ -11,6 +11,9 @@ export interface SignupPayload {
   franchiseCode?: string;
   storeName: string;
   storeAddress: string;
+  businessNumber: string;
+  openingDate: string;
+  representativeName: string;
   agreedTerms: boolean;
   agreedPrivacy: boolean;
   agreedHqDataSharing?: boolean;

@@ -4,4 +4,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     java.util.List<AuditLog> findByActionOrderByCreatedAtAsc(String action);
+    boolean existsByActionAndActorId(String action, Long actorId);
 }

@@ -27,4 +27,6 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Query("select s from Subscription s where s.status = 'TRIAL' and s.trialEndsAt <= :now "
             + "and (s.currentPeriodStart is null or s.currentPeriodStart < s.trialEndsAt)")
     List<Subscription> findExpiredTrialsAwaitingInvoice(@Param("now") Instant now);
+
+    List<Subscription> findByAutoRenewTrueAndBillingKeyIsNotNullAndNextBillingAtLessThanEqual(Instant now);
 }

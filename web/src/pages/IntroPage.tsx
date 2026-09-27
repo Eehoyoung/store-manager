@@ -28,6 +28,13 @@ const benefits = [
   },
 ];
 
+const operationSteps = [
+  { title: "리뷰를 한곳에 모읍니다", body: "연결한 배달앱의 새 리뷰를 매장별로 정리해 놓친 리뷰가 없도록 보여줍니다." },
+  { title: "내용과 위험 신호를 나눕니다", body: "맛·양·배송·누락 같은 핵심 내용과 위생·이물질·분쟁 같은 위험 신호를 구분합니다." },
+  { title: "매장 말투로 답글을 준비합니다", body: "호칭, 시작 문장, 이모지 사용 여부, 답글 길이와 금지 표현을 매장 설정에 맞춥니다." },
+  { title: "안전한 답글만 게시합니다", body: "안전 기준을 통과한 답글만 예약하고, 위험 리뷰는 멈춰 사장님 확인 대상으로 남깁니다." },
+];
+
 const faqs = [
   {
     question: "기존 자동답글과 무엇이 다른가요?",
@@ -127,6 +134,26 @@ export function IntroPage() {
               <p>고객님, 넉넉한 양과 빠른 배송을 좋게 봐주셔서 감사합니다. 다음 주문도 정성껏 준비하겠습니다.</p>
             </article>
             <p className="reply-console__caption">화면 이해를 돕기 위한 답글 예시입니다.</p>
+          </div>
+        </section>
+
+        <section className="intro-section intro-operation" aria-labelledby="operation-title">
+          <div className="intro-section__heading">
+            <p className="intro-section-label">소담리뷰 작동 방식</p>
+            <h2 id="operation-title">리뷰가 도착한 뒤,<br />답글이 올라가기까지.</h2>
+            <p>사장님이 매번 복사하고 붙여넣지 않아도 되도록 반복 업무를 잇고, 사람의 판단이 필요한 순간에는 자동으로 멈춥니다.</p>
+          </div>
+          <ol>
+            {operationSteps.map((step, index) => (
+              <li key={step.title}>
+                <span className="readout">{String(index + 1).padStart(2, "0")}</span>
+                <div><h3>{step.title}</h3><p>{step.body}</p></div>
+              </li>
+            ))}
+          </ol>
+          <div className="intro-operation__result" role="note">
+            <strong>결과</strong>
+            <span>반복 답글은 줄이고</span><span>매장 말투는 지키고</span><span>위험 답글은 사람이 확인합니다</span>
           </div>
         </section>
 

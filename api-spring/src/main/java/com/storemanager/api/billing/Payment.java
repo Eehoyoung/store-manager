@@ -56,6 +56,9 @@ public class Payment {
     @Column(name = "depositor_name")
     private String depositorName; // [PII]
 
+    @Column(name = "pg_tx_id")
+    private String pgTxId; // 서버가 생성한 PortOne paymentId
+
     @Column(name = "confirmed_by")
     private Long confirmedBy;
 
@@ -85,5 +88,11 @@ public class Payment {
         this.depositorName = depositorName;
         this.paidAt = paidAt;
         this.confirmedBy = confirmedBy;
+    }
+
+    public void markProviderPaid(Instant paidAt) {
+        if ("PAID".equals(status)) return;
+        status = "PAID";
+        this.paidAt = paidAt;
     }
 }

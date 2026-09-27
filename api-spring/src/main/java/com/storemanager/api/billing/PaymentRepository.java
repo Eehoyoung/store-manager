@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
@@ -18,4 +19,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     /** 미납 처리 배치(B4) 대상. */
     List<Payment> findByStatusAndDueAtBefore(String status, Instant now);
+
+    Optional<Payment> findFirstBySubscriptionIdAndMethodAndStatusOrderByCreatedAtDesc(
+            Long subscriptionId, String method, String status);
+
+    Optional<Payment> findByPgTxId(String pgTxId);
 }

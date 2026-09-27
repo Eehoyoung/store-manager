@@ -15,10 +15,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/agreements")
 public class AgreementController {
+    private static final String HQ_WITHDRAWAL_ACTION = "HQ_AFFILIATION_WITHDRAWAL_REQUESTED";
     private static final List<AgreementItem> ITEMS = List.of(
             new AgreementItem(AgreementService.TERMS, "이용약관", true,
                     "(필수) 이용약관에 동의합니다", "/api/v1/agreements/documents/terms"),
@@ -67,15 +69,33 @@ public class AgreementController {
     }
 
     @PostMapping("/hq-withdrawal")
+    @Transactional
     public void requestHqWithdrawal() {
-        var user = userRepository.findByPublicIdAndDeletedAtIsNull(CurrentUser.publicId())
+        var user = userRepository.findActiveByPublicIdForUpdate(CurrentUser.publicId())
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
+        if (user.getFranchiseBrandName() == null || user.getFranchiseBrandName().isBlank()) {
+            throw new ApiException(ErrorCode.FORBIDDEN);
+        }
+        if (auditRepository.existsByActionAndActorId(HQ_WITHDRAWAL_ACTION, user.getId())) {
+            throw new ApiException(ErrorCode.DUPLICATE_RESOURCE);
+        }
         service.record(user.getId(), null, AgreementService.HQ, false, null, null);
         auditRepository.save(AuditLog.builder().actorId(user.getId()).actorType("USER")
-                .action("HQ_AFFILIATION_WITHDRAWAL_REQUESTED").targetType("APP_USER")
+                .action(HQ_WITHDRAWAL_ACTION).targetType("APP_USER")
                 .targetId(user.getId()).build());
         // 실제 소속 해제는 운영자가 관리자 화면의 접수 내역을 확인해 처리한다.
     }
+
+    @GetMapping("/hq-withdrawal/status")
+    public HqWithdrawalStatus hqWithdrawalStatus() {
+        var user = userRepository.findByPublicIdAndDeletedAtIsNull(CurrentUser.publicId())
+                .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
+        boolean affiliated = user.getFranchiseBrandName() != null && !user.getFranchiseBrandName().isBlank();
+        boolean requested = affiliated && auditRepository.existsByActionAndActorId(HQ_WITHDRAWAL_ACTION, user.getId());
+        return new HqWithdrawalStatus(user.getFranchiseBrandName(), affiliated && !requested, requested);
+    }
+
+    public record HqWithdrawalStatus(String brandName, boolean canRequest, boolean requested) {}
 
     private AgreementDocument document(String name) {
         try (var in = new ClassPathResource("agreements/" + AgreementService.CURRENT_VERSION + "/" + name + ".md")

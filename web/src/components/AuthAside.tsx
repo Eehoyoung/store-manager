@@ -31,7 +31,7 @@ const RULES = [
 export function AuthAside() {
   return (
     <aside className="auth-aside">
-      <p className="auth-aside__eyebrow label-etched">소담리뷰</p>
+      <img className="auth-aside__brand" src="/sodam-wordmark.png" alt="소담리뷰" />
       <h2 className="auth-aside__headline">
         안전한 리뷰는 자동으로,
         <br />

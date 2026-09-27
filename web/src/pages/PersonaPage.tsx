@@ -90,6 +90,7 @@ export function PersonaPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [newBannedWord, setNewBannedWord] = useState("");
+  const [tab, setTab] = useState<"voice" | "content" | "publishing" | "examples">("voice");
   // ★ persona 상태(PersonaRequest)와 따로 둔다 — 자동 게시는 저장 버튼이 아니라 즉시 반영이다.
   const [autoPublish, setAutoPublish] = useState(true);
 
@@ -182,6 +183,7 @@ export function PersonaPage() {
   return (
     <div className="persona-page">
       <h1>페르소나 설정</h1>
+      <p className="persona-page__intro">매장 답글의 말투와 운영 방식을 탭별로 설정합니다. 바꾼 값은 저장 버튼을 눌러 적용하세요.</p>
 
       {bannerErrors.length > 0 ? (
         <Card className="persona-page__error-banner" role="alert">
@@ -193,8 +195,23 @@ export function PersonaPage() {
         </Card>
       ) : null}
 
+      <div className="persona-page__tabs" role="tablist" aria-label="페르소나 설정 항목">
+        {([["voice", "말투와 표현"], ["content", "매장 정보와 내용"], ["publishing", "게시 방식"], ["examples", "미리보기와 학습"]] as const).map(([id, label]) => (
+          <button key={id} id={`persona-tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`persona-panel-${id}`}
+            className={`persona-page__tab${tab === id ? " persona-page__tab--active" : ""}`} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="persona-page__actions">
+        <span>말투·내용·시간 변경은 저장이 필요합니다. 자동 게시 설정은 바꾸는 즉시 적용됩니다.</span>
+        <Button type="button" onClick={handleSave} loading={saving}>변경 사항 저장</Button>
+      </div>
+
+      <div id="persona-panel-voice" role="tabpanel" aria-labelledby="persona-tab-voice" hidden={tab !== "voice"}>
       <Card className="persona-page__section">
         <h2>말투</h2>
+        <p className="field__hint">리뷰에 답할 때 유지할 기본 분위기입니다. 상황과 안전 규칙에 따라 표현은 달라질 수 있습니다.</p>
         <fieldset className="persona-page__radio-group">
           <legend className="field__label">말투 선택</legend>
           {TONE_OPTIONS.map((t) => (
@@ -220,6 +237,7 @@ export function PersonaPage() {
           <input type="checkbox" checked={persona.useEmoji} onChange={(e) => update({ useEmoji: e.target.checked })} />
           이모지 사용
         </label>
+        <p className="field__hint">이 항목을 켜야 답글에 이모지가 사용됩니다. 끄면 아래 개수 설정과 관계없이 이모지를 넣지 않습니다.</p>
         <Select
           label="이모지 사용 정도"
           value={String(persona.emojiLevel)}
@@ -233,6 +251,7 @@ export function PersonaPage() {
             </option>
           ))}
         </Select>
+        <p className="field__hint">이모지 사용을 켠 경우 답글 한 건에 들어갈 양을 정합니다. 기본은 2~3개입니다.</p>
 
         <Field
           label="고객 호칭"
@@ -240,7 +259,7 @@ export function PersonaPage() {
           maxLength={20}
           onChange={(e) => update({ customerTitle: e.target.value })}
           error={fieldErrors.customerTitle}
-          hint="예: 고객님, 손님"
+          hint="답글에서 손님을 부를 때 쓸 표현입니다. 비우면 기본 호칭을 사용합니다. 예: 고객님, 손님"
         />
         <Field
           label="서명"
@@ -248,7 +267,7 @@ export function PersonaPage() {
           maxLength={100}
           onChange={(e) => update({ signature: e.target.value })}
           error={fieldErrors.signature}
-          hint="답글 끝에 붙는 문구입니다."
+          hint="답글 끝에 매장 이름이나 인사말을 덧붙입니다. 비우면 서명 없이 마칩니다."
         />
         <Field
           label="답글 시작 스타일"
@@ -256,9 +275,12 @@ export function PersonaPage() {
           maxLength={100}
           onChange={(e) => update({ openingStyle: e.target.value })}
           error={fieldErrors.openingStyle}
+          hint="답글 첫 문장의 시작 방식을 맞춥니다. 인사말을 일관되게 하고 싶을 때 설정하고, 비우면 리뷰 내용에 맞춰 자연스럽게 시작합니다."
         />
       </Card>
+      </div>
 
+      <div id="persona-panel-content" role="tabpanel" aria-labelledby="persona-tab-content" hidden={tab !== "content"}>
       {/* ★ 말투 바로 다음에 둔다. 사장님이 가장 먼저 채우면 효과가 제일 큰 항목이다 —
           여기가 비면 주차·웨이팅 리뷰 답글이 "확인해 보겠습니다" 로만 끝난다. */}
       <StoreFactsSection storeId={storeId} />
@@ -313,6 +335,7 @@ export function PersonaPage() {
           value={persona.lengthMin}
           onChange={(e) => update({ lengthMin: Number(e.target.value) })}
           error={fieldErrors.lengthMin}
+          hint="답글이 지나치게 짧아지지 않도록 원하는 최소 글자 수를 지정합니다."
         />
         <Field
           label="최대 길이"
@@ -322,10 +345,12 @@ export function PersonaPage() {
           value={persona.lengthMax}
           onChange={(e) => update({ lengthMax: Number(e.target.value) })}
           error={fieldErrors.lengthMax}
-          hint="플랫폼 제한(300자)에 여유를 둔 하드 제한 280자를 넘을 수 없습니다."
+          hint="답글 최대 글자 수입니다. 플랫폼 제한에 여유를 두기 위해 280자를 넘을 수 없습니다."
         />
       </Card>
+      </div>
 
+      <div id="persona-panel-publishing" role="tabpanel" aria-labelledby="persona-tab-publishing" hidden={tab !== "publishing"}>
       <Card className="persona-page__section">
         <h2>자동 게시</h2>
         {/* ★ 저장 버튼을 거치지 않고 즉시 반영한다 — 개인정보 보호법 제37조의2 거부권 행사이고,
@@ -338,6 +363,7 @@ export function PersonaPage() {
           />
           <span>답글을 자동으로 게시합니다</span>
         </label>
+        <p className="field__hint">켜면 안전 검사를 통과한 답글을 별도 승인 없이 게시합니다. 끄면 답글은 생성되지만 직접 확인하고 게시해야 합니다.</p>
         <p className="persona-page__auto-publish-notice" role="status">
           {autoPublish
             ? "안전 검사를 통과한 답글은 승인 없이 자동 게시됩니다. 위험·가드레일 차단 건은 게시하지 않습니다."
@@ -350,10 +376,11 @@ export function PersonaPage() {
           value={persona.delayHours}
           onChange={(e) => update({ delayHours: Number(e.target.value) })}
           error={fieldErrors.delayHours}
-          hint="답글 생성 후 실제 게시까지 기다리는 시간입니다."
+          hint="자동 게시를 켠 경우 답글을 만든 뒤 게시 전까지 기다릴 시간입니다. 운영 상황에 맞춰 게시를 늦출 때 사용합니다."
         />
 
         <h2>게시 가능 시간대</h2>
+        <p className="field__hint">자동 게시가 가능한 시간을 제한합니다. 비워 두면 별도 시간대 제한 없이 예약 규칙에 따라 게시합니다.</p>
         {persona.publishWindows.length === 0 ? <p className="field__hint">시간대 제한 없음</p> : null}
         <ul className="persona-page__window-list">
           {persona.publishWindows.map((w, i) => (
@@ -390,13 +417,12 @@ export function PersonaPage() {
           시간대 추가
         </Button>
       </Card>
+      </div>
 
-      <Button type="button" onClick={handleSave} loading={saving}>
-        저장
-      </Button>
-
+      <div id="persona-panel-examples" role="tabpanel" aria-labelledby="persona-tab-examples" hidden={tab !== "examples"}>
       <PersonaPreview storeId={storeId} persona={persona} />
       <StyleSamples storeId={storeId} toast={toast} />
+      </div>
     </div>
   );
 }

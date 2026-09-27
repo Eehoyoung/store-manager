@@ -28,16 +28,20 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final BusinessRegistryService businessRegistryService;
 
-    public AuthController(AuthService authService, JwtTokenProvider jwtTokenProvider) {
+    public AuthController(AuthService authService, JwtTokenProvider jwtTokenProvider,
+            BusinessRegistryService businessRegistryService) {
         this.authService = authService;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.businessRegistryService = businessRegistryService;
     }
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthResponse signup(@Valid @RequestBody SignupRequest req, HttpServletRequest request,
             HttpServletResponse res) {
+        businessRegistryService.verify(req.businessNumber(), req.openingDate(), req.representativeName());
         return respond(authService.signup(req, clientIp(request), request.getHeader("User-Agent")), res);
     }
 

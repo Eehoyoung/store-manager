@@ -10,6 +10,8 @@ spring:
     baseline-on-migrate: false
 
 app:
+  business-verification:
+    enabled: false # 국세청 실호출 금지; 검증 로직은 로컬 목 서버 테스트에서 확인한다.
   scheduler:
     publish:
       # ★ S9: 테스트 프로파일에서는 게시 스케줄러를 끈다. application.yml 이 기본값을 true 로 주므로
