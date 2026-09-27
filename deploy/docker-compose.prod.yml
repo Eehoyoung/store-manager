@@ -177,8 +177,10 @@ services:
       # 개발 Compose 의 개발계 기본값은 유지하고, 운영 Compose 에서만 운영계를 기본으로 쓴다.
       DATAAPI_BASE_URL: https://api.mydatahub.co.kr
       DATAAPI_TOKEN: ${DATAAPI_TOKEN:?}
-      # ★ 기본 false 를 유지한다. 댓글 등록은 되돌릴 수 없다(수정 API 스펙 미수령).
-      DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-false}
+      # ★ 운영은 켠다(2026-09-28 — 배민·요기요·쿠팡이츠 등록 실호출 성공 확인).
+      #   댓글 등록은 되돌릴 수 없다. 사고 시 env 에 false 를 넣고 worker 만 재기동하면 멈춘다.
+      #   개발 Compose 는 false 기본값을 그대로 둔다.
+      DATAAPI_WRITE_ENABLED: ${DATAAPI_WRITE_ENABLED:-true}
       DATAAPI_ENC_SPEC: ${DATAAPI_ENC_SPEC:?}
       DATAAPI_ENC_KEY: ${DATAAPI_ENC_KEY:?}
       DATAAPI_ENC_IV: ${DATAAPI_ENC_IV:?}
