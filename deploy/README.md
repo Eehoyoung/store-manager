@@ -236,6 +236,67 @@ Spring 스케줄러 중복(아래)까지 손봐야 한다. 매장 100~200개 규
 
 - **알림 실발송 꺼짐** — 솔라피 경로는 있으나 휴대폰 인증 전에는 켜지 않는다(CLAUDE.md). 고위험 리뷰가 떠도 사장님은 모른다
 - **로그 수집·알람 없음** — 컨테이너 로그만 남는다. 장애를 자동으로 알 방법이 없다
-- **KMS 미전환(보류, 2026-09-28)** — 마스터키가 서버 파일에 있다(T-10)
+- **KMS 미전환(보류, 2026-09-28)** — 마스터키가 서버 파일에 있다(T-10). 대신 90일 자동 교체(§8)
 - **약관·처리방침 변호사 미검토**
 
+## 8. 비밀값 교체·보관 (2026-09-28)
+
+### 8.1 자동 교체 — 90일
+
+`deploy/rotate-secrets.sh` 가 `JWT_SECRET`·`INTERNAL_TOKEN`·`CREDENTIAL_MASTER_KEY` 를 새로 만든다.
+마스터키는 `worker/rewrap.py` 가 전 행의 DEK 를 한 트랜잭션으로 다시 감싼 뒤에야 적용된다.
+
+```bash
+sudo chmod 700 /opt/storemanager/deploy/rotate-secrets.sh
+echo '0 19 1 1,4,7,10 * root /opt/storemanager/deploy/rotate-secrets.sh >> /var/log/storemanager-rotate.log 2>&1' \
+  | sudo tee /etc/cron.d/storemanager-rotate
+```
+
+- 1·4·7·10월 2일 **04:00 KST**. 03:00 백업 뒤, 10:00 수집 전이다. api-spring·worker 가 1~2분 멈춘다.
+- **첫 배포 직후 한 번 손으로 돌려 본다.** 복구 시연(§3.1)과 같은 이유다 — 처음 도는 날이 사고 날이면 안 된다.
+- 옛 env 는 `/etc/storemanager/key-archive/env.<UTC시각>` 에 4개(약 1년) 남는다.
+
+> ★ **교체 전 백업은 옛 마스터키로만 풀린다.** 그 덤프로 복구했다면 `key-archive` 에서 그 시점 env 의
+> `CREDENTIAL_MASTER_KEY`·`CREDENTIAL_KEY_ID` 로 기동하거나, 아래 8.3 으로 현재 키로 감싸 올린다.
+> ★ 사고(유출 의심)면 주기를 기다리지 말고 즉시 손으로 돌린다.
+
+### 8.2 교체하지 않는 것 — 보관 정책
+
+| 값 | 교체 | 잃으면 |
+|---|---|---|
+| **`AUTHOR_HASH_SALT`** | **영구 고정. 절대 바꾸지 않는다** | 기존 리뷰 작성자와 신규 작성자의 연결이 끊긴다. 되돌릴 방법이 없다 |
+| `DATAAPI_ENC_SPEC`·`_KEY`·`_IV` | 업체가 바꿀 때만 | 업체에 재발급 요청 |
+| `DATAAPI_TOKEN`·`ANTHROPIC_API_KEY` | 유출 의심 시 콘솔에서 재발급 | 재발급 |
+| `POSTGRES_PASSWORD` | 유출 의심 시 `ALTER USER` 후 env 변경 | DB 컨테이너에서 재설정 |
+| Cloudflare Origin CA 키 | 15년 만료 전 / 유출 시 CF 에서 폐기·재발급 | 재발급 |
+
+**`AUTHOR_HASH_SALT` 보관 규칙**
+
+1. 서버 `/etc/storemanager/env`(600) 외에 **서버 밖 두 곳**에 둔다
+   — ① 비밀번호 관리자(대표 계정, 2단계 인증) ② 오프라인 사본(인쇄 또는 암호화 USB, 사무실 잠금 보관).
+   Lightsail 스냅샷은 사본으로 치지 않는다 — 같은 AWS 계정을 잃으면 함께 잃는다.
+2. **저장소·채팅·메일·이슈에 절대 붙이지 않는다.** 이 값은 가명처리의 열쇠다.
+3. 접근자는 대표 1인. 사람이 늘면 이 줄을 먼저 고친다.
+4. 두 사본에 **지문**을 함께 적어 둔다. 복구 뒤 서버 값과 대조하면 값을 드러내지 않고 같은지 안다.
+   ```bash
+   sudo sh -c '. /etc/storemanager/env; printf %s "$AUTHOR_HASH_SALT" | sha256sum | cut -c1-16'
+   ```
+5. 연 1회(1월 교체와 같은 날) 두 사본의 지문이 서버와 같은지 확인한다.
+
+> ★ `rotate-secrets.sh` 가 salt 를 건드리지 않는 것은 의도다. "4종 전부 교체" 로 고치지 말 것.
+
+### 8.3 교체 되돌리기 (헬스체크 실패 시)
+
+DB 는 이미 새 키로 감싸져 있으므로 **env 만 되돌리면 자격증명을 못 읽는다.** 거꾸로 다시 감싼다.
+
+```bash
+cd /opt/storemanager/deploy
+DC="docker compose -f docker-compose.prod.yml --env-file /etc/storemanager/env"
+OLD=/etc/storemanager/key-archive/env.<UTC시각>
+export OLD_MASTER_KEY=$(sed -n 's/^CREDENTIAL_MASTER_KEY=//p' /etc/storemanager/env)
+export NEW_MASTER_KEY=$(sed -n 's/^CREDENTIAL_MASTER_KEY=//p' "$OLD")
+export NEW_KEY_ID=$(sed -n 's/^CREDENTIAL_KEY_ID=//p' "$OLD"); : "${NEW_KEY_ID:=prod}"
+$DC stop api-spring worker
+$DC run --rm --no-deps -e OLD_MASTER_KEY -e NEW_MASTER_KEY -e NEW_KEY_ID worker python rewrap.py
+sudo cp -p "$OLD" /etc/storemanager/env && $DC up -d
+```
