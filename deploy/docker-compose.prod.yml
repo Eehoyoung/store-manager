@@ -177,8 +177,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       SPRING_INTERNAL_URL: http://api-spring:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
-      # 개발 Compose 의 개발계 기본값은 유지하고, 운영 Compose 에서만 운영계를 기본으로 쓴다.
-      DATAAPI_BASE_URL: https://api.mydatahub.co.kr
+      # 기본은 운영계다. 테스트 배포(2026-09-28~)는 서버 env 에서 개발계로 덮어쓴다:
+      #   DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr
+      # ★ 개발계도 실제 배달앱 계정으로 로그인한다 — 등록을 켜면 실매장 리뷰에 답글이 달린다.
+      DATAAPI_BASE_URL: ${DATAAPI_BASE_URL:-https://api.mydatahub.co.kr}
       DATAAPI_TOKEN: ${DATAAPI_TOKEN:?}
       # ★ 운영은 켠다(2026-09-28 — 배민·요기요·쿠팡이츠 등록 실호출 성공 확인).
       #   댓글 등록은 되돌릴 수 없다. 사고 시 env 에 false 를 넣고 worker 만 재기동하면 멈춘다.
