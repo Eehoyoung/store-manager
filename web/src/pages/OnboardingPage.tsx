@@ -10,7 +10,7 @@ interface Step {
   action?: { label: string; to: string };
 }
 
-// 가입·서비스 이용 동의 → Groble 결제 → 계정 등록 → 백필 → 자동 운영.
+// 가입·서비스 이용 동의 → 결제(KG이니시스·포트원, 무료 파일럿 중 미개방) → 계정 등록 → 백필 → 자동 운영.
 // DataAPI 검증/백필은 외부 규격 대기 상태다.
 function steps(storeId: string | null, promotionApplied: boolean): Step[] {
   return [
@@ -20,7 +20,7 @@ function steps(storeId: string | null, promotionApplied: boolean): Step[] {
     title: "3. 구독 결제",
     description: promotionApplied
       ? "OPEN30 첫 1개월 무료체험이 적용되었습니다. 무료기간에는 이용료를 청구하지 않습니다."
-      : "Groble의 안전한 결제창에서 원하는 결제수단을 선택합니다.",
+      : "무료 파일럿 기간에는 결제하지 않습니다. 정식 출시 때 결제대행사(KG이니시스) 결제창이 열립니다.",
     state: promotionApplied ? "done" : "available",
     action: promotionApplied ? undefined : { label: "결제하러 가기", to: storeId ? `/stores/${storeId}/billing` : "/stores" },
   },
