@@ -1,0 +1,6 @@
+# 소개 페이지(`/`)만 검색에 노출한다 — 나머지 앱 경로는 셸의 robots noindex 메타로 제외한다.
+# 앱 경로를 여기서 막으면 크롤러가 그 noindex 를 보지 못하므로 막지 않는다(/api/ 만 제외).
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://review.sodamlabs.kr/sitemap.xml

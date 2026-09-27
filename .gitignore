@@ -68,3 +68,6 @@ output/
 # 픽스처로 쓸 것은 마스킹한 사본만 extension/src/selector/ 밑에 둔다.
 *스마트플레이스*.html
 naver-page*.html
+
+# 디자인 도구(impeccable) 캐시·리뷰 스크린샷 — 로컬 전용
+.impeccable/

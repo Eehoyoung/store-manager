@@ -22,22 +22,18 @@
 }
 .shell__brand {
   display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--font-size-h2);
   letter-spacing: var(--tracking-tight);
   color: var(--color-text);
 }
-/* 브랜드 옆 상태 눈금 — 이름의 '파일럿'을 한 번만 시각화한다. */
-.shell__brand::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 3px solid var(--color-primary);
-  transform: translateY(-2px);
+.shell__brand img {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
 }
 .shell__user {
   display: flex;
@@ -55,7 +51,6 @@
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--color-border);
-  border-left: 5px solid var(--color-text-muted);
   background: var(--color-surface);
 }
 .annunciator__lamp {
@@ -100,7 +95,6 @@
 }
 
 .annunciator--engaged {
-  border-left-color: var(--color-engaged);
   background: var(--color-engaged-bg);
 }
 .annunciator--engaged .annunciator__lamp {
@@ -108,7 +102,6 @@
   box-shadow: 0 0 0 3px rgba(11, 110, 79, 0.18);
 }
 .annunciator--attention {
-  border-left-color: var(--color-danger);
   background: var(--color-danger-bg);
 }
 .annunciator--attention .annunciator__lamp {
@@ -117,7 +110,6 @@
   animation: lamp-pulse 2s ease-in-out infinite;
 }
 .annunciator--unknown {
-  border-left-color: var(--color-warning);
   background: var(--color-warning-bg);
 }
 .annunciator--unknown .annunciator__lamp {

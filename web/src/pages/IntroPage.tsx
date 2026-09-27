@@ -1,9 +1,15 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LegalFooter } from "../layout/LegalFooter";
 import { Link, useLocation } from "react-router-dom";
 import "./intro.css";
 
 const OFFER_CODE = "OPEN30";
+
+// ★ 검색 노출용 제목·설명. scripts/prerender.mjs 가 intro.html <head> 에도 같은 값을 쓴다.
+//   "자동 답글"이라고 쓰지 말 것 — 자동 게시는 매장별 선택이고 민감 리뷰는 차단된다.
+export const INTRO_TITLE = "소담리뷰 | 배달 리뷰 AI 답글 관리 서비스";
+export const INTRO_DESCRIPTION =
+  "배달앱 리뷰 내용과 매장 말투를 반영해 사장님 답글을 준비하고, 위생·이물질·법적 분쟁처럼 민감한 리뷰는 자동 게시하지 않는 리뷰 답글 관리 서비스. 선착순 30개 매장, 첫 1개월 0원.";
 
 const benefits = [
   {
@@ -46,22 +52,24 @@ const faqs = [
 
 export function IntroPage() {
   const location = useLocation();
+  // ★ 이 페이지는 빌드 시 query 없는 `/` 로 미리 렌더링된다(intro.html). 첫 렌더는 그 HTML 과
+  //   같아야 하므로 query(utm 등)는 하이드레이션 뒤에 반영한다.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const search = hydrated ? location.search : "";
   const signupPath = useMemo(() => {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(search);
     params.set("promo", OFFER_CODE);
     return `/signup?${params.toString()}`;
-  }, [location.search]);
+  }, [search]);
 
   useEffect(() => {
     const previousTitle = document.title;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     const previousDescription = description?.content;
 
-    document.title = "리뷰파일럿 | 배달앱 리뷰 답글 1개월 무료체험";
-    if (description) {
-      description.content =
-        "반복되는 감사 문구 대신 리뷰 내용과 매장 말투를 반영하는 배달앱 리뷰 답글 관리. 선착순 30개 매장, 첫 1개월 0원.";
-    }
+    document.title = INTRO_TITLE;
+    if (description) description.content = INTRO_DESCRIPTION;
 
     return () => {
       document.title = previousTitle;
@@ -71,10 +79,11 @@ export function IntroPage() {
 
   return (
     <div className="intro-page">
-      <header className="intro-header" aria-label="리뷰파일럿 소개">
-        <Link className="intro-brand" to="/" aria-label="리뷰파일럿 홈">
-          <span className="intro-brand__mark" aria-hidden="true">R</span>
-          <span>리뷰파일럿</span>
+      <header className="intro-header" aria-label="소담리뷰 소개">
+        <Link className="intro-brand" to="/" aria-label="소담리뷰 홈">
+          <img src="/sodam-wordmark.png" alt="소담" />
+          <span className="intro-brand__divider" aria-hidden="true" />
+          <span>소담리뷰</span>
         </Link>
         <span className="intro-header__code">모집 코드 <strong>{OFFER_CODE}</strong></span>
       </header>
@@ -82,11 +91,10 @@ export function IntroPage() {
       <main>
         <section className="intro-hero" aria-labelledby="intro-title">
           <div className="intro-hero__copy">
-            <p className="intro-kicker">배달앱 리뷰 답글 관리</p>
-            <h1 id="intro-title">같은 감사 문구만<br />반복하는 답글,<br /><em>이제 그만 쓰세요.</em></h1>
+            <h1 id="intro-title"><span className="intro-hero__brand">소담리뷰</span>고객의 목소리는<br />놓치지 않고,<br /><em>위험한 답글은 멈춥니다.</em></h1>
             <p className="intro-hero__lede">
-              리뷰에 적힌 맛·양·배송 이야기를 읽고, 매장에서 정한 말투에 맞춰 답합니다.
-              민감한 리뷰에서는 자동으로 멈춥니다.
+              소담리뷰가 리뷰에 적힌 맛·양·배송 이야기를 읽고, 매장에서 정한 말투에 맞춰 답합니다.
+              사람이 판단해야 하는 리뷰에서는 자동으로 멈춥니다.
             </p>
 
             <div className="intro-offer-line" aria-label="무료체험 조건">
@@ -105,7 +113,7 @@ export function IntroPage() {
           <div className="reply-console" aria-label="리뷰 내용을 반영한 답글 예시">
             <div className="reply-console__head">
               <span className="reply-console__status"><i aria-hidden="true" /> 답글 준비 예시</span>
-              <span className="reply-console__id">RP-0130</span>
+              <span className="reply-console__id">SODAM REVIEW</span>
             </div>
             <article className="reply-signal">
               <p className="reply-signal__label">고객 리뷰</p>
@@ -160,6 +168,7 @@ export function IntroPage() {
             </p>
           </div>
           <div className="intro-safety__sample" aria-label="민감한 리뷰 처리 예시">
+            <img className="intro-safety__mascot" src="/sodam-mascot.png" alt="" aria-hidden="true" />
             <span>위생·이물질 관련 표현 감지</span>
             <strong>자동 게시 안 함</strong>
             <p>사장님 확인 대상으로 분리</p>

@@ -2,7 +2,7 @@
  * 로그인·회원가입 좌측 패널.
  *
  * ★ 히어로에 마케팅 문구 대신 '제품의 동작'을 놓는다.
- * 리뷰파일럿이 파는 것은 생성 속도가 아니라 판정이다. 그래서 첫 화면에서 보여줄 것은
+ * 소담리뷰이 파는 것은 생성 속도가 아니라 판정이다. 그래서 첫 화면에서 보여줄 것은
  * "어떤 리뷰는 자동으로 올라가고 어떤 리뷰는 멈추는가" 그 자체다.
  * 셸의 운항 상태 배너와 같은 램프 언어를 써서, 로그인 전후의 화면이 한 제품으로 읽히게 한다.
  */
@@ -31,7 +31,7 @@ const RULES = [
 export function AuthAside() {
   return (
     <aside className="auth-aside">
-      <p className="auth-aside__eyebrow label-etched">리뷰파일럿</p>
+      <p className="auth-aside__eyebrow label-etched">소담리뷰</p>
       <h2 className="auth-aside__headline">
         안전한 리뷰는 자동으로,
         <br />

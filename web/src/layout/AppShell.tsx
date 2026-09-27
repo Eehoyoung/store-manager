@@ -84,7 +84,10 @@ export function AppShell() {
   return (
     <div className="shell">
       <header className="shell__header">
-        <span className="shell__brand">리뷰파일럿</span>
+        <span className="shell__brand">
+          <img src="/sodam-review-icon.png" alt="" aria-hidden="true" />
+          소담리뷰
+        </span>
         {user ? (
           <div className="shell__user">
             <span>{user.name} 사장님</span>

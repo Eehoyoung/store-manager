@@ -1,18 +1,14 @@
 .intro-page {
-  --intro-ink: #142f37;
-  --intro-teal: #0f6b70;
+  --intro-ink: #191f28;
+  --intro-teal: #00a58e;
   --intro-green: #087a55;
-  --intro-orange: #f3a73f;
-  --intro-cream: #fbfaf5;
-  --intro-mint: #e8f4ed;
-  --intro-blue: #e7f1f4;
+  --intro-orange: #ff7440;
+  --intro-cream: #f5f7fa;
+  --intro-mint: #e5f7f3;
+  --intro-blue: #e9f0ff;
   min-height: 100%;
   padding-bottom: calc(88px + var(--safe-bottom));
-  background:
-    linear-gradient(rgba(15, 107, 112, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 107, 112, 0.035) 1px, transparent 1px),
-    var(--intro-cream);
-  background-size: 32px 32px;
+  background: var(--intro-cream);
   color: var(--intro-ink);
 }
 
@@ -40,21 +36,22 @@
 .intro-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   color: var(--intro-ink);
   font-weight: 700;
   text-decoration: none;
 }
 
-.intro-brand__mark {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 2px solid var(--intro-ink);
-  border-radius: 50%;
-  font-family: var(--font-mono);
-  color: var(--intro-teal);
+.intro-brand img {
+  width: 74px;
+  height: auto;
+  display: block;
+}
+
+.intro-brand__divider {
+  width: 1px;
+  height: 28px;
+  background: #c5ccd6;
 }
 
 .intro-header__code {
@@ -74,7 +71,6 @@
   padding: 64px 0 84px;
 }
 
-.intro-kicker,
 .intro-section-label {
   margin: 0 0 14px;
   color: var(--intro-teal);
@@ -84,10 +80,19 @@
 }
 
 .intro-hero h1 {
+  max-width: 780px;
   margin-bottom: 24px;
   font-size: clamp(42px, 8vw, 76px);
   line-height: 1.08;
   letter-spacing: -0.045em;
+}
+
+.intro-hero__brand {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--intro-teal);
+  font-size: 18px;
+  letter-spacing: 0.02em;
 }
 
 .intro-hero h1 em {
@@ -160,10 +165,9 @@
   align-self: center;
   padding: 18px;
   border: 1px solid #b9d0cb;
-  border-top: 5px solid var(--intro-teal);
-  border-radius: 8px;
+  border-radius: 16px;
   background: #fff;
-  box-shadow: 14px 14px 0 var(--intro-blue);
+  box-shadow: inset 0 5px #246bfd, 0 20px 48px rgba(25, 31, 40, 0.14);
 }
 
 .reply-console__head {
@@ -197,13 +201,14 @@
 .reply-signal {
   margin-top: 18px;
   padding: 16px;
-  border-left: 4px solid var(--intro-orange);
+  border: 1px solid #f6c2ad;
+  border-radius: 12px;
   background: #fff9e9;
 }
 
 .reply-signal--answer {
   margin-top: 0;
-  border-left-color: var(--intro-green);
+  border-color: #a4dfd4;
   background: var(--intro-mint);
 }
 
@@ -219,7 +224,7 @@
 .intro-problem {
   padding: 52px clamp(20px, 5vw, 64px);
   border: 1px solid #cbdad5;
-  border-left: 7px solid var(--intro-orange);
+  border-radius: 16px;
   background: #fff;
 }
 
@@ -240,7 +245,7 @@
 .intro-section { padding: 100px 0; }
 .intro-section__heading { max-width: 720px; margin-bottom: 40px; }
 .intro-benefits { display: grid; gap: 16px; }
-.intro-benefit { padding: 26px; border: 1px solid #cbdad5; background: rgba(255, 255, 255, 0.82); }
+.intro-benefit { padding: 26px; border: 1px solid #cbdad5; border-radius: 14px; background: rgba(255, 255, 255, 0.82); }
 .intro-benefit > span { color: var(--intro-green); font-size: 16px; font-weight: 700; }
 .intro-benefit h3 { margin: 14px 0 10px; font-size: 23px; }
 .intro-benefit p { margin: 0; color: var(--color-text-muted); }
@@ -250,12 +255,14 @@
   gap: 24px;
   padding: clamp(28px, 6vw, 64px);
   border: 1px solid #e6c48c;
+  border-radius: 16px;
   background: #fff4df;
 }
 
 .intro-safety__lamp { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid #d5a75f; border-radius: 50%; background: #fff; }
 .intro-safety__lamp span { width: 18px; height: 18px; border-radius: 50%; background: var(--color-danger); box-shadow: 0 0 0 8px rgba(179, 38, 30, 0.12); }
-.intro-safety__sample { align-self: center; padding: 22px; border: 1px solid #e3b7b3; border-left: 6px solid var(--color-danger); background: #fff; }
+.intro-safety__sample { align-self: center; padding: 22px; border: 1px solid #e3b7b3; border-radius: 14px; background: #fff; }
+.intro-safety__mascot { display: block; width: 72px; height: 72px; margin: -8px 0 10px auto; object-fit: contain; }
 .intro-safety__sample span { display: block; margin-bottom: 8px; color: var(--color-text-muted); font-size: 16px; }
 .intro-safety__sample strong { display: block; margin-bottom: 8px; color: var(--color-danger); font-size: 23px; }
 .intro-safety__sample p { margin: 0; }
@@ -270,6 +277,7 @@
   display: grid;
   overflow: hidden;
   border: 2px solid var(--intro-teal);
+  border-radius: 16px;
   background: #fff;
 }
 
