@@ -1,19 +1,38 @@
-# 리버스 프록시 + 자동 HTTPS.
+# 리버스 프록시. Cloudflare(프록시·주황 구름) 뒤에 선다 (2026-09-28 확정).
 #
-# ★ Caddy 를 쓰는 이유: Let's Encrypt 인증서 발급·갱신을 알아서 한다. nginx + certbot 은
-#   갱신 크론이 조용히 죽으면 90일 뒤 사이트가 죽는데, 그때가 되어서야 안다.
+#   사용자 ──TLS──▶ Cloudflare ──TLS(Origin CA)──▶ Caddy:443 ──▶ api-spring / web
+#
+# ★ 인증서는 Let's Encrypt 가 아니라 Cloudflare Origin CA(15년)다. CF 프록시 뒤에서는
+#   TLS-ALPN 챌린지가 닿지 않고 HTTP-01 은 'Always Use HTTPS' 와 부딪친다. Origin CA 는
+#   갱신이 없어 "갱신 크론이 조용히 죽는" 문제 자체가 없다. CF SSL 모드는 반드시 Full (strict).
+#   ★ 이 인증서는 브라우저가 신뢰하지 않는다 — CF 프록시를 끄면(회색 구름) 사이트가 깨진다.
 #
 # ★ API 와 웹을 같은 오리진에 둔다. 그러면 CORS 화이트리스트를 관리할 필요가 없고,
 #   refresh 쿠키가 SameSite=Strict 로 동작한다 — 교차 오리진일 때보다 안전하다.
 
+{
+	servers {
+		# ★ 실제 접속자 IP. 없으면 동의 증적(AuthController.clientIp)에 CF 엣지 IP 가 찍힌다.
+		#   X-Forwarded-For 는 쓰지 않는다 — CF 는 클라이언트가 보낸 XFF 뒤에 덧붙이므로 첫 값을
+		#   위조할 수 있다. CF-Connecting-IP 는 CF 가 덮어쓰므로 위조되지 않는다.
+		#   아래 대역 밖에서 온 요청의 헤더는 무시된다. 대역 출처: https://www.cloudflare.com/ips/
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
 {$SITE_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 	encode gzip
 
 	# API 는 경로로 가른다. 브라우저 입장에서는 같은 오리진이다.
 	handle /api/* {
 		# API 응답은 검색에 노출하지 않는다(robots.txt 의 Disallow: /api/ 와 함께).
 		header X-Robots-Tag "noindex, nofollow"
-		reverse_proxy api-spring:8080
+		reverse_proxy api-spring:8080 {
+			# 위조 불가한 {client_ip}(= CF-Connecting-IP)로 덮어쓴다. Spring 은 이 헤더의 첫 값을 읽는다.
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# ★ /internal/* 는 절대 외부에 열지 않는다. 워커 전용 경로이며 X-Internal-Token 하나로

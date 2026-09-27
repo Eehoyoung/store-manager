@@ -85,4 +85,17 @@ class NaverExtensionCorsTest {
         assertThat(cfg.checkOrigin("https://review.sodamlabs.kr")).isEqualTo("https://review.sodamlabs.kr");
         assertThat(cfg.checkOrigin("chrome-extension://zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).isNull();
     }
+
+    @Test
+    @DisplayName("★ 운영에서 확장 ID 가 비면 확장 오리진을 하나도 허용하지 않는다 — 와일드카드로 떨어지지 않는다")
+    void 확장_ID_가_비면_확장은_전부_거절된다() {
+        SecurityConfig config = new SecurityConfig(null, new ObjectMapper());
+        ReflectionTestUtils.setField(config, "allowedOrigins", "https://review.sodamlabs.kr");
+        ReflectionTestUtils.setField(config, "allowedExtensionOrigins", "");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/naver/drafts");
+        req.addHeader("Origin", EXT_ORIGIN);
+        CorsConfiguration cfg = config.corsConfigurationSource().getCorsConfiguration(req);
+        assertThat(cfg.checkOrigin(EXT_ORIGIN)).isNull();
+        assertThat(cfg.checkOrigin("https://review.sodamlabs.kr")).isEqualTo("https://review.sodamlabs.kr");
+    }
 }

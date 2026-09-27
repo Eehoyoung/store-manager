@@ -24,14 +24,17 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     logging: *default-logging
+    # ★ 443 만 연다. 80→443 리다이렉트는 Cloudflare 'Always Use HTTPS' 가 한다.
+    #   Lightsail 방화벽에서 443 은 Cloudflare IP 대역만 허용한다(README §1.2).
     ports:
-      - "80:80"
       - "443:443"
     environment:
       SITE_DOMAIN: review.sodamlabs.kr
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data      # 발급받은 인증서. 이걸 잃으면 재발급 한도에 걸릴 수 있다
+      # Cloudflare Origin CA 인증서·키. 저장소 밖(서버)에 둔다 — 키는 600.
+      - /etc/storemanager/certs:/etc/caddy/certs:ro
+      - caddy-data:/data
       - caddy-config:/config
       - caddy-logs:/var/log/caddy
     depends_on:
@@ -97,9 +100,10 @@ services:
       AI_SERVICE_BASE_URL: http://ai-python:8001
       # Caddy 가 같은 오리진으로 넘기므로 교차 오리진 요청이 없다.
       APP_CORS_ALLOWED_ORIGINS: https://review.sodamlabs.kr
-      # 운영 확장은 Chrome Web Store 의 고정 ID 하나만 허용한다. 개발의 chrome-extension://* 를
-      # 운영에 흘리지 않도록 값이 없으면 기동 전에 Compose 단계에서 실패시킨다.
-      APP_CORS_ALLOWED_EXTENSION_ORIGINS: ${PRODUCTION_EXTENSION_ORIGIN:?Chrome Web Store 확장 origin을 설정하세요}
+      # 운영 확장은 Chrome Web Store 의 고정 ID 하나만 허용한다.
+      # ★ 비어 있으면 확장 오리진을 하나도 허용하지 않는다(fail-closed) — 배달만 먼저 출시(2026-09-28).
+      #   빈 문자열은 Spring 기본값(chrome-extension://*)으로 떨어지지 않는다. `:-` 를 `-` 로 바꾸지 말 것.
+      APP_CORS_ALLOWED_EXTENSION_ORIGINS: ${PRODUCTION_EXTENSION_ORIGIN:-}
       JWT_SECRET: ${JWT_SECRET:?}
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
       CREDENTIAL_KEY_ID: ${CREDENTIAL_KEY_ID:-prod}
@@ -110,14 +114,16 @@ services:
       AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.
       BUSINESS_NAME: 소담랩스
-      BUSINESS_SERVICE_NAME: Review Pilot
+      BUSINESS_SERVICE_NAME: 소담리뷰
       BUSINESS_REPRESENTATIVE: 이호영
-      BUSINESS_ADDRESS: ${BUSINESS_ADDRESS:-}
-      BUSINESS_PHONE: ${BUSINESS_PHONE:-}
-      BUSINESS_EMAIL: ${BUSINESS_EMAIL:-}
+      BUSINESS_ADDRESS: 경기도 고양시 덕양구 화정로 53-1, 709-가1호
+      BUSINESS_PHONE: 010-9352-3827
+      BUSINESS_EMAIL: sodamlabs@gmail.com
       BUSINESS_REGISTRATION_NUMBER: 358-23-02207
+      # ★ 통신판매업 신고 대기 중(2026-09-28). 무료 파일럿 동안은 비워 두고(화면에 "신고 후 표시"),
+      #   신고번호가 나오면 env 에 넣고 BUSINESS_INFO_REQUIRED=true 로 켠 뒤에야 유료 결제를 연다.
       BUSINESS_MAIL_ORDER_NUMBER: ${BUSINESS_MAIL_ORDER_NUMBER:-}
-      BUSINESS_PRIVACY_OFFICER: ${BUSINESS_PRIVACY_OFFICER:-}
+      BUSINESS_PRIVACY_OFFICER: 이호영
       BUSINESS_INFO_REQUIRED: ${BUSINESS_INFO_REQUIRED:-false}
       # 카카오 알림톡(솔라피). ★ ALIMTALK_ENABLED 기본 false — 알림톡은 되돌릴 수 없다.
       ALIMTALK_ENABLED: ${ALIMTALK_ENABLED:-false}
