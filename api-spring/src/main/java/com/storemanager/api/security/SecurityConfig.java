@@ -21,6 +21,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /** Stateless JWT 인증. /auth/**, actuator health, swagger 만 공개하고 나머지는 인증을 요구한다. */
 @Configuration
@@ -44,6 +45,13 @@ public class SecurityConfig {
     @org.springframework.beans.factory.annotation.Value(
             "${app.cors.allowed-extension-origins:chrome-extension://*}")
     private String allowedExtensionOrigins;
+
+    /**
+     * 분리된 관리 포트(운영 Compose 8081, 호스트 127.0.0.1:18080 에만 게시). 미설정이면 -1 이라
+     * 아래 {@link #managementMetrics(int)} 가 아무것도 허용하지 않는다.
+     */
+    @org.springframework.beans.factory.annotation.Value("${management.server.port:-1}")
+    private int managementPort;
 
     public SecurityConfig(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper) {
         this.jwtTokenProvider = jwtTokenProvider;
@@ -144,6 +152,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/naver/extension/pair").permitAll()
                         // /internal/** 는 JWT 가 아니라 X-Internal-Token 공유 시크릿으로 인증한다(컨트롤러에서 검증).
                         .requestMatchers("/internal/**").permitAll()
+                        // 운영 콘솔 collector(2026-09-26). 관리 포트로 들어온 metrics 만 무인증이다 —
+                        // 관리 포트를 분리하면 이 필터체인이 관리 컨텍스트에도 그대로 적용되기 때문.
+                        .requestMatchers(managementMetrics(managementPort)).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(eh -> eh
                         .authenticationEntryPoint(this::handleUnauthorized)
@@ -151,6 +162,11 @@ public class SecurityConfig {
                 .addFilterBefore(new JwtAuthFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new ExtensionTokenFilter(extensionAuthService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    static RequestMatcher managementMetrics(int port) {
+        return req -> port > 0 && req.getLocalPort() == port
+                && (req.getRequestURI().equals("/actuator/metrics") || req.getRequestURI().startsWith("/actuator/metrics/"));
     }
 
     private void handleUnauthorized(HttpServletRequest req, HttpServletResponse res, AuthenticationException ex)
