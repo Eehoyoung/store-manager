@@ -84,6 +84,10 @@ public class Subscription {
     @Column(name = "next_billing_at")
     private Instant nextBillingAt;
 
+    /** 이용 가능 시한 = 결제예정일 KST 날짜 + 3일 00:00. {@link #changeNextBillingAt} 만 쓴다(V47). */
+    @Column(name = "service_until")
+    private Instant serviceUntil;
+
     @Builder.Default
     @Column(name = "renewal_failures", nullable = false)
     private int renewalFailures = 0;
@@ -102,13 +106,46 @@ public class Subscription {
         this.currentPeriodEnd = newEnd;
     }
 
-    /** 유효한 프로모션 체험만 TRIAL 상태에서 서비스한다. 일반 입금 대기 TRIAL은 열지 않는다. */
+    /** 결제예정일(D)이 지나도 D+2 23:59:59(KST)까지 서비스하고 D+3 00:00부터 막는다(소담한판과 동일). */
+    public static final int GRACE_DAYS = 2;
+    private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");
+
+    /** 이용 제한이 시작되는 시각. */
+    public static Instant restrictedFrom(Instant nextBillingAt) {
+        return nextBillingAt.atZone(KST).toLocalDate().plusDays(GRACE_DAYS + 1).atStartOfDay(KST).toInstant();
+    }
+
+    /**
+     * 결제예정일과 이용 시한을 함께 바꾸는 유일한 자리. 둘이 갈라지면 판정이 두 벌이 된다.
+     * null 이면 결제 전(UNPAID) — 서비스하지 않는다. 쿠폰 체험도 카드를 등록해야 시작된다.
+     */
+    public void changeNextBillingAt(Instant next) {
+        this.nextBillingAt = next;
+        this.serviceUntil = next == null ? null : restrictedFrom(next);
+        this.updatedAt = Instant.now();
+    }
+
+    /**
+     * 비용을 써도 되는가. ★ 같은 조건을 SQL 로 쓰는 곳이 있다 — 함께 바꿀 것:
+     * UnifiedReviewRepository.findNeedingDraft · DailyBriefingService · worker/credentials.py.
+     * 조건: status NOT IN ('SUSPENDED','CANCELED') AND service_until > now.
+     */
     public boolean isServiceableAt(Instant now) {
-        return "ACTIVE".equals(this.status)
-                || ("TRIAL".equals(this.status)
-                        && this.promotionCode != null
-                        && this.trialEndsAt != null
-                        && now.isBefore(this.trialEndsAt));
+        return !"SUSPENDED".equals(this.status)
+                && !"CANCELED".equals(this.status)
+                && this.serviceUntil != null
+                && now.isBefore(this.serviceUntil);
+    }
+
+    /** 화면용 상태. 저장하지 않고 날짜로 계산한다 — 스케줄러가 늦어도 판정이 밀리지 않는다. */
+    public String serviceStateAt(Instant now) {
+        if ("CANCELED".equals(this.status)) return "CANCELED";
+        if ("SUSPENDED".equals(this.status)) return "SUSPENDED";
+        if (this.nextBillingAt == null || this.serviceUntil == null) return "UNPAID";
+        if (now.isBefore(this.nextBillingAt)) {
+            return this.trialEndsAt != null && now.isBefore(this.trialEndsAt) ? "TRIAL" : "ACTIVE";
+        }
+        return now.isBefore(this.serviceUntil) ? "GRACE" : "RESTRICTED";
     }
 
     /** 체험 종료 뒤 첫 유료기간을 연다. 반복 배치에서도 기간이 계속 밀리지 않게 한 번만 전이한다. */
@@ -141,7 +178,8 @@ public class Subscription {
         this.currentPeriodStart = periodStart;
         this.currentPeriodEnd = periodEnd;
         this.canceledAt = null;
-        this.updatedAt = Instant.now();
+        // 자동결제가 없는 수동 활성화도 기간 끝을 결제예정일로 둔다. 유예 뒤 제한되는 것은 같다.
+        changeNextBillingAt(periodEnd);
     }
 
     public void activateFromProvider(Instant periodStart, Instant periodEnd) {
