@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { reviewsApi } from "../api/reviews";
 import { canApproveBlockedDraft, draftsApi, DRAFT_CONTENT_MAX_LENGTH } from "../api/drafts";
 import type { ReviewDetail, ReviewSummary } from "../api/types";
 import { ApiError } from "../api/client";
+import { isPaymentRequiredError } from "../api/billing";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Select } from "../components/Select";
@@ -66,12 +67,14 @@ export function ReviewsPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [paymentRequired, setPaymentRequired] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     setItems(null);
     setLoadError(null);
+    setPaymentRequired(false);
     if (!storeId) return;
     reviewsApi
       .list(storeId, {
@@ -90,12 +93,32 @@ export function ReviewsPage() {
         setHasMore(res.hasMore);
         setNextCursor(res.nextCursor);
       })
-      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다."));
+      .catch((e) => {
+        if (isPaymentRequiredError(e)) {
+          setPaymentRequired(true);
+          return;
+        }
+        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다.");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, cursor, retryTick]);
 
   if (!storeId) {
     return <EmptyState title="매장을 먼저 선택해 주세요" />;
+  }
+
+  if (paymentRequired) {
+    return (
+      <EmptyState
+        title="결제가 필요합니다"
+        description="결제수단을 등록하면 리뷰 목록을 다시 볼 수 있어요."
+        action={
+          <Link to={`/stores/${storeId}/billing`} className="btn btn--primary">
+            결제하러 가기
+          </Link>
+        }
+      />
+    );
   }
 
   return (

@@ -118,8 +118,9 @@ def active_account_ids() -> list[int]:
         - 해지된 계정 제외          (revoked_at)
         - 연동 오류 계정 제외        (link_status='ERROR' — 로그인 실패는 재시도해도 실패다)
         - 삭제·미활성 매장 제외      (deleted_at, activated_at — 자격증명 위탁 동의 게이트)
-        - 구독이 살아 있는 매장만     (ACTIVE, 또는 기간 안의 쿠폰 무료체험 — Subscription.isServiceableAt)
+        - 구독이 살아 있는 매장만     (Subscription.isServiceableAt 과 같은 조건)
       ★ 이 조건을 느슨하게 바꾸면 못 받을 돈에 호출료를 우리가 대신 낸다.
+      ★ 조건은 UnifiedReviewRepository.findNeedingDraft · DailyBriefingService 와 함께 바꿀 것.
     """
     import psycopg
 
@@ -138,9 +139,8 @@ def active_account_ids() -> list[int]:
                AND s.activated_at IS NOT NULL
                AND EXISTS (SELECT 1 FROM subscription sub
                             WHERE sub.store_id = s.id
-                              AND (sub.status = 'ACTIVE'
-                                   OR (sub.status = 'TRIAL' AND sub.promotion_code IS NOT NULL
-                                       AND sub.trial_ends_at > now())))
+                              AND sub.status NOT IN ('SUSPENDED', 'CANCELED')
+                              AND sub.service_until > now())
              ORDER BY pa.id
             """
         )

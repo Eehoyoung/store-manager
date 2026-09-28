@@ -88,6 +88,10 @@ public class Subscription {
     @Column(name = "service_until")
     private Instant serviceUntil;
 
+    /** 청구 직전 매장 단위 잠금(조건부 UPDATE, V47). PG 호출은 트랜잭션 밖이라 행 잠금으로는 못 막는다. */
+    @Column(name = "billing_lock_until")
+    private Instant billingLockUntil;
+
     @Builder.Default
     @Column(name = "renewal_failures", nullable = false)
     private int renewalFailures = 0;
@@ -99,12 +103,6 @@ public class Subscription {
     @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
-
-    /** 청구 배치(B3)가 기간이 지난 구독을 다음 기간으로 이월할 때 호출한다. */
-    public void rollPeriod(Instant newStart, Instant newEnd) {
-        this.currentPeriodStart = newStart;
-        this.currentPeriodEnd = newEnd;
-    }
 
     /** 결제예정일(D)이 지나도 D+2 23:59:59(KST)까지 서비스하고 D+3 00:00부터 막는다(소담한판과 동일). */
     public static final int GRACE_DAYS = 2;
@@ -148,30 +146,12 @@ public class Subscription {
         return now.isBefore(this.serviceUntil) ? "GRACE" : "RESTRICTED";
     }
 
-    /** 체험 종료 뒤 첫 유료기간을 연다. 반복 배치에서도 기간이 계속 밀리지 않게 한 번만 전이한다. */
-    public void openFirstPaidPeriodAfterTrial(Instant paidPeriodEnd) {
-        if (this.trialEndsAt != null
-                && (this.currentPeriodStart == null || this.currentPeriodStart.isBefore(this.trialEndsAt))) {
-            this.currentPeriodStart = this.trialEndsAt;
-            this.currentPeriodEnd = paidPeriodEnd;
-            this.updatedAt = Instant.now();
-        }
-    }
-
-    /** 미납 D+14(B4). ACTIVE 에서만 전이한다 — 이미 PAST_DUE/SUSPENDED 면 아무 것도 하지 않는다(멱등). */
-    public void markPastDue() {
-        if ("ACTIVE".equals(this.status) || "TRIAL".equals(this.status)) {
-            this.status = "PAST_DUE";
-            this.updatedAt = Instant.now();
-        }
-    }
-
-    /** 미납 D+21(B4). 서비스 중단 — 이미 SUSPENDED 면 멱등하게 무시한다(감사로그는 호출부에서 남긴다). */
     /**
-     * 운영자가 입금을 확인하고 서비스를 연다 (Groble 연동 전까지의 수동 경로).
+     * 운영자가 입금을 확인하고 서비스를 연다 (Groble 연동 전까지의 수동 경로, admin 전용).
      *
-     * <p>★ 이 메서드가 유일하게 ACTIVE 를 만드는 정상 경로다. 가입·구독생성은 TRIAL 로 남으며
-     * 서비스되지 않는다(2026-08-23 결정). 자동 활성화를 다시 만들지 말 것.
+     * <p>★ 이 메서드가 admin 경로에서 유일하게 ACTIVE 를 만드는 자리다. 자동결제 경로는
+     * {@link #beginTrial} · {@link #chargeSucceeded} 를 쓴다. 지우거나 합치지 말 것 —
+     * {@code AdminSubscriptionService} 가 그대로 참조한다.
      */
     public void activateByOperator(Instant periodStart, Instant periodEnd) {
         this.status = "ACTIVE";
@@ -182,39 +162,47 @@ public class Subscription {
         changeNextBillingAt(periodEnd);
     }
 
-    public void activateFromProvider(Instant periodStart, Instant periodEnd) {
-        this.status = "ACTIVE";
-        this.currentPeriodStart = periodStart;
-        this.currentPeriodEnd = periodEnd;
-        this.canceledAt = null;
+    /**
+     * 쿠폰으로 예약해 둔 체험을 카드 등록 시점에 시작한다. 체험 종료일이 곧 첫 결제예정일이다.
+     * 청구는 하지 않는다 — {@link BillingService#checkout} 이 금액을 0으로 판정한다.
+     */
+    public void beginTrial(Instant now, Instant trialEnd, String billingKey, String channelKey) {
+        this.trialEndsAt = trialEnd;
+        this.currentPeriodStart = now;
+        this.currentPeriodEnd = trialEnd;
+        this.billingKey = billingKey;
+        this.billingChannelKey = channelKey;
+        this.autoRenew = true;
+        changeNextBillingAt(trialEnd);
+    }
+
+    /** 결제 기간 중 카드만 바꾼다. 청구는 없다. */
+    public void swapBillingKey(String billingKey, String channelKey) {
+        this.billingKey = billingKey;
+        this.billingChannelKey = channelKey;
         this.updatedAt = Instant.now();
     }
 
-    public void enableAutoRenew(String billingKey, String channelKey, Instant paidAt, Instant nextBillingAt) {
+    /** 결제 성공(최초 청구·유예 뒤 결제·정기 갱신 공통). 카드가 바뀌었으면 함께 반영한다. */
+    public void chargeSucceeded(Instant periodStart, Instant periodEnd, String billingKey, String channelKey) {
+        this.status = "ACTIVE";
+        this.currentPeriodStart = periodStart;
+        this.currentPeriodEnd = periodEnd;
         this.billingKey = billingKey;
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
         this.renewalFailures = 0;
-        activateFromProvider(paidAt, nextBillingAt);
-        this.nextBillingAt = nextBillingAt;
+        changeNextBillingAt(periodEnd);
     }
 
-    public void recordRenewal(Instant paidAt, Instant nextBillingAt) {
-        this.currentPeriodStart = paidAt;
-        this.currentPeriodEnd = nextBillingAt;
-        this.nextBillingAt = nextBillingAt;
-        this.renewalFailures = 0;
-        this.status = "ACTIVE";
-        this.updatedAt = paidAt;
-    }
-
-    public void recordRenewalFailure() {
+    /** 정기 갱신 결제 실패. 상태는 그대로 두고 실패 횟수만 늘린다 — 유예·제한 판정은 {@link #serviceStateAt}이 한다. */
+    public void recordChargeFailure() {
         this.renewalFailures++;
         this.updatedAt = Instant.now();
     }
 
-    public void disableAutoRenew() {
-        this.autoRenew = false;
+    public void setAutoRenew(boolean on) {
+        this.autoRenew = on;
         this.updatedAt = Instant.now();
     }
 
@@ -232,23 +220,5 @@ public class Subscription {
 
     public void suspend() {
         this.status = "SUSPENDED";
-    }
-
-    /** 입금 확인(B6)으로 PAST_DUE/SUSPENDED 였던 구독을 ACTIVE 로 복구한다. 그 외 상태는 건드리지 않는다. */
-    public void restoreActiveIfOverdue() {
-        if ("TRIAL".equals(this.status) || "PAST_DUE".equals(this.status) || "SUSPENDED".equals(this.status)) {
-            this.status = "ACTIVE";
-            this.updatedAt = Instant.now();
-        }
-    }
-
-    /** Groble 해지 완료가 아니라 우리 시스템에 접수된 요청만 기록한다. */
-    public boolean requestCancellation(Instant requestedAt) {
-        if (this.cancellationRequestedAt != null) {
-            return false;
-        }
-        this.cancellationRequestedAt = requestedAt;
-        this.updatedAt = requestedAt;
-        return true;
     }
 }

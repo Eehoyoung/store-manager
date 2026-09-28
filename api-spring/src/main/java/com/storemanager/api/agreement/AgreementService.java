@@ -22,6 +22,8 @@ public class AgreementService {
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";
     public static final String CREDENTIAL = "PLATFORM_CREDENTIAL";
+    /** 자동결제 동의(2026-09-29). 문서는 약관(terms)에 포함 — 별도 문서를 만들지 않는다. */
+    public static final String BILLING_AUTO_PAYMENT = "BILLING_AUTO_PAYMENT";
 
     private final UserAgreementRepository repository;
 
@@ -83,6 +85,7 @@ public class AgreementService {
             case PRIVACY -> "privacy";
             case HQ -> "hq-data-sharing";
             case CREDENTIAL -> "platform-credential";
+            case BILLING_AUTO_PAYMENT -> "terms";
             default -> "terms";
         };
     }

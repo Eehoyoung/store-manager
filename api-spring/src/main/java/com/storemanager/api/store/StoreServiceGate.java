@@ -2,7 +2,6 @@ package com.storemanager.api.store;
 
 import com.storemanager.api.billing.SubscriptionRepository;
 import java.time.Instant;
-import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,22 +17,12 @@ import org.springframework.stereotype.Component;
  * </ul>
  * 계약만 있고 구독이 없으면 무료로 DataAPI 호출과 LLM 토큰을 태우게 된다.
  *
- * <p>★ fail-closed. 구독 행이 아예 없으면 서비스하지 않는다. Groble 결제 연동 전까지는
- * 운영자가 구독 상태를 직접 설정한다 — {@code activated_at} 동의 게이트와 별개다.
- * "결제 연동이 아직이니 일단 전부 허용" 으로 바꾸지 말 것. 그 순간 미납 매장이 계속 서비스된다.
+ * <p>★ fail-closed. 구독 행이 아예 없으면 서비스하지 않는다 — {@code activated_at} 동의
+ * 게이트와 별개다. 판정은 전부 {@link com.storemanager.api.billing.Subscription#isServiceableAt}
+ * 에 위임한다. "결제 연동이 아직이니 일단 전부 허용" 으로 바꾸지 말 것.
  */
 @Component
 public class StoreServiceGate {
-
-    /**
-     * 상시 비용을 써도 되는 구독 상태. ACTIVE 하나뿐이다.
-     *
-     * ★ 일반 TRIAL(입금 대기)은 서비스하지 않는다. OPEN30은 상태명만 보고 열지 않고,
-     *   서버가 저장한 프로모션 코드와 trial_ends_at 을 함께 검사해 종료 전까지만 허용한다.
-     * ★ PAST_DUE(연체)·SUSPENDED(정지)·CANCELED(해지)에 LLM 비용을 계속 쓰면 못 받을 돈을
-     *   우리가 대신 내는 셈이다.
-     */
-    public static final Set<String> SERVICEABLE_SUBSCRIPTION_STATUSES = Set.of("ACTIVE");
 
     private final SubscriptionRepository subscriptionRepository;
 

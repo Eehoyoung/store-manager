@@ -31,6 +31,7 @@ ai:
 
 app:
   portone:
+    api-base: ${PORTONE_API_BASE:https://api.portone.io}
     api-secret: ${PORTONE_API_SECRET:}
     store-id: ${PORTONE_STORE_ID:}
     inicis-channel-key: ${PORTONE_INICIS_CHANNEL_KEY:}

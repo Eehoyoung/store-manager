@@ -26,13 +26,18 @@ class StoreServiceGateTest {
     }
 
     private void subscription(String status) {
+        subscription(status, null);
+    }
+
+    private void subscription(String status, Instant serviceUntil) {
         when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
-                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status(status).build()));
+                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status(status)
+                        .serviceUntil(serviceUntil).build()));
     }
 
     @Test
     void 계약과_구독이_모두_살아_있어야_서비스한다() {
-        subscription("ACTIVE");
+        subscription("ACTIVE", Instant.now().plusSeconds(3600));
         assertThat(gate.isServiceable(store())).isTrue();
     }
 
@@ -44,9 +49,19 @@ class StoreServiceGateTest {
     }
 
     @Test
-    void 연체와_정지_해지는_서비스하지_않는다() {
-        for (String status : new String[] {"PAST_DUE", "SUSPENDED", "CANCELED"}) {
-            subscription(status);
+    void 연체는_이용_시한_안에서만_서비스한다() {
+        // PAST_DUE 는 결제 실패 후 유예(GRACE_DAYS)를 이용 시한으로 표현한다 — 상태가 아니라 시한이 막는다.
+        subscription("PAST_DUE", Instant.now().plusSeconds(3600));
+        assertThat(gate.isServiceable(store())).isTrue();
+        subscription("PAST_DUE", Instant.now().minusSeconds(1));
+        assertThat(gate.isServiceable(store())).isFalse();
+    }
+
+    @Test
+    void 정지와_해지는_이용_시한이_남아도_서비스하지_않는다() {
+        // SUSPENDED·CANCELED 는 시한과 무관하게 상태 자체로 차단한다.
+        for (String status : new String[] {"SUSPENDED", "CANCELED"}) {
+            subscription(status, Instant.now().plusSeconds(3600));
             assertThat(gate.isServiceable(store())).as(status).isFalse();
         }
     }
@@ -60,24 +75,22 @@ class StoreServiceGateTest {
     }
 
     @Test
-    void OPEN30_체험은_종료전만_서비스한다() {
-        when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
-                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status("TRIAL")
-                        .promotionCode("OPEN30").trialEndsAt(Instant.now().plusSeconds(3600)).build()));
+    void 체험이든_유료든_이용_시한_안에서만_서비스한다() {
+        // 자동결제 전환(2026-09-29) — 쿠폰 체험도 카드 등록 시 service_until 이 찍힌다.
+        subscription("TRIAL", Instant.now().plusSeconds(3600));
         assertThat(gate.isServiceable(store())).isTrue();
 
-        when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
-                .thenReturn(Optional.of(Subscription.builder().storeId(1L).status("TRIAL")
-                        .promotionCode("OPEN30").trialEndsAt(Instant.now().minusSeconds(1)).build()));
+        subscription("TRIAL", Instant.now().minusSeconds(1));
         assertThat(gate.isServiceable(store())).isFalse();
     }
 
     @Test
     void 구독을_상태_지정_없이_만들면_서비스되지_않는다() {
-        // 엔티티 기본값이 ACTIVE 이던 시절, 상태를 적지 않은 구독이 곧바로 서비스 가능이 됐다.
-        Subscription created = Subscription.builder().storeId(1L)
-                .priceKrw(new java.math.BigDecimal("30000")).build();
-        assertThat(StoreServiceGate.SERVICEABLE_SUBSCRIPTION_STATUSES).doesNotContain(created.getStatus());
+        // 기본값(TRIAL, service_until 없음)은 결제 전(UNPAID) — 카드 등록 전에는 서비스하지 않는다.
+        when(subscriptionRepository.findByStoreIdAndStatusNot(1L, "CANCELED"))
+                .thenReturn(Optional.of(Subscription.builder().storeId(1L)
+                        .priceKrw(new java.math.BigDecimal("30000")).build()));
+        assertThat(gate.isServiceable(store())).isFalse();
     }
 
     @Test

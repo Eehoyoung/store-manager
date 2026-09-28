@@ -2,6 +2,7 @@ package com.storemanager.api.user;
 
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.billing.PortOneClient;
 import com.storemanager.api.billing.Subscription;
 import com.storemanager.api.billing.SubscriptionRepository;
 import com.storemanager.api.common.ApiException;
@@ -12,13 +13,15 @@ import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 회원 탈퇴 (개인정보보호법 제37조 — 처리정지·파기 요구권).
@@ -51,11 +54,14 @@ public class AccountWithdrawalService {
     private final CredentialService credentialService;
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PortOneClient portOneClient;
+    private final TransactionTemplate writes;
 
     public AccountWithdrawalService(AppUserRepository appUserRepository, StoreRepository storeRepository,
             SubscriptionRepository subscriptionRepository, PlatformAccountRepository platformAccountRepository,
             CredentialService credentialService, AuditLogRepository auditLogRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, PortOneClient portOneClient,
+            PlatformTransactionManager transactionManager) {
         this.appUserRepository = appUserRepository;
         this.storeRepository = storeRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -63,6 +69,8 @@ public class AccountWithdrawalService {
         this.credentialService = credentialService;
         this.auditLogRepository = auditLogRepository;
         this.passwordEncoder = passwordEncoder;
+        this.portOneClient = portOneClient;
+        this.writes = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -70,9 +78,23 @@ public class AccountWithdrawalService {
      *
      * @param password 본인 확인용. 탈퇴는 되돌릴 수 없으므로 비밀번호를 다시 받는다 —
      *                 세션이 탈취된 상태에서 계정이 삭제되면 복구할 방법이 없다.
+     *
+     *                 <p>★ 포트원 빌링키 삭제는 PG 호출이라 트랜잭션 커밋 뒤에 한다(BillingService 와
+     *                 같은 규율 — PG 호출을 {@code @Transactional} 안에 넣지 않는다). 실패해도 로그만
+     *                 남긴다 — 탈퇴 자체를 막을 이유는 아니다. 응답 본문·빌링키는 로그에 남기지 않는다.
      */
-    @Transactional
     public void withdraw(UUID publicId, String password) {
+        List<String> billingKeysToDelete = writes.execute(status -> withdrawTx(publicId, password));
+        for (String billingKey : billingKeysToDelete) {
+            try {
+                portOneClient.deleteBillingKey(billingKey);
+            } catch (RuntimeException e) {
+                log.warn("탈퇴 시 포트원 빌링키 삭제 실패: {}", e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private List<String> withdrawTx(UUID publicId, String password) {
         AppUser user = appUserRepository.findByPublicIdAndDeletedAtIsNull(publicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
         if (user.getPasswordHash() == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
@@ -88,11 +110,16 @@ public class AccountWithdrawalService {
             credentialService.revoke(account);
         }
 
-        // 2) 구독 해지 — 안 하면 탈퇴한 사람에게 청구된다.
+        // 2) 구독 해지 — 안 하면 탈퇴한 사람에게 청구된다. 빌링키는 커밋 뒤 삭제하도록 모아 둔다.
+        List<String> billingKeys = new ArrayList<>();
         List<Store> stores = storeRepository.findByOwnerIdAndDeletedAtIsNull(user.getId());
         for (Store store : stores) {
-            subscriptionRepository.findByStoreIdAndStatusNot(store.getId(), "CANCELED")
-                    .ifPresent(Subscription::cancelImmediately);
+            subscriptionRepository.findByStoreIdAndStatusNot(store.getId(), "CANCELED").ifPresent(sub -> {
+                if (sub.getBillingKey() != null) {
+                    billingKeys.add(sub.getBillingKey());
+                }
+                sub.cancelImmediately();
+            });
             // 3) 매장 정지 — activated_at 이 남아 있으면 수집·게시가 계속 돈다.
             // user_agreement 는 계약 관련 증적이라 삭제하지 않는다. 재가입자는 새 user_id 로 다시 동의한다.
             store.softDeleteForWithdrawal(now);
@@ -110,5 +137,6 @@ public class AccountWithdrawalService {
                 .build());
 
         log.info("회원 탈퇴 userId={} 매장={} 플랫폼계정={}", user.getId(), stores.size(), accounts.size());
+        return billingKeys;
     }
 }

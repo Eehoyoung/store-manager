@@ -145,6 +145,34 @@ class PublishSchedulerTest {
         verify(stringRedisTemplate, never()).opsForValue();
     }
 
+    /**
+     * ★ 자동결제 전환(2026-09-29) — 제한 중(RESTRICTED·UNPAID·SUSPENDED)이던 매장이 결제로
+     * 다시 서비스 가능해지기 전까지, 그 사이 예약돼 있던 SCHEDULED 초안은 게시되지 않아야 한다.
+     * PublishScheduler 는 다른 재검증 실패(STORE_INACTIVE 도 그중 하나)와 같은 방식으로 BLOCKED 로
+     * 되돌려 큐에 나가는 것을 막는다 — SCHEDULED 로 방치하면 다음 주기에 같은 재검증을 반복한다.
+     */
+    @Test
+    void 구독이_서비스_불가한_매장의_예약_초안은_디스패치되지_않는다() {
+        ReplyDraft draft = dueDraft(5L, 14L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(14L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(14L).category("PRAISE").sentiment(0.9f)
+                        .riskLevel((short) 0).model("m").promptVersion("v1").build()));
+        when(unifiedReviewRepository.findById(14L)).thenReturn(Optional.of(UnifiedReview.builder()
+                .id(14L).storeId(100L).linkId(5L).platform("BAEMIN")
+                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build()));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(Store.builder().id(100L).ownerId(1L)
+                .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
+        when(serviceGate.isServiceable(any())).thenReturn(false);
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("STORE_INACTIVE");
+        verify(stringRedisTemplate, never()).opsForValue();
+        verify(auditLogRepository).save(any());
+    }
+
     @Test
     void 정상건은_dispatch_키를_선점한뒤_qpublish로_LPUSH한다() {
         ReplyDraft draft = dueDraft(2L, 11L);
