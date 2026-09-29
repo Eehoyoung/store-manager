@@ -17,7 +17,7 @@ public class AgreementService {
      * 문서를 고칠 때는 새 디렉터리를 만들고 여기를 함께 올린다. 옛 디렉터리는 지우지 않는다 —
      * 과거 동의가 가리키는 문서다.
      */
-    public static final String CURRENT_VERSION = "2026-09-20";
+    public static final String CURRENT_VERSION = "2026-09-29";
     public static final String TERMS = "TERMS_OF_SERVICE";
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";
