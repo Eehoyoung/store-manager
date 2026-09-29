@@ -17,9 +17,17 @@ import org.springframework.stereotype.Component;
 public class BillingScheduler {
 
     private final BillingService billingService;
+    private final TrialConversionNoticeService trialNotices;
 
-    public BillingScheduler(BillingService billingService) {
+    public BillingScheduler(BillingService billingService, TrialConversionNoticeService trialNotices) {
         this.billingService = billingService;
+        this.trialNotices = trialNotices;
+    }
+
+    /** 매일 09:00(Asia/Seoul). 체험 종료 7일 전에 들어온 구독에 유료 전환 사전고지를 보낸다. */
+    @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
+    public void trialConversionNotice() {
+        trialNotices.sendDue(java.time.Instant.now());
     }
 
     /** 매일 00:10(Asia/Seoul). 오늘(KST)이 결제예정일인 매장을 모두 청구한다. */

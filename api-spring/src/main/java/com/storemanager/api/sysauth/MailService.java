@@ -48,11 +48,23 @@ public class MailService {
                         + "로그인 화면에서 이 이메일 주소로 인증번호를 요청해 로그인해 주세요.");
     }
 
+    /**
+     * 무료체험 → 유료 전환 사전고지(약관 9.4조 4항). OTP 와 달리 <b>성공 여부를 돌려준다</b> —
+     * 호출부는 성공했을 때만 "고지함" 으로 기록하고, 실패하면 다음 날 다시 보낸다.
+     */
+    public boolean sendTrialConversionNotice(String toEmail, String subject, String body) {
+        if (!canSend()) {
+            log.warn("메일 계정이 설정되지 않아 유료 전환 사전고지 발송을 건너뜁니다(다음 실행에서 다시 시도).");
+            return false;
+        }
+        return send(toEmail, subject, body);
+    }
+
     private boolean canSend() {
         return !props.getUsername().isBlank() && !props.getPassword().isBlank();
     }
 
-    private void send(String to, String subject, String text) {
+    private boolean send(String to, String subject, String text) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setTo(to);
@@ -60,10 +72,12 @@ public class MailService {
             message.setSubject(subject);
             message.setText(text);
             mailSender.send(message);
+            return true;
         } catch (MailException e) {
             // ★ 수신자·본문(인증번호 포함)은 로그에 싣지 않는다. 실패해도 호출자에게 전파하지 않는다 —
             //   반송·발송 실패는 운영자가 메일 서비스 콘솔에서 확인한다(docs/26 단계 B 완료 기준).
             log.warn("메일 발송에 실패했습니다", e);
+            return false;
         }
     }
 }

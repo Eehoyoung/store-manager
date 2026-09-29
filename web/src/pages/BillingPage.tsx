@@ -36,6 +36,9 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
   PENDING: "처리 중",
 };
 
+/** 서버 TrialConversionNoticeService.NOTICE_BEFORE 와 같은 7일. */
+const TRIAL_NOTICE_MS = 7 * 24 * 60 * 60 * 1000;
+
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("ko-KR") : "-";
 }
@@ -176,6 +179,14 @@ export function BillingPage() {
             ) : null}
           </tbody>
         </table>
+        {billing.serviceState === "TRIAL" && billing.autoRenew && billing.trialEndsAt
+          && new Date(billing.trialEndsAt).getTime() - Date.now() <= TRIAL_NOTICE_MS ? (
+          // 유료 전환 사전고지(약관 9.4조 4항) — 이메일과 같은 내용을 화면에도 띄운다.
+          <p role="status" className="billing-page__warning">
+            무료체험이 {fmtDate(billing.trialEndsAt)}에 끝나고, 그날 등록한 카드로 월 {billing.amountKrw.toLocaleString("ko-KR")}원(VAT 포함)이
+            자동결제돼요. 원하지 않으시면 체험이 끝나기 전에 아래에서 자동결제를 해지해 주세요.
+          </p>
+        ) : null}
         {billing.serviceState === "GRACE" ? (
           <p role="alert" className="billing-page__warning">
             결제가 확인되지 않았어요. 위 중지 예정일까지 결제하지 않으면 예약 답글 게시를 포함한 서비스 이용이 중지돼요. 데이터는 지워지지 않아요.

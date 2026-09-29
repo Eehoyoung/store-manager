@@ -65,6 +65,10 @@ public class Subscription {
     @Column(name = "promotion_code")
     private String promotionCode;
 
+    /** 유료 전환 사전고지 메일 발송 성공 시각(V48). 비어 있으면 아직 고지하지 않았다. */
+    @Column(name = "trial_notice_sent_at")
+    private Instant trialNoticeSentAt;
+
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
@@ -166,6 +170,11 @@ public class Subscription {
      * 쿠폰으로 예약해 둔 체험을 카드 등록 시점에 시작한다. 체험 종료일이 곧 첫 결제예정일이다.
      * 청구는 하지 않는다 — {@link BillingService#checkout} 이 금액을 0으로 판정한다.
      */
+    public void markTrialNoticeSent(Instant sentAt) {
+        this.trialNoticeSentAt = sentAt;
+        this.updatedAt = sentAt;
+    }
+
     public void beginTrial(Instant now, Instant trialEnd, String billingKey, String channelKey) {
         this.trialEndsAt = trialEnd;
         this.currentPeriodStart = now;
