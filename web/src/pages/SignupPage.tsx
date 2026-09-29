@@ -252,24 +252,23 @@ export function SignupPage() {
           {form.franchiseCode ? (
             <section className="consent-box consent-box--hq">
               <details className="consent-fold">
-              <summary>가맹코드를 넣으시면 본부가 우리 매장 리뷰를 볼 수 있게 됩니다 (보기만 가능)</summary>
-              <p>본부에서 받으신 가맹코드를 넣으시면, 저희가 확인한 뒤 본부에서 사장님 매장의 리뷰와 운영 현황을 <strong>볼 수 있게</strong> 됩니다.</p>
+              <summary>가맹코드를 넣으시면 본부가 우리 매장의 운영 현황과 익명 통계를 볼 수 있게 됩니다 (보기만 가능)</summary>
+              <p>본부에서 받으신 가맹코드를 넣으시면, 저희가 확인한 뒤 본부에서 사장님 매장의 운영 현황과 개인을 알아볼 수 없도록 <strong>집계한 통계</strong>를 볼 수 있게 됩니다.</p>
               <div className="consent-table-wrap"><table><thead><tr><th>본부가 볼 수 있는 것</th><th>본부가 볼 수 없는 것</th></tr></thead><tbody>
                 <tr><td>매장 이름과 주소</td><td>사장님 이메일·전화번호</td></tr>
-                <tr><td>서비스 이용 중인지 / 멈춰 있는지</td><td>요금·결제·입금 내역</td></tr>
+                <tr><td>서비스 이용 중인지 / 멈춰 있는지</td><td>요금·결제 내역</td></tr>
                 <tr><td>배달앱 연결 상태와 마지막으로 리뷰를 가져온 시각</td><td>배달앱 아이디와 비밀번호</td></tr>
-                <tr><td>리뷰 별점과 리뷰 내용</td><td>리뷰 쓴 손님이 누구인지 알 수 있는 정보</td></tr>
-                <tr><td>리뷰 쓴 사람 표시 (`김**`처럼 가려진 형태)</td><td>사장님 사업자 정보</td></tr>
-                <tr><td>주문한 메뉴와 리뷰 사진</td><td /></tr>
-                <tr><td>답글이 올라갔는지 / 막혔는지</td><td /></tr>
-                <tr><td>별점 평균, 자주 나오는 불만, 다른 매장과 비교한 순위</td><td /></tr>
+                <tr><td>답글 처리 상태의 집계 건수</td><td>개별 리뷰 내용·사진·주문 메뉴·작성일</td></tr>
+                <tr><td>최소 집계 기준을 충족한 별점·분류·이슈·답글 처리 통계</td><td>리뷰 쓴 사람의 표시와 식별값</td></tr>
+                <tr><td>기간별 추이와 매장 단위 운영 지표</td><td>특정 리뷰를 유추할 수 있는 위험 사유·상세 분석</td></tr>
+                <tr><td /><td>사장님 사업자 정보</td></tr>
               </tbody></table></div>
               <p><strong>본부는 보기만 할 수 있습니다.</strong> 본부가 사장님 답글을 고치거나, 지우거나, 매장 설정을 바꿀 수는 없습니다. 본부가 언제 무엇을 봤는지는 모두 기록에 남습니다.</p>
               </details>
               <label className="consent-check"><input type="checkbox" checked={agreedHq} onChange={(e) => setAgreedHq(e.target.checked)} /> (선택) 가맹본부에 위 정보가 제공되는 것에 동의합니다.</label>
               <details className="consent-fold">
               <summary>동의하지 않으셔도 모든 기능·요금이 같습니다</summary>
-              <ul><li>제공받는 곳: 가맹코드를 발급한 가맹본부</li><li>제공 목적: 브랜드 전체 리뷰 현황 파악과 가맹점 지원</li><li>제공 항목: 위 표의 '본부가 볼 수 있는 것'</li><li>제공 기간: 서비스를 이용하시는 동안. 사장님이 요청하시면 언제든 중단합니다</li></ul>
+              <ul><li>제공받는 곳: 가맹코드를 발급한 가맹본부</li><li>제공 목적: 브랜드 단위 운영 현황 파악과 가맹점 지원</li><li>제공 항목: 위 표의 '본부가 볼 수 있는 것'</li><li>제공 기간: 서비스를 이용하시는 동안. 사장님이 요청하시면 언제든 중단합니다</li></ul>
               <p><strong>동의하지 않으셔도 됩니다.</strong> 가맹코드를 넣지 않으셔도 리뷰 수집, 답글 자동 생성, 자동 게시 등 <strong>서비스의 모든 기능을 똑같이</strong> 쓰실 수 있고 요금도 같습니다. 저희가 드리는 불이익은 없습니다.</p>
               <p className="field__hint">다만 본부와 맺으신 가맹계약에 별도로 정해진 내용이 있을 수 있으며, 그 부분은 저희가 관여하지 않습니다. 나중에 마음이 바뀌시면 고객문의로 <strong>소속 해제</strong>를 요청하실 수 있습니다.</p>
               <Link to="/legal/hq-data-sharing" target="_blank">전문 보기</Link>
