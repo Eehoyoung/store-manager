@@ -27,6 +27,14 @@ public enum ErrorCode {
     RISK_LEVEL_TOO_HIGH(HttpStatus.UNPROCESSABLE_ENTITY, "위험도가 높아 자동 게시할 수 없습니다."),
     PLATFORM_LINK_ERROR(HttpStatus.UNPROCESSABLE_ENTITY, "플랫폼 계정 연동에 실패했습니다."),
     INVALID_FRANCHISE_CODE(HttpStatus.UNPROCESSABLE_ENTITY, "가맹코드가 올바르지 않거나 사용할 수 없습니다."),
+    // 자동결제(2026-09-29). 화면이 코드로 분기한다 — 이름을 바꾸면 웹도 함께 바꿀 것.
+    SUBSCRIPTION_PAYMENT_REQUIRED(HttpStatus.PAYMENT_REQUIRED,
+            "결제가 확인되지 않아 이용이 중지됐어요. 결제 화면에서 결제수단을 확인해 주세요."),
+    PAYMENT_DECLINED(HttpStatus.PAYMENT_REQUIRED, "결제가 승인되지 않았어요."),
+    PAYMENT_PENDING(HttpStatus.BAD_GATEWAY, "결제 결과를 확인하지 못했어요. 잠시 후 결제 화면을 다시 확인해 주세요."),
+    BILLING_BUSY(HttpStatus.CONFLICT, "결제를 처리하고 있어요. 잠시 후 다시 확인해 주세요."),
+    BILLING_KEY_INVALID(HttpStatus.BAD_REQUEST, "이 매장에서 등록한 결제수단이 아니에요. 다시 등록해 주세요."),
+    BILLING_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "자동결제에 동의해 주세요."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     // ★ 검증 실패는 항상 이 한 종류만 반환한다 — 이메일 등록 여부·시도 횟수 초과 등을 구분해서
     //   알려주지 않는다(docs/26a auth.otp). 세분화하면 계정 존재 여부가 새어 나간다.

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { reviewsApi } from "../api/reviews";
 import { canApproveBlockedDraft, draftsApi, DRAFT_CONTENT_MAX_LENGTH } from "../api/drafts";
 import type { ReviewDetail, ReviewSummary } from "../api/types";
 import { ApiError } from "../api/client";
+import { billingApi, isPaymentRequiredError } from "../api/billing";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Select } from "../components/Select";
@@ -66,12 +67,14 @@ export function ReviewsPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [paymentRequired, setPaymentRequired] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     setItems(null);
     setLoadError(null);
+    setPaymentRequired(false);
     if (!storeId) return;
     reviewsApi
       .list(storeId, {
@@ -90,12 +93,32 @@ export function ReviewsPage() {
         setHasMore(res.hasMore);
         setNextCursor(res.nextCursor);
       })
-      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다."));
+      .catch((e) => {
+        if (isPaymentRequiredError(e)) {
+          setPaymentRequired(true);
+          return;
+        }
+        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다.");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, cursor, retryTick]);
 
   if (!storeId) {
     return <EmptyState title="매장을 먼저 선택해 주세요" />;
+  }
+
+  if (paymentRequired) {
+    return (
+      <EmptyState
+        title="결제가 필요합니다"
+        description="결제수단을 등록하면 리뷰 목록을 다시 볼 수 있어요."
+        action={
+          <Link to={`/stores/${storeId}/billing`} className="btn btn--primary">
+            결제하러 가기
+          </Link>
+        }
+      />
+    );
   }
 
   return (
@@ -212,6 +235,7 @@ export function ReviewsPage() {
       ) : null}
 
       <ReviewDetailModal
+        storeId={storeId}
         reviewId={selectedId}
         onClose={() => setSelectedId(null)}
         onDraftChanged={() => setRetryTick((t) => t + 1)}
@@ -302,10 +326,12 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
 // 위험 초안"에 대한 사람 승인·거절이다(RiskApprovalController, 2026-08-27 신설). 리뷰 본문을
 // 생성·수정하는 코드는 추가하지 않는다.
 function ReviewDetailModal({
+  storeId,
   reviewId,
   onClose,
   onDraftChanged,
 }: {
+  storeId: string;
   reviewId: string | null;
   onClose: () => void;
   onDraftChanged: () => void;
@@ -378,8 +404,12 @@ function ReviewDetailModal({
               {detail.drafts.map((d, idx) => {
                 const meta = DRAFT_STATUS_META[d.status];
                 const generatedByLabel = describeGeneratedBy(d.generatedBy);
+                // 이용 중지(결제 미비)로 게시가 막힌 초안 — 위험 사유가 아니라 결제 문제라 승인 패널과 다르게 다룬다.
+                // 서버(BillingService.isHeldReply)와 같은 기준: STORE_INACTIVE 단독일 때만 '보류 답글'이다.
+                const flags = d.guardrailFlags ?? [];
+                const isHeldForBilling = idx === 0 && d.status === "BLOCKED" && flags.length === 1 && flags[0] === "STORE_INACTIVE";
                 // drafts 는 재생성 이력 최신순이다 — 승인·거절은 가장 최근 초안(idx===0)에만 연다.
-                const isLatestBlocked = idx === 0 && d.status === "BLOCKED";
+                const isLatestBlocked = idx === 0 && d.status === "BLOCKED" && !isHeldForBilling;
                 // 예약된 답글은 게시 전까지 멈출 수 있어야 한다 — 없으면 지연 시간이 지나면 그대로 나간다.
                 const isCancelable = idx === 0 && d.status === "SCHEDULED";
                 return (
@@ -393,6 +423,16 @@ function ReviewDetailModal({
                       <CancelScheduledPanel
                         draftId={d.id}
                         scheduledAt={d.scheduledAt}
+                        onDone={() => {
+                          reload();
+                          onDraftChanged();
+                        }}
+                      />
+                    ) : null}
+                    {isHeldForBilling ? (
+                      <HeldReplyPanel
+                        storeId={storeId}
+                        draftId={d.id}
                         onDone={() => {
                           reload();
                           onDraftChanged();
@@ -419,6 +459,56 @@ function ReviewDetailModal({
         </div>
       ) : null}
     </Modal>
+  );
+}
+
+/**
+ * 이용 중지 동안 게시되지 않은 답글(BLOCKED · guardrailFlags=[STORE_INACTIVE])을 다시 게시 예약하는 패널.
+ * 위험 승인과 달리 내용을 고쳐 쓰지 않는다 — 결제 문제였을 뿐 답글 자체는 이미 안전 검사를 통과했다.
+ */
+function HeldReplyPanel({ storeId, draftId, onDone }: { storeId: string; draftId: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needsPayment, setNeedsPayment] = useState(false);
+
+  const handleResume = async () => {
+    setBusy(true);
+    setError(null);
+    setNeedsPayment(false);
+    try {
+      await billingApi.resumeHeldReplies(storeId, [draftId]);
+      toast.show("게시를 예약했습니다.", "success");
+      onDone();
+    } catch (e) {
+      if (isPaymentRequiredError(e)) {
+        setNeedsPayment(true);
+      } else {
+        setError(e instanceof ApiError ? e.message : "게시 예약 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="queue-item__scheduled-notice" role="group" aria-label="이용 중지로 보류된 답글">
+      <p>이용 중지로 게시되지 않은 답글입니다. 지금 게시할 수 있어요.</p>
+      <p>예전 리뷰에 지금 답글이 달립니다. 게시한 답글은 되돌릴 수 없으니 내용을 확인한 뒤 눌러 주세요.</p>
+      {needsPayment ? (
+        <p className="field__error" role="alert">
+          결제가 필요합니다. <Link to={`/stores/${storeId}/billing`}>결제 화면으로 이동</Link>
+        </p>
+      ) : null}
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <Button type="button" variant="secondary" loading={busy} disabled={busy} onClick={() => void handleResume()}>
+        이 답글 게시하기
+      </Button>
+    </div>
   );
 }
 

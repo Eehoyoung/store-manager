@@ -10,6 +10,7 @@ import type {
   AnalyticsTrendResponse,
 } from "../api/types";
 import { ApiError } from "../api/client";
+import { isPaymentRequiredError } from "../api/billing";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
@@ -53,6 +54,7 @@ export function DashboardPage() {
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentRequired, setPaymentRequired] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
 
   // 네이버 카드는 기존 배달 지표와 별도 API·별도 상태로 뗀다 — 확장 미연결로 실패해도
@@ -64,6 +66,7 @@ export function DashboardPage() {
     if (!storeId) return;
     setData(null);
     setError(null);
+    setPaymentRequired(false);
     Promise.all([
       analyticsApi.summary(storeId),
       analyticsApi.trend(storeId),
@@ -72,7 +75,13 @@ export function DashboardPage() {
       analyticsApi.response(storeId),
     ])
       .then(([summary, trend, issues, menus, response]) => setData({ summary, trend, issues, menus, response }))
-      .catch((e) => setError(e instanceof ApiError ? e.message : "대시보드 데이터를 불러오지 못했습니다."));
+      .catch((e) => {
+        if (isPaymentRequiredError(e)) {
+          setPaymentRequired(true);
+          return;
+        }
+        setError(e instanceof ApiError ? e.message : "대시보드 데이터를 불러오지 못했습니다.");
+      });
   }, [storeId, retryTick]);
 
   useEffect(() => {
@@ -88,6 +97,20 @@ export function DashboardPage() {
 
   if (!storeId) {
     return <EmptyState title="매장을 먼저 선택해 주세요" />;
+  }
+
+  if (paymentRequired) {
+    return (
+      <EmptyState
+        title="결제가 필요합니다"
+        description="결제수단을 등록하면 대시보드를 다시 볼 수 있어요."
+        action={
+          <Link to={`/stores/${storeId}/billing`} className="btn btn--primary">
+            결제하러 가기
+          </Link>
+        }
+      />
+    );
   }
 
   if (error) {

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.billing.PortOneClient;
 import com.storemanager.api.billing.Subscription;
 import com.storemanager.api.billing.SubscriptionRepository;
 import com.storemanager.api.common.ApiException;
@@ -27,6 +28,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
  * 회원 탈퇴는 되돌릴 수 없다. 빠뜨린 단계마다 다른 사고가 되므로 전부 잠근다.
@@ -43,10 +47,19 @@ class AccountWithdrawalServiceTest {
     private final CredentialService credentialService = mock(CredentialService.class);
     private final AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+    private final PortOneClient portOneClient = mock(PortOneClient.class);
+    private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
 
     private final AccountWithdrawalService service = new AccountWithdrawalService(
             appUserRepository, storeRepository, subscriptionRepository, platformAccountRepository,
-            credentialService, auditLogRepository, passwordEncoder);
+            credentialService, auditLogRepository, passwordEncoder, portOneClient, transactionManager);
+
+    {
+        // TransactionTemplate 이 실제 DB 트랜잭션 없이도 돌도록 최소한의 상태만 준다 — 이 테스트는
+        // Mockito 목만 쓰는 순수 단위 테스트라 진짜 트랜잭션이 필요 없다.
+        TransactionStatus status = new SimpleTransactionStatus();
+        when(transactionManager.getTransaction(any())).thenReturn(status);
+    }
 
     private final UUID publicId = UUID.randomUUID();
 

@@ -28,6 +28,8 @@ public class AgreementService {
      * 필요하다. {@code app.hq.review-access-enabled} 가 꺼져 있으면 카탈로그·API 모두 숨긴다.
      */
     public static final String HQ_REVIEW_SHARING = "HQ_REVIEW_SHARING";
+    /** 자동결제 동의(2026-09-29). 문서는 약관(terms)에 포함 — 별도 문서를 만들지 않는다. */
+    public static final String BILLING_AUTO_PAYMENT = "BILLING_AUTO_PAYMENT";
 
     private final UserAgreementRepository repository;
 
@@ -96,6 +98,7 @@ public class AgreementService {
             case HQ -> "hq-data-sharing";
             case CREDENTIAL -> "platform-credential";
             case HQ_REVIEW_SHARING -> "hq-review-sharing";
+            case BILLING_AUTO_PAYMENT -> "terms";
             default -> "terms";
         };
     }

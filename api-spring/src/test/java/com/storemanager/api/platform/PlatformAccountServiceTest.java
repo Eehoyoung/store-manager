@@ -20,6 +20,7 @@ import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.store.Store;
+import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.util.Optional;
@@ -40,10 +41,11 @@ class PlatformAccountServiceTest {
     private final StorePlatformLinkRepository linkRepository = mock(StorePlatformLinkRepository.class);
     private final CredentialService credentialService = mock(CredentialService.class);
     private final AgreementService agreementService = mock(AgreementService.class);
+    private final StoreServiceGate serviceGate = mock(StoreServiceGate.class);
 
     private final PlatformAccountService service = new PlatformAccountService(
             appUserRepository, storeRepository, accountRepository, linkRepository, credentialService,
-            agreementService);
+            agreementService, serviceGate);
 
     @Test
     void 이미_연동된_배달앱_계정은_409로_거절하고_자격증명을_저장하지_않는다() {
@@ -118,6 +120,7 @@ class PlatformAccountServiceTest {
                 .encNonce(new byte[1]).passwordFingerprint(new byte[1]).intendedStoreId(2L).build();
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
+        when(serviceGate.isSubscriptionServiceable(2L)).thenReturn(true);
         when(credentialService.save(1L, "BAEMIN", "ownerid", "pw", 2L)).thenReturn(account);
         when(linkRepository.findByAccountIdOrderByCreatedAtAsc(3L)).thenReturn(java.util.List.of());
 
@@ -126,6 +129,34 @@ class PlatformAccountServiceTest {
 
         assertThat(store.getActivatedAt()).isNotNull();
         verify(agreementService).record(1L, 2L, AgreementService.CREDENTIAL, true, "127.0.0.1", "test");
+    }
+
+    /**
+     * ★ 사용자 결정(2026-09-29): 카드 등록 전에는 배달앱 계정 연동을 막는다.
+     * 자격증명을 암호화·저장하는 단계까지 가면 안 된다 — 결제 없는 매장이 DataAPI 호출과
+     * LLM 토큰을 태우게 하지 않는다.
+     */
+    @Test
+    void 결제전_매장은_배달앱_계정_연동을_거절한다() {
+        UUID ownerPublicId = UUID.randomUUID();
+        UUID storePublicId = UUID.randomUUID();
+        AppUser owner = AppUser.builder().id(1L).publicId(ownerPublicId).email("a@b.com").name("사장").build();
+        Store store = Store.builder().id(2L).publicId(storePublicId).ownerId(1L).name("매장").build();
+        when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
+        when(accountRepository.existsByPlatformAndLoginIdAndRevokedAtIsNull("BAEMIN", "ownerid")).thenReturn(false);
+        when(serviceGate.isSubscriptionServiceable(2L)).thenReturn(false);
+
+        var request = new RegisterPlatformAccountRequest("BAEMIN", "ownerid", "pw", storePublicId, true,
+                AgreementService.CURRENT_VERSION);
+
+        assertThatThrownBy(() -> service.register(ownerPublicId, request, "127.0.0.1", "test"))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED);
+
+        verifyNoInteractions(credentialService);
+        assertThat(store.getActivatedAt()).isNull();
     }
 
     @Test

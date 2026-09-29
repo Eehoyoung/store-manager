@@ -111,10 +111,13 @@ class CollectResultIT {
         Long storeId = storeRepository.save(store).getId();
         // ★ 구독도 있어야 수집 결과를 적재한다(StoreServiceGate). 계약만으로는 비용 드는 작업을
         //   하지 않는다 — 무료로 DataAPI 호출과 LLM 토큰을 태우지 않기 위한 게이트다.
+        // ★ 자동결제 전환(2026-09-29) — isServiceableAt 이 service_until 을 본다. 없으면
+        //   ACTIVE 라도 서비스 불가로 판정돼 이 픽스처의 매장이 전부 수집 결과 적재에서 빠진다.
         subscriptionRepository.save(com.storemanager.api.billing.Subscription.builder()
                 .storeId(storeId)
                 .status("ACTIVE")
                 .priceKrw(new java.math.BigDecimal("30000"))
+                .serviceUntil(Instant.now().plusSeconds(86400 * 29))
                 .build());
         return storeId;
     }

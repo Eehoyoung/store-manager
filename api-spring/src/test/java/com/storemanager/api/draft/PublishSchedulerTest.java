@@ -145,6 +145,58 @@ class PublishSchedulerTest {
         verify(stringRedisTemplate, never()).opsForValue();
     }
 
+    /**
+     * ★ 자동결제 전환(2026-09-29) — 제한 중(RESTRICTED·UNPAID·SUSPENDED)이던 매장이 결제로
+     * 다시 서비스 가능해지기 전까지, 그 사이 예약돼 있던 SCHEDULED 초안은 게시되지 않아야 한다.
+     * PublishScheduler 는 다른 재검증 실패(STORE_INACTIVE 도 그중 하나)와 같은 방식으로 BLOCKED 로
+     * 되돌려 큐에 나가는 것을 막는다 — SCHEDULED 로 방치하면 다음 주기에 같은 재검증을 반복한다.
+     */
+    @Test
+    void 구독이_서비스_불가한_매장의_예약_초안은_디스패치되지_않는다() {
+        ReplyDraft draft = dueDraft(5L, 14L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(14L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(14L).category("PRAISE").sentiment(0.9f)
+                        .riskLevel((short) 0).model("m").promptVersion("v1").build()));
+        when(unifiedReviewRepository.findById(14L)).thenReturn(Optional.of(UnifiedReview.builder()
+                .id(14L).storeId(100L).linkId(5L).platform("BAEMIN")
+                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build()));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(Store.builder().id(100L).ownerId(1L)
+                .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
+        when(serviceGate.isServiceable(any())).thenReturn(false);
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("STORE_INACTIVE");
+        verify(stringRedisTemplate, never()).opsForValue();
+        verify(auditLogRepository).save(any());
+    }
+
+    /**
+     * ★ 결제 재개로 보류 답글이 재개돼도(BillingService.resumeHeldReplies), risk>=3 미승인
+     * 건은 이 방어선을 넘지 못한다. resumeAfterReactivation 은 approvedBy·riskAckAt 을
+     * 건드리지 않으므로 사람 승인 표시가 없고, 디스패치 시점에 다시 BLOCKED 로 막힌다.
+     */
+    @Test
+    void 결제재개로_되살아난_초안도_risk3미승인이면_다시_막힌다() {
+        ReplyDraft draft = ReplyDraft.builder().id(6L).reviewId(15L).storeId(100L).content("답글 내용")
+                .status("BLOCKED").generatedBy("AI").guardrailFlags(new String[] {"STORE_INACTIVE"}).build();
+        draft.resumeAfterReactivation(7L); // BillingService 가 호출하는 것과 동일한 경로
+        assertThat(draft.isHumanApproved()).isFalse();
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(15L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(15L).category("COMPLAINT").sentiment(-0.9f)
+                        .riskLevel((short) 3).riskReasons(new String[] {"HYGIENE"}).model("m")
+                        .promptVersion("v1").build()));
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
+        verify(stringRedisTemplate, never()).opsForValue();
+    }
+
     @Test
     void 정상건은_dispatch_키를_선점한뒤_qpublish로_LPUSH한다() {
         ReplyDraft draft = dueDraft(2L, 11L);

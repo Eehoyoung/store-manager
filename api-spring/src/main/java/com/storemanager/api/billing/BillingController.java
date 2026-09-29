@@ -1,22 +1,28 @@
 package com.storemanager.api.billing;
 
-import com.storemanager.api.billing.BillingDtos.CancellationRequestResponse;
-import com.storemanager.api.billing.BillingDtos.PaymentListResponse;
-import com.storemanager.api.billing.BillingDtos.SubscriptionResponse;
+import com.storemanager.api.billing.BillingDtos.AutoRenewRequest;
+import com.storemanager.api.billing.BillingDtos.BillingView;
+import com.storemanager.api.billing.BillingDtos.CheckoutRequest;
+import com.storemanager.api.billing.BillingDtos.HeldReplyResumeResponse;
+import com.storemanager.api.billing.BillingDtos.ResumeHeldRepliesRequest;
 import com.storemanager.api.security.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.List;
 import java.util.UUID;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 레거시 자체 결제 조회 API. 신규 구독 시작은 Groble 결제창으로만 진행한다. */
+/** 포트원 V2 빌링키 자동결제(docs/13 §9, 2026-09-29). 결제창 요청 값과 결제 상태를 이 한 경로로 준다. */
 @RestController
-@RequestMapping("/api/v1/stores/{storeId}")
+@RequestMapping("/api/v1/stores/{storeId}/billing")
 public class BillingController {
 
     private final BillingService billingService;
@@ -25,20 +31,43 @@ public class BillingController {
         this.billingService = billingService;
     }
 
-    @GetMapping("/subscription")
-    public SubscriptionResponse get(@PathVariable UUID storeId) {
-        return billingService.getSubscription(CurrentUser.publicId(), storeId);
+    @GetMapping
+    public BillingView view(@PathVariable UUID storeId) {
+        return billingService.view(CurrentUser.publicId(), storeId);
     }
 
-    @DeleteMapping("/subscription")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public CancellationRequestResponse requestCancellation(@PathVariable UUID storeId) {
-        return billingService.requestCancellation(CurrentUser.publicId(), storeId);
+    @PostMapping("/checkout")
+    public BillingView checkout(@PathVariable UUID storeId, @Valid @RequestBody CheckoutRequest body,
+            HttpServletRequest request) {
+        return billingService.checkout(CurrentUser.publicId(), storeId, body, clientIp(request),
+                request.getHeader("User-Agent"));
     }
 
-    @GetMapping("/payments")
-    public PaymentListResponse payments(@PathVariable UUID storeId, @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return billingService.listPayments(CurrentUser.publicId(), storeId, page, size);
+    @PutMapping("/auto-renew")
+    public BillingView autoRenew(@PathVariable UUID storeId, @RequestBody AutoRenewRequest body,
+            HttpServletRequest request) {
+        return billingService.setAutoRenew(CurrentUser.publicId(), storeId, body, clientIp(request),
+                request.getHeader("User-Agent"));
+    }
+
+    /** 이용 제한으로 보류됐던 답글을 확인 후 재개한다(약관 제9조의5 제6항). */
+    @PostMapping("/held-replies/resume")
+    public HeldReplyResumeResponse resumeHeldReplies(@PathVariable UUID storeId,
+            @RequestBody(required = false) ResumeHeldRepliesRequest body) {
+        List<UUID> draftIds = body == null ? null : body.draftIds();
+        return billingService.resumeHeldReplies(CurrentUser.publicId(), storeId, draftIds);
+    }
+
+    /** 프록시가 전달한 첫 주소만 증적에 쓰며 어떤 로그에도 출력하지 않는다(AuthController 와 동일 패턴). */
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        String value = forwarded == null || forwarded.isBlank() ? request.getRemoteAddr()
+                : forwarded.split(",", 2)[0].trim();
+        try {
+            InetAddress.getByName(value);
+            return value;
+        } catch (UnknownHostException e) {
+            return null;
+        }
     }
 }

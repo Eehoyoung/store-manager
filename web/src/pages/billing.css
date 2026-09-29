@@ -1,0 +1,36 @@
+/* BillingPage·OnboardingPage 결제 UI — pages.css 는 다른 작업이 진행 중이라 건드리지 않고 새 파일로 둔다. */
+
+.billing-checkout__notice {
+  font-weight: 600;
+}
+
+.billing-checkout__price {
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+}
+
+.billing-checkout__price small {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.billing-page__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.billing-page__warning {
+  color: var(--color-warning);
+  font-weight: 600;
+  margin-top: var(--space-3);
+}
+
+.billing-page__banner {
+  border: 2px solid var(--color-warning);
+}
+
+.billing-page__banner--danger {
+  border-color: var(--color-danger);
+}

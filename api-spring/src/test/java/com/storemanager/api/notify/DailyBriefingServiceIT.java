@@ -82,11 +82,14 @@ class DailyBriefingServiceIT {
                 .ownerId(owner.getId()).name(name).status("ACTIVE")
                 .activatedAt(activated ? Instant.now().minusSeconds(86400) : null).build());
         if (subStatus != null) {
+            // ★ 자동결제 전환(2026-09-29) — isServiceableAt 이 service_until 을 본다. 없으면
+            //   ACTIVE 라도 서비스 불가로 판정돼 이 픽스처로 만든 매장이 전부 대상에서 빠진다.
             subscriptionRepository.save(Subscription.builder()
                     .storeId(store.getId()).status(subStatus)
                     .priceKrw(new java.math.BigDecimal("30000"))
                     .currentPeriodStart(Instant.now().minusSeconds(86400))
-                    .currentPeriodEnd(Instant.now().plusSeconds(86400 * 29)).build());
+                    .currentPeriodEnd(Instant.now().plusSeconds(86400 * 29))
+                    .serviceUntil(Instant.now().plusSeconds(86400 * 29)).build());
         }
         return store.getId();
     }
