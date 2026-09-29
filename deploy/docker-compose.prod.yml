@@ -8,6 +8,7 @@
 #   - 비밀값은 .env 가 아니라 배포 환경의 시크릿에서 주입한다
 #
 # 실행:  docker compose -f deploy/docker-compose.prod.yml --env-file /etc/storemanager/env up -d
+# env 키 목록: deploy/env.example
 #
 # ★ 이 파일과 같은 디렉터리에 .env 를 두지 말 것. 비밀값은 저장소 밖에 둔다.
 
@@ -146,6 +147,7 @@ services:
       SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
       SOLAPI_PF_ID: ${SOLAPI_PF_ID:-}
       SOLAPI_SENDER_PHONE: ${SOLAPI_SENDER_PHONE:-}
+      SOLAPI_WEBHOOK_SECRET: ${SOLAPI_WEBHOOK_SECRET:-}
       SOLAPI_TEMPLATE_RISK_REVIEW: ${SOLAPI_TEMPLATE_RISK_REVIEW:-}
       SOLAPI_TEMPLATE_DAILY_BRIEFING: ${SOLAPI_TEMPLATE_DAILY_BRIEFING:-}
       ALIMTALK_LINK_BASE_URL: https://review.sodamlabs.kr
@@ -154,7 +156,8 @@ services:
       DRAFT_SCHEDULER_ENABLED: ${DRAFT_SCHEDULER_ENABLED:-true}
       # ★ 개인정보 파기 배치. 운영에서 끄면 보유기간을 정해 두고 영구 보관하게 된다.
       RETENTION_SCHEDULER_ENABLED: ${RETENTION_SCHEDULER_ENABLED:-true}
-      BILLING_SCHEDULER_ENABLED: ${BILLING_SCHEDULER_ENABLED:-false}
+      # 포트원 자동결제(00:10)·유료전환 사전고지(09:00). 끄면 체험이 끝나도 청구되지 않고 이용 중지로 넘어간다.
+      BILLING_SCHEDULER_ENABLED: ${BILLING_SCHEDULER_ENABLED:-true}
       # 무료체험 쿠폰번호(비공개, 개별 전달). 비면 체험을 열지 않는다.
       PROMOTION_CODE: ${PROMOTION_CODE:-}
       PROMOTION_LIMIT: ${PROMOTION_LIMIT:-30}
@@ -215,7 +218,6 @@ services:
       args:
         # 같은 오리진이므로 상대 경로면 충분하다 — 도메인이 바뀌어도 다시 빌드할 필요가 없다.
         VITE_API_BASE_URL: /api/v1
-        VITE_GROBLE_PAYMENT_URL: ${VITE_GROBLE_PAYMENT_URL:-}
     restart: unless-stopped
     logging: *default-logging
 

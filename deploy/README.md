@@ -90,7 +90,8 @@ openssl rand -base64 32   # AUTHOR_HASH_SALT   ★ 바꾸면 기존 author_hash 
 openssl rand -base64 32   # INTERNAL_TOKEN
 ```
 
-필수 항목은 `.env.example` 의 `[필수]` 표시를 따른다. 빠지면 컨테이너가 기동하지 않는다
+**운영 env 의 키 목록은 `deploy/env.example` 이다** — 복사해서 빈 값만 채운다(명령은 파일 머리말).
+필수 항목은 거기 `[필수]` 표시를 따른다. 빠지면 컨테이너가 기동하지 않는다
 (fail-closed — 비밀값이 조용히 빈 문자열로 도는 것보다 낫다).
 
 네이버 확장은 **배달 먼저 출시(2026-09-28)** 에 따라 비워 둔다. 비어 있으면 확장 오리진을 하나도
