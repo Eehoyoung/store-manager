@@ -16,6 +16,9 @@ public interface ReplyDraftRepository extends JpaRepository<ReplyDraft, Long> {
 
     boolean existsByReviewIdAndStatusIn(Long reviewId, Collection<String> statuses);
 
+    /** 결제 재개 후 보류 답글을 찾는다(BillingService). 매장의 BLOCKED 전체를 가져와 가드레일 플래그로 가른다. */
+    List<ReplyDraft> findByStoreIdAndStatus(Long storeId, String status);
+
     /** G7 비교용 게시 이력. 조회 장애가 생성 트랜잭션을 롤백시키지 않도록 분리한다. */
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     @Query("SELECT d.content FROM ReplyDraft d WHERE d.storeId = :storeId AND d.status = 'PUBLISHED' "

@@ -16,10 +16,24 @@ class AgreementDocumentTest {
         String credential = read(base + "platform-credential.md");
         assertThat(terms + privacy + hq + credential)
                 .doesNotContain("법무 검토 전 초안", "초안 주석", "§16. 변호사 확인");
-        assertThat(terms).contains("답글 게시는 되돌릴 수 없습니다");
-        assertThat(privacy).contains("가맹본부 제공에 대한 동의 철회");
+        assertThat(terms)
+                .contains("답글 게시는 되돌릴 수 없습니다")
+                .contains("포트원 V2")
+                .contains("KG이니시스")
+                .contains("빌링키")
+                .contains("30일간")
+                .contains("D+3일 00:00")
+                .contains("이미 예약된 답글의 자동 게시");
+        assertThat(privacy)
+                .contains("가맹본부 제공에 대한 동의 철회")
+                .contains("사업자등록번호, 개업일자, 대표자명")
+                .contains("빌링키")
+                .contains("㈜케이지이니시스")
+                .contains("㈜코리아포트원");
         assertThat(hq).contains("본부는 보기만 할 수 있습니다", "동의하지 않으셔도 됩니다");
         assertThat(credential).contains("기웅정보통신(주)", "사장님이 직접 운영하시는 매장의 계정만");
+        assertThat(terms + privacy + hq + credential)
+                .doesNotContain("BANK_TRANSFER", "deposit code", "Groble", "입금자명", "무통장");
     }
 
     private String read(String path) throws Exception {

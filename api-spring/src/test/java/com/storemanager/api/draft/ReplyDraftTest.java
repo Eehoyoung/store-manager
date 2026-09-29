@@ -181,4 +181,61 @@ class ReplyDraftTest {
         assertThat(d.isHumanApproved()).isFalse();   // risk_ack_at 이 없으므로 게시되지 않는다
         assertThat(d.getGuardrailFlags()).contains("HUMAN_REJECTED");
     }
+
+    // ── 결제 재개로 보류 답글 재개(2026-09-29) ─────────────────────────────
+
+    @Test
+    void 이용제한으로_보류된_답글은_확인후_재개하면_즉시_예약된다() {
+        ReplyDraft d = ReplyDraft.builder().id(1L).reviewId(10L).storeId(100L).content("초안 내용")
+                .status("SCHEDULED").generatedBy("AI").build();
+        d.blockForScheduling("STORE_INACTIVE");
+
+        d.resumeAfterReactivation(7L);
+
+        assertThat(d.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(d.getScheduledAt()).isNotNull();
+        assertThat(d.getGuardrailFlags()).isEmpty();
+        // ★ 위험 승인 필드는 건드리지 않는다 — PublishScheduler 가 디스패치 시 risk 를 다시 검사한다.
+        assertThat(d.isHumanApproved()).isFalse();
+    }
+
+    @Test
+    void 재개한_사용자가_없으면_거부된다() {
+        ReplyDraft d = ReplyDraft.builder().id(1L).reviewId(10L).storeId(100L).content("초안 내용")
+                .status("SCHEDULED").generatedBy("AI").build();
+        d.blockForScheduling("STORE_INACTIVE");
+
+        assertThrows(ApiException.class, () -> d.resumeAfterReactivation(null));
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void 다른_사유로_막힌_초안은_재개할_수_없다() {
+        for (String flag : List.of("RISK_LEVEL_TOO_HIGH", "G2_MONEY", "OWNER_CANCELED")) {
+            ReplyDraft d = ReplyDraft.builder().id(1L).reviewId(10L).storeId(100L).content("초안 내용")
+                    .status("BLOCKED").generatedBy("AI").guardrailFlags(new String[] {flag}).build();
+
+            ApiException e = assertThrows(ApiException.class, () -> d.resumeAfterReactivation(7L), flag);
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_DRAFT_STATE);
+            assertThat(d.getStatus()).isEqualTo("BLOCKED");
+        }
+    }
+
+    @Test
+    void STORE_INACTIVE와_다른_사유가_함께면_재개할_수_없다() {
+        ReplyDraft d = ReplyDraft.builder().id(1L).reviewId(10L).storeId(100L).content("초안 내용")
+                .status("BLOCKED").generatedBy("AI")
+                .guardrailFlags(new String[] {"STORE_INACTIVE", "G2_MONEY"}).build();
+
+        assertThrows(ApiException.class, () -> d.resumeAfterReactivation(7L));
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void BLOCKED가_아니면_재개할_수_없다() {
+        for (String status : List.of("DRAFT", "SCHEDULED", "PUBLISHED", "FAILED", "ALREADY_REPLIED")) {
+            ReplyDraft d = draft(status);
+            assertThrows(ApiException.class, () -> d.resumeAfterReactivation(7L), status);
+        }
+    }
 }

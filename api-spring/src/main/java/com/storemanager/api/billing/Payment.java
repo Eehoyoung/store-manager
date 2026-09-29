@@ -68,6 +68,10 @@ public class Payment {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    /** 카드사 거절 사유(최대 64자, V7 fail_code). PENDING·PAID 면 null. */
+    @Column(name = "fail_code")
+    private String failCode;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -76,23 +80,17 @@ public class Payment {
         return amountKrw.add(vatKrw);
     }
 
-    /**
-     * 운영자 입금 확인(B6). 이미 PAID 면 아무 것도 바꾸지 않고 조용히 반환한다 —
-     * 운영자가 확인 버튼을 두 번 눌러도 안전해야 한다(멱등).
-     */
-    public void markPaid(String depositorName, Instant paidAt, Long confirmedBy) {
-        if ("PAID".equals(this.status)) {
-            return;
-        }
-        this.status = "PAID";
-        this.depositorName = depositorName;
-        this.paidAt = paidAt;
-        this.confirmedBy = confirmedBy;
-    }
-
-    public void markProviderPaid(Instant paidAt) {
+    /** 포트원 결제 성공. 이미 PAID 면 아무 것도 바꾸지 않는다(멱등 — 갱신 스케줄러 재실행에도 안전). */
+    public void markPaid(Instant paidAt) {
         if ("PAID".equals(status)) return;
         status = "PAID";
         this.paidAt = paidAt;
+    }
+
+    /** 카드사 거절. 이미 PAID 면 덮어쓰지 않는다. */
+    public void markFailed(String reason) {
+        if ("PAID".equals(status)) return;
+        status = "FAILED";
+        this.failCode = reason == null ? null : reason.substring(0, Math.min(reason.length(), 64));
     }
 }

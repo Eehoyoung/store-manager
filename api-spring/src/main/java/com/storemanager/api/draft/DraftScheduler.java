@@ -71,7 +71,8 @@ public class DraftScheduler {
      */
     @Scheduled(fixedDelay = POLL_INTERVAL_MS)
     public void generatePendingDrafts() {
-        List<UnifiedReview> pending = unifiedReviewRepository.findNeedingDraft(PageRequest.of(0, BATCH_SIZE));
+        List<UnifiedReview> pending = unifiedReviewRepository.findNeedingDraft(
+                java.time.Instant.now(), PageRequest.of(0, BATCH_SIZE));
         if (pending.isEmpty()) {
             return;
         }

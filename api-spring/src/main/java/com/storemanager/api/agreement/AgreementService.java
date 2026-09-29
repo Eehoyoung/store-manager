@@ -17,11 +17,13 @@ public class AgreementService {
      * 문서를 고칠 때는 새 디렉터리를 만들고 여기를 함께 올린다. 옛 디렉터리는 지우지 않는다 —
      * 과거 동의가 가리키는 문서다.
      */
-    public static final String CURRENT_VERSION = "2026-09-20";
+    public static final String CURRENT_VERSION = "2026-09-29";
     public static final String TERMS = "TERMS_OF_SERVICE";
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";
     public static final String CREDENTIAL = "PLATFORM_CREDENTIAL";
+    /** 자동결제 동의(2026-09-29). 문서는 약관(terms)에 포함 — 별도 문서를 만들지 않는다. */
+    public static final String BILLING_AUTO_PAYMENT = "BILLING_AUTO_PAYMENT";
 
     private final UserAgreementRepository repository;
 
@@ -83,6 +85,7 @@ public class AgreementService {
             case PRIVACY -> "privacy";
             case HQ -> "hq-data-sharing";
             case CREDENTIAL -> "platform-credential";
+            case BILLING_AUTO_PAYMENT -> "terms";
             default -> "terms";
         };
     }

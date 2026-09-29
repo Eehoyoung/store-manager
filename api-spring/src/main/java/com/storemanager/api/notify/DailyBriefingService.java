@@ -114,11 +114,12 @@ public class DailyBriefingService {
                   ) b ON b.store_id = s.id
                  WHERE s.deleted_at IS NULL
                    AND s.activated_at IS NOT NULL
+                   -- ★ Subscription.isServiceableAt 과 같은 조건. 함께 바꿀 것
+                   --   (UnifiedReviewRepository.findNeedingDraft · worker/credentials.py).
                    AND EXISTS (SELECT 1 FROM subscription sub
                                 WHERE sub.store_id = s.id
-                                  AND (sub.status = 'ACTIVE'
-                                       OR (sub.status = 'TRIAL' AND sub.promotion_code IS NOT NULL
-                                           AND sub.trial_ends_at > now())))
+                                  AND sub.status NOT IN ('SUSPENDED', 'CANCELED')
+                                  AND sub.service_until > now())
                    -- ★ 오늘 이미 보낸 매장은 제외한다. 유니크 인덱스에 맡기고 예외로 걸러내면
                    --   제약 위반이 트랜잭션을 rollback-only 로 만들어, 뒤이은 매장까지 통째로
                    --   날아간다(실측). 인덱스는 최후의 방어선으로 남기고 정상 경로는 여기서 막는다.

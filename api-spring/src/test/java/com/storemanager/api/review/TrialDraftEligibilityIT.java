@@ -27,10 +27,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 쿠폰 무료체험 매장도 답글 초안 대상이어야 한다(2026-09-28).
+ * 구독이 서비스 가능한 매장만 답글 초안 대상이어야 한다(2026-09-29 자동결제 전환).
  *
- * <p>★ 게이트(Subscription.isServiceableAt)는 체험을 열어 주는데 findNeedingDraft 는
- * status='ACTIVE' 만 봐서, 체험 매장은 리뷰가 쌓여도 초안이 영영 안 만들어졌다.
+ * <p>★ findNeedingDraft 의 구독 조건은 Subscription.isServiceableAt 과 같아야 한다
+ * (status NOT IN ('SUSPENDED','CANCELED') AND service_until > now). 여기서 갈라지면
+ * 결제 안 한 매장에 LLM 비용을 쓰거나, 결제한 매장의 초안이 영영 안 만들어진다.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -50,7 +51,7 @@ class TrialDraftEligibilityIT {
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired CredentialService credentialService;
 
-    private Long 리뷰가_있는_매장(String key, String status, String promotionCode, Instant trialEndsAt) {
+    private Long 리뷰가_있는_매장(String key, String status, Instant serviceUntil) {
         AppUser owner = appUserRepository.save(AppUser.builder().email(key + "@example.com")
                 .passwordHash("dummy").name("사장").build());
         Store store = Store.builder().ownerId(owner.getId()).name("체험-" + key).build();
@@ -63,24 +64,23 @@ class TrialDraftEligibilityIT {
                 .storeId(store.getId()).accountId(account.getId()).platform("BAEMIN")
                 .platformStoreId("ps-" + key).build());
         subscriptionRepository.save(Subscription.builder().storeId(store.getId())
-                .priceKrw(BigDecimal.valueOf(30000)).status(status).promotionCode(promotionCode)
-                .trialEndsAt(trialEndsAt).build());
+                .priceKrw(BigDecimal.valueOf(30000)).status(status).serviceUntil(serviceUntil).build());
         return unifiedReviewRepository.save(UnifiedReview.builder().storeId(store.getId()).linkId(link.getId())
                 .platform("BAEMIN").platformReviewId("r-" + key).rating((short) 5).body("맛있어요")
                 .writtenAt(Instant.now()).build()).getId();
     }
 
     @Test
-    void 기간_안의_쿠폰_체험만_초안_대상이다() {
+    void 서비스_가능한_구독의_매장만_초안_대상이다() {
         Instant later = Instant.now().plus(10, ChronoUnit.DAYS);
-        Long trial = 리뷰가_있는_매장("trial", "TRIAL", "COUPON1", later);
-        Long expired = 리뷰가_있는_매장("expired", "TRIAL", "COUPON1", Instant.now().minusSeconds(60));
-        Long unpaid = 리뷰가_있는_매장("unpaid", "TRIAL", null, null);
-        Long active = 리뷰가_있는_매장("active", "ACTIVE", null, null);
+        Long active = 리뷰가_있는_매장("active", "ACTIVE", later);
+        Long expired = 리뷰가_있는_매장("expired", "ACTIVE", Instant.now().minusSeconds(60));
+        Long unpaid = 리뷰가_있는_매장("unpaid", "TRIAL", null);
+        Long suspended = 리뷰가_있는_매장("suspended", "SUSPENDED", later);
 
-        var ids = unifiedReviewRepository.findNeedingDraft(PageRequest.of(0, 50)).stream()
+        var ids = unifiedReviewRepository.findNeedingDraft(Instant.now(), PageRequest.of(0, 50)).stream()
                 .map(UnifiedReview::getId).toList();
 
-        assertThat(ids).contains(trial, active).doesNotContain(expired, unpaid);
+        assertThat(ids).contains(active).doesNotContain(expired, unpaid, suspended);
     }
 }
