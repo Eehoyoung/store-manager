@@ -71,3 +71,7 @@ naver-page*.html
 
 # 디자인 도구(impeccable) 캐시·리뷰 스크린샷 — 로컬 전용
 .impeccable/
+
+# 인쇄물 디자인(리플렛) 원본·시안. output/ 과 같은 이유 — 영업자료는 공개 저장소에 올리지 않는다.
+# 디렉토리와 파일은 삭제하지 않는다.
+designs/
