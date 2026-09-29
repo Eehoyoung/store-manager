@@ -112,6 +112,23 @@ docker compose -f deploy/docker-compose.prod.yml --env-file /etc/storemanager/en
 Flyway 가 기동 시 마이그레이션을 적용한다. 실패하면 api-spring 이 뜨지 않는다 —
 스키마가 어긋난 채 서비스가 도는 것보다 안전하다.
 
+### 2.0 자동 배포 (2026-09-29)
+
+`deploy/auto-deploy.sh` 가 5분마다 master 를 확인해 **CI 가 전부 초록인** 새 커밋만 끌어와
+`up -d --build` 한다. master 에 병합하면 CI 시간(약 5~10분) + 최대 5분 + 빌드 시간 뒤 반영된다.
+
+```bash
+sudo chmod 700 /opt/storemanager/deploy/auto-deploy.sh
+echo '*/5 * * * * root /opt/storemanager/deploy/auto-deploy.sh >> /var/log/storemanager-deploy.log 2>&1' \
+  | sudo tee /etc/cron.d/storemanager-deploy
+tail -f /var/log/storemanager-deploy.log     # 배포 기록
+```
+
+- 끄기: `sudo rm /etc/cron.d/storemanager-deploy`. 되돌리기는 `git revert` 후 master 에 병합 — 그것도 자동으로 나간다.
+- **env 변경은 자동으로 반영되지 않는다.** env 는 저장소 밖이다. 바꾸면 여전히 `dc up -d <서비스>` 를 친다.
+- 서버에서 저장소를 직접 고치면(`git status` 가 더러우면) fast-forward 가 실패해 멈춘다. 서버에서 코드를 고치지 말 것.
+- ★ 22 포트를 GitHub Actions 에 열어 SSH 로 밀어 넣는 방식으로 바꾸지 말 것. 공개 저장소에 서버 키를 두게 된다.
+
 ### 2.1 첫 배포 후 확인
 
 ```bash
