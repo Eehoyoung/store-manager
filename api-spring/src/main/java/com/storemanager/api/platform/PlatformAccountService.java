@@ -9,6 +9,7 @@ import com.storemanager.api.crypto.PlatformAccount;
 import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.util.List;
@@ -29,16 +30,18 @@ public class PlatformAccountService {
     private final StorePlatformLinkRepository linkRepository;
     private final CredentialService credentialService;
     private final AgreementService agreementService;
+    private final StoreServiceGate serviceGate;
 
     public PlatformAccountService(AppUserRepository appUserRepository, StoreRepository storeRepository,
             PlatformAccountRepository accountRepository, StorePlatformLinkRepository linkRepository,
-            CredentialService credentialService, AgreementService agreementService) {
+            CredentialService credentialService, AgreementService agreementService, StoreServiceGate serviceGate) {
         this.appUserRepository = appUserRepository;
         this.storeRepository = storeRepository;
         this.accountRepository = accountRepository;
         this.linkRepository = linkRepository;
         this.credentialService = credentialService;
         this.agreementService = agreementService;
+        this.serviceGate = serviceGate;
     }
 
     @Transactional
@@ -61,6 +64,12 @@ public class PlatformAccountService {
         var store = storeRepository.findByPublicIdAndDeletedAtIsNull(request.storeId())
                 .filter(candidate -> candidate.getOwnerId().equals(owner.getId()))
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        // ★ 카드 등록(서비스 가능 상태) 전에는 배달앱 계정을 연동하지 않는다(2026-09-29 결정).
+        //   자격증명을 암호화·저장·검증하기 전에 막아야 한다 — 결제 없는 매장이 DataAPI 호출과
+        //   LLM 토큰을 태우게 하지 않는다(StoreServiceGate 문서 참고).
+        if (!serviceGate.isSubscriptionServiceable(store.getId())) {
+            throw new ApiException(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED);
+        }
 
         PlatformAccount account = credentialService.save(owner.getId(), platform, loginId, request.password(),
                 store.getId());

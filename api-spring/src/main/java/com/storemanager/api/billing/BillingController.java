@@ -3,11 +3,14 @@ package com.storemanager.api.billing;
 import com.storemanager.api.billing.BillingDtos.AutoRenewRequest;
 import com.storemanager.api.billing.BillingDtos.BillingView;
 import com.storemanager.api.billing.BillingDtos.CheckoutRequest;
+import com.storemanager.api.billing.BillingDtos.HeldReplyResumeResponse;
+import com.storemanager.api.billing.BillingDtos.ResumeHeldRepliesRequest;
 import com.storemanager.api.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +48,14 @@ public class BillingController {
             HttpServletRequest request) {
         return billingService.setAutoRenew(CurrentUser.publicId(), storeId, body, clientIp(request),
                 request.getHeader("User-Agent"));
+    }
+
+    /** 이용 제한으로 보류됐던 답글을 확인 후 재개한다(약관 제9조의5 제6항). */
+    @PostMapping("/held-replies/resume")
+    public HeldReplyResumeResponse resumeHeldReplies(@PathVariable UUID storeId,
+            @RequestBody(required = false) ResumeHeldRepliesRequest body) {
+        List<UUID> draftIds = body == null ? null : body.draftIds();
+        return billingService.resumeHeldReplies(CurrentUser.publicId(), storeId, draftIds);
     }
 
     /** 프록시가 전달한 첫 주소만 증적에 쓰며 어떤 로그에도 출력하지 않는다(AuthController 와 동일 패턴). */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { Badge, type BadgeTone } from "../components/Badge";
 import { Modal } from "../components/Modal";
@@ -50,6 +50,9 @@ export function BillingPage() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
+  const [confirmResume, setConfirmResume] = useState(false);
+  const [resumeBusy, setResumeBusy] = useState(false);
+  const [resumeMessage, setResumeMessage] = useState("");
 
   useEffect(() => {
     if (storeId) setStoreId(storeId);
@@ -77,6 +80,21 @@ export function BillingPage() {
     } finally {
       setBusy(false);
       setConfirmStop(false);
+    }
+  }
+
+  async function resumeAll() {
+    setResumeBusy(true);
+    setResumeMessage("");
+    try {
+      const { resumed, view } = await billingApi.resumeHeldReplies(storeId);
+      setBilling(view);
+      setResumeMessage(resumed > 0 ? `${resumed}건을 게시 예약했습니다.` : "게시할 보류 답글이 없습니다.");
+    } catch (e) {
+      setResumeMessage(billingErrorMessage(e));
+    } finally {
+      setResumeBusy(false);
+      setConfirmResume(false);
     }
   }
 
@@ -119,6 +137,7 @@ export function BillingPage() {
     !billing.hasCard || billing.serviceState === "UNPAID" || billing.serviceState === "RESTRICTED" || billing.serviceState === "SUSPENDED";
   const displayCardForm = showCardForm || mustRegisterNow;
   const canToggleAutoRenew = billing.hasCard && billing.serviceState !== "RESTRICTED" && billing.serviceState !== "SUSPENDED";
+  const isServiceable = billing.serviceState === "TRIAL" || billing.serviceState === "ACTIVE" || billing.serviceState === "GRACE";
 
   return (
     <div className="billing-page">
@@ -168,6 +187,32 @@ export function BillingPage() {
           </p>
         ) : null}
       </Card>
+
+      {billing.heldReplyCount > 0 ? (
+        <Card>
+          <h2>이용 중지 동안 게시되지 않은 답글 {billing.heldReplyCount}건이 있어요</h2>
+          {isServiceable ? (
+            <>
+              <p>지금 게시를 예약할 수 있어요. 예전 리뷰라 답글 내용을 먼저 확인하시는 걸 권해요.</p>
+              <div className="billing-page__actions">
+                <Link to={`/stores/${storeId}/reviews`} className="btn btn--secondary">
+                  리뷰 화면에서 하나씩 확인
+                </Link>
+                <Button type="button" variant="primary" onClick={() => setConfirmResume(true)}>
+                  모두 게시하기
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p>결제 후 게시할 수 있어요.</p>
+          )}
+          {resumeMessage ? (
+            <p role="status" className="field__hint">
+              {resumeMessage}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
 
       {displayCardForm ? (
         <BillingCheckout
@@ -249,6 +294,24 @@ export function BillingPage() {
         }
       >
         <p>다음 결제부터 자동결제가 중단됩니다. 현재 결제한 이용 기간은 그대로 유지됩니다.</p>
+      </Modal>
+
+      <Modal
+        open={confirmResume}
+        title="보류된 답글을 모두 게시할까요?"
+        onClose={() => setConfirmResume(false)}
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setConfirmResume(false)} disabled={resumeBusy}>
+              취소
+            </Button>
+            <Button type="button" variant="primary" onClick={() => void resumeAll()} disabled={resumeBusy} loading={resumeBusy}>
+              모두 게시하기
+            </Button>
+          </>
+        }
+      >
+        <p>예전 리뷰에 지금 답글이 달립니다. 내용을 확인하셨나요?</p>
       </Modal>
     </div>
   );

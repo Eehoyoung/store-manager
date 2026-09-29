@@ -173,6 +173,30 @@ class PublishSchedulerTest {
         verify(auditLogRepository).save(any());
     }
 
+    /**
+     * ★ 결제 재개로 보류 답글이 재개돼도(BillingService.resumeHeldReplies), risk>=3 미승인
+     * 건은 이 방어선을 넘지 못한다. resumeAfterReactivation 은 approvedBy·riskAckAt 을
+     * 건드리지 않으므로 사람 승인 표시가 없고, 디스패치 시점에 다시 BLOCKED 로 막힌다.
+     */
+    @Test
+    void 결제재개로_되살아난_초안도_risk3미승인이면_다시_막힌다() {
+        ReplyDraft draft = ReplyDraft.builder().id(6L).reviewId(15L).storeId(100L).content("답글 내용")
+                .status("BLOCKED").generatedBy("AI").guardrailFlags(new String[] {"STORE_INACTIVE"}).build();
+        draft.resumeAfterReactivation(7L); // BillingService 가 호출하는 것과 동일한 경로
+        assertThat(draft.isHumanApproved()).isFalse();
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(15L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(15L).category("COMPLAINT").sentiment(-0.9f)
+                        .riskLevel((short) 3).riskReasons(new String[] {"HYGIENE"}).model("m")
+                        .promptVersion("v1").build()));
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
+        verify(stringRedisTemplate, never()).opsForValue();
+    }
+
     @Test
     void 정상건은_dispatch_키를_선점한뒤_qpublish로_LPUSH한다() {
         ReplyDraft draft = dueDraft(2L, 11L);

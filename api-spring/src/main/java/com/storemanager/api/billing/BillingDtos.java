@@ -3,6 +3,7 @@ package com.storemanager.api.billing;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.UUID;
 
 /** 포트원 V2 빌링키 자동결제 DTO(2026-09-29, docs/13 §9). */
 final class BillingDtos {
@@ -18,14 +19,23 @@ final class BillingDtos {
     /**
      * GET /stores/{storeId}/billing 응답. 결제창에 넘길 값과 현재 결제 상태를 한 번에 준다 —
      * 화면이 채널 키를 따로 들고 있지 않게 서버가 준다.
+     *
+     * @param heldReplyCount 이용 제한으로 보류된 답글 수(BLOCKED·STORE_INACTIVE 단독). 결제를
+     *        재개해도 자동으로 나가지 않는다 — 화면이 이 값으로 재개 배너를 띄운다.
      */
     record BillingView(boolean enabled, String portoneStoreId, String channelKey, CustomerInfo customer,
             String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
             String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
-            long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments) {}
+            long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
+            int heldReplyCount) {}
 
     record CheckoutRequest(@NotBlank @Size(max = 200) String billingKey, boolean billingConsentAgreed,
             @NotBlank @Size(max = 20) String billingConsentVersion) {}
 
     record AutoRenewRequest(boolean on) {}
+
+    /** POST /stores/{storeId}/billing/held-replies/resume 요청. 비우거나 생략하면 보류 답글 전부. */
+    record ResumeHeldRepliesRequest(List<UUID> draftIds) {}
+
+    record HeldReplyResumeResponse(int resumed, BillingView view) {}
 }

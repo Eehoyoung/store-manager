@@ -176,10 +176,17 @@ public class Subscription {
         changeNextBillingAt(trialEnd);
     }
 
-    /** 결제 기간 중 카드만 바꾼다. 청구는 없다. */
+    /**
+     * 결제 기간 중 카드만 바꾼다. 청구는 없다.
+     *
+     * <p>★ autoRenew 를 켠다. 카드를 (다시) 등록하는 행위 자체가 자동결제 재개다 —
+     * 자동결제를 끄면 빌링키를 지우므로({@link #disableAutoRenew}), 다시 켜는 유일한 길은
+     * 카드를 다시 등록하는 것뿐이다(2026-09-29 결정).
+     */
     public void swapBillingKey(String billingKey, String channelKey) {
         this.billingKey = billingKey;
         this.billingChannelKey = channelKey;
+        this.autoRenew = true;
         this.updatedAt = Instant.now();
     }
 
@@ -201,9 +208,23 @@ public class Subscription {
         this.updatedAt = Instant.now();
     }
 
-    public void setAutoRenew(boolean on) {
-        this.autoRenew = on;
+    /**
+     * 자동결제를 끄고 빌링키를 즉시 지운다(약관 제9조 제3항 제5호, 2026-09-29 결정).
+     * 이미 결제한 기간({@code nextBillingAt}·{@code serviceUntil})은 건드리지 않는다 —
+     * 해지해도 그 기간까지는 그대로 쓴다.
+     *
+     * <p>다시 켜는 길은 여기 없다. 카드가 없으므로 {@link #swapBillingKey} 로 카드를
+     * 다시 등록해야 한다({@code BillingService.checkout}).
+     *
+     * @return 삭제해야 할 옛 빌링키. null 이면 애초에 카드가 없었다는 뜻이다.
+     */
+    public String disableAutoRenew() {
+        String oldKey = this.billingKey;
+        this.autoRenew = false;
+        this.billingKey = null;
+        this.billingChannelKey = null;
         this.updatedAt = Instant.now();
+        return oldKey;
     }
 
     /**

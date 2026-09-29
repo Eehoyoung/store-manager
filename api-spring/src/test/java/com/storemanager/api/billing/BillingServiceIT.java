@@ -4,11 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.billing.BillingDtos.AutoRenewRequest;
 import com.storemanager.api.billing.BillingDtos.BillingView;
 import com.storemanager.api.billing.BillingDtos.CheckoutRequest;
+import com.storemanager.api.billing.BillingDtos.HeldReplyResumeResponse;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.crypto.CredentialService;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.review.StorePlatformLink;
+import com.storemanager.api.review.StorePlatformLinkRepository;
+import com.storemanager.api.review.UnifiedReview;
+import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.user.AppUser;
@@ -139,6 +148,11 @@ class BillingServiceIT {
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired ReplyDraftRepository replyDraftRepository;
+    @Autowired UnifiedReviewRepository unifiedReviewRepository;
+    @Autowired StorePlatformLinkRepository storePlatformLinkRepository;
+    @Autowired CredentialService credentialService;
+    @Autowired AuditLogRepository auditLogRepository;
 
     private record 매장픽스처(UUID ownerPublicId, UUID storePublicId, Long storeId, Long ownerId) {}
 
@@ -173,6 +187,28 @@ class BillingServiceIT {
 
     private CheckoutRequest checkout(String billingKey) {
         return new CheckoutRequest(billingKey, true, AgreementService.CURRENT_VERSION);
+    }
+
+    /** StoreServiceGate 가 서비스 가능으로 보게 자격증명 위탁 동의(activatedAt)까지 찍는다. */
+    private 매장픽스처 서비스가능_매장을_만든다(String email) {
+        매장픽스처 f = 매장을_만든다(email);
+        Store store = storeRepository.findById(f.storeId()).orElseThrow();
+        store.activateByCredentialConsent(Instant.now());
+        storeRepository.save(store);
+        return f;
+    }
+
+    /** BLOCKED·STORE_INACTIVE 단독인 '보류 답글' 하나를 FK 를 만족시켜 만든다(review_id·store_id 참조). */
+    private ReplyDraft 보류답글을_만든다(Long storeId, Long ownerId) {
+        String id = UUID.randomUUID().toString();
+        var account = credentialService.save(ownerId, "BAEMIN", id, "dummy");
+        var link = storePlatformLinkRepository.save(StorePlatformLink.builder().storeId(storeId)
+                .accountId(account.getId()).platform("BAEMIN").platformStoreId(id).build());
+        var review = unifiedReviewRepository.save(UnifiedReview.builder().storeId(storeId).linkId(link.getId())
+                .platform("BAEMIN").platformReviewId(UUID.randomUUID().toString()).writtenAt(Instant.now()).build());
+        return replyDraftRepository.save(ReplyDraft.builder().reviewId(review.getId()).storeId(storeId)
+                .status("BLOCKED").content("보류된 답글 내용").generatedBy("AI")
+                .guardrailFlags(new String[] {"STORE_INACTIVE"}).build());
     }
 
     @BeforeEach
@@ -407,6 +443,139 @@ class BillingServiceIT {
     }
 
     // ── serviceStateAt 경계 ───────────────────────────────────────────
+
+    // ── 자동결제 끄면 빌링키 즉시 삭제(2026-09-29 결정) ───────────────────
+
+    @Test
+    void 자동결제를_끄면_빌링키를_즉시_삭제하고_동의철회를_기록한다() {
+        매장픽스처 f = 매장을_만든다("auto-renew-key-delete@example.com");
+        String key = issue(f.storeId());
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)), key);
+
+        BillingView view = billingService.setAutoRenew(f.ownerPublicId(), f.storePublicId(),
+                new AutoRenewRequest(false), "127.0.0.1", "junit");
+
+        assertThat(view.autoRenew()).isFalse();
+        assertThat(view.hasCard()).isFalse();
+        Subscription s = row(f.storeId());
+        assertThat(s.getBillingKey()).isNull();
+        assertThat(s.getBillingChannelKey()).isNull();
+        assertThat(DELETED).contains(key);
+    }
+
+    @Test
+    void 카드없이_자동결제를_다시_켤_수_없다() {
+        매장픽스처 f = 매장을_만든다("auto-renew-reenable@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)), null);
+
+        ApiException e = (ApiException) assertThatThrownBy(() -> billingService.setAutoRenew(f.ownerPublicId(),
+                f.storePublicId(), new AutoRenewRequest(true), "127.0.0.1", "junit"))
+                .isInstanceOf(ApiException.class).actual();
+
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        assertThat(e.getDetails().get("reason")).isEqualTo("카드를 다시 등록해 주세요");
+    }
+
+    @Test
+    void ACTIVE에서_카드를_재등록하면_청구없이_자동결제가_다시_켜진다() {
+        매장픽스처 f = 매장을_만든다("re-register-active@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().plus(Duration.ofDays(10)), null);
+        Subscription before = row(f.storeId());
+        assertThat(before.isAutoRenew()).isFalse(); // 카드가 없었으므로 꺼져 있다
+        int paidBefore = PAID_BODIES.size();
+
+        BillingView view = billingService.checkout(f.ownerPublicId(), f.storePublicId(), checkout(issue(f.storeId())),
+                "127.0.0.1", "junit");
+
+        assertThat(view.chargeNowKrw()).isZero();
+        assertThat(PAID_BODIES.size()).isEqualTo(paidBefore); // 새 청구가 없다
+        Subscription after = row(f.storeId());
+        assertThat(after.isAutoRenew()).isTrue();
+        assertThat(after.getNextBillingAt()).isEqualTo(before.getNextBillingAt());
+    }
+
+    @Test
+    void GRACE에서_카드를_재등록하면_청구한다() {
+        매장픽스처 f = 매장을_만든다("re-register-grace@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofDays(1)), null);
+        assertThat(row(f.storeId()).serviceStateAt(Instant.now())).isEqualTo("GRACE");
+        int paidBefore = PAID_BODIES.size();
+
+        BillingView view = billingService.checkout(f.ownerPublicId(), f.storePublicId(), checkout(issue(f.storeId())),
+                "127.0.0.1", "junit");
+
+        assertThat(PAID_BODIES.size()).isEqualTo(paidBefore + 1);
+        assertThat(view.serviceState()).isEqualTo("ACTIVE");
+        assertThat(row(f.storeId()).isAutoRenew()).isTrue();
+    }
+
+    // ── 이용 제한으로 보류된 답글의 재개(2026-09-29) ───────────────────────
+
+    @Test
+    void 보류답글_전체를_재개하면_예약되고_보류수가_0이_된다() {
+        매장픽스처 f = 서비스가능_매장을_만든다("held-all@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().plus(Duration.ofDays(10)), issue(f.storeId()));
+        ReplyDraft d1 = 보류답글을_만든다(f.storeId(), f.ownerId());
+        ReplyDraft d2 = 보류답글을_만든다(f.storeId(), f.ownerId());
+        long auditBefore = auditLogRepository.findByActionOrderByCreatedAtAsc("DRAFT_RESUMED_BY_OWNER").size();
+
+        HeldReplyResumeResponse res = billingService.resumeHeldReplies(f.ownerPublicId(), f.storePublicId(), null);
+
+        assertThat(res.resumed()).isEqualTo(2);
+        assertThat(res.view().heldReplyCount()).isZero();
+        assertThat(replyDraftRepository.findById(d1.getId()).orElseThrow().getStatus()).isEqualTo("SCHEDULED");
+        assertThat(replyDraftRepository.findById(d1.getId()).orElseThrow().getGuardrailFlags()).isEmpty();
+        assertThat(replyDraftRepository.findById(d2.getId()).orElseThrow().getStatus()).isEqualTo("SCHEDULED");
+        assertThat(auditLogRepository.findByActionOrderByCreatedAtAsc("DRAFT_RESUMED_BY_OWNER").size())
+                .isEqualTo(auditBefore + 2);
+    }
+
+    @Test
+    void 지정한_초안만_재개하고_나머지는_보류로_남긴다() {
+        매장픽스처 f = 서비스가능_매장을_만든다("held-partial@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().plus(Duration.ofDays(10)), issue(f.storeId()));
+        ReplyDraft d1 = 보류답글을_만든다(f.storeId(), f.ownerId());
+        ReplyDraft d2 = 보류답글을_만든다(f.storeId(), f.ownerId());
+
+        HeldReplyResumeResponse res = billingService.resumeHeldReplies(f.ownerPublicId(), f.storePublicId(),
+                List.of(d1.getPublicId()));
+
+        assertThat(res.resumed()).isEqualTo(1);
+        assertThat(res.view().heldReplyCount()).isEqualTo(1);
+        assertThat(replyDraftRepository.findById(d1.getId()).orElseThrow().getStatus()).isEqualTo("SCHEDULED");
+        assertThat(replyDraftRepository.findById(d2.getId()).orElseThrow().getStatus()).isEqualTo("BLOCKED");
+    }
+
+    /** 남의 매장 초안이 하나라도 섞이면 전부 거절한다 — 내 것만 골라 부분 반영하지 않는다. */
+    @Test
+    void 남의_매장_초안이_섞이면_전체를_거절하고_아무것도_바꾸지_않는다() {
+        매장픽스처 f = 서비스가능_매장을_만든다("held-foreign@example.com");
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().plus(Duration.ofDays(10)), issue(f.storeId()));
+        ReplyDraft mine = 보류답글을_만든다(f.storeId(), f.ownerId());
+        매장픽스처 other = 매장을_만든다("held-foreign-other@example.com");
+        ReplyDraft foreign = 보류답글을_만든다(other.storeId(), other.ownerId());
+
+        assertThatThrownBy(() -> billingService.resumeHeldReplies(f.ownerPublicId(), f.storePublicId(),
+                List.of(mine.getPublicId(), foreign.getPublicId())))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED));
+
+        assertThat(replyDraftRepository.findById(mine.getId()).orElseThrow().getStatus()).isEqualTo("BLOCKED");
+        assertThat(replyDraftRepository.findById(foreign.getId()).orElseThrow().getStatus()).isEqualTo("BLOCKED");
+    }
+
+    /** 서비스 불가(카드 미등록·미납) 매장은 결제 재개 전이므로 재개 자체를 열지 않는다 — 402. */
+    @Test
+    void 서비스불가한_매장은_보류답글을_재개할_수_없다() {
+        매장픽스처 f = 매장을_만든다("held-unpaid@example.com"); // activatedAt 없음 → 서비스 불가
+        ReplyDraft d = 보류답글을_만든다(f.storeId(), f.ownerId());
+
+        assertThatThrownBy(() -> billingService.resumeHeldReplies(f.ownerPublicId(), f.storePublicId(), null))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED));
+        assertThat(replyDraftRepository.findById(d.getId()).orElseThrow().getStatus()).isEqualTo("BLOCKED");
+    }
 
     @Test
     void 유예는_D플러스2_23시59분59초까지이고_D플러스3_00시부터_제한이다() {

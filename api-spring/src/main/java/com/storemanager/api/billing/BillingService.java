@@ -2,15 +2,21 @@ package com.storemanager.api.billing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.audit.AuditLog;
+import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.billing.BillingDtos.AutoRenewRequest;
 import com.storemanager.api.billing.BillingDtos.BillingView;
 import com.storemanager.api.billing.BillingDtos.CheckoutRequest;
 import com.storemanager.api.billing.BillingDtos.CustomerInfo;
+import com.storemanager.api.billing.BillingDtos.HeldReplyResumeResponse;
 import com.storemanager.api.billing.BillingDtos.PaymentItem;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReplyDraftRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
+import com.storemanager.api.store.StoreServiceGate;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import jakarta.persistence.EntityManager;
@@ -20,11 +26,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -60,6 +68,9 @@ public class BillingService {
     /** 코드 문자열은 여기 상수로만 둔다 — AgreementService 는 다른 담당자 소유다. */
     private static final String BILLING_CONSENT_CODE = "BILLING_AUTO_PAYMENT";
 
+    /** 이용 제한으로 보류된 답글의 단독 가드레일 플래그(PublishScheduler·CollectResultService 와 동일 상수). */
+    private static final String HELD_REPLY_FLAG = "STORE_INACTIVE";
+
     private final PortOneClient portOneClient;
     private final SubscriptionRepository subscriptions;
     private final PaymentRepository payments;
@@ -68,6 +79,9 @@ public class BillingService {
     private final AgreementService agreementService;
     private final EntityManager entityManager;
     private final TransactionTemplate writes;
+    private final ReplyDraftRepository replyDrafts;
+    private final AuditLogRepository auditLogs;
+    private final StoreServiceGate serviceGate;
     /**
      * 무료체험 쿠폰번호(2026-09-28). 개별 전달하는 비공개 코드라 저장소에 적지 않고 env 로만 준다.
      * ★ 비어 있으면 어떤 코드도 받지 않는다(fail-closed). 코드가 곧 DataAPI·LLM 비용이다.
@@ -79,6 +93,7 @@ public class BillingService {
             PaymentRepository payments, StoreRepository stores, AppUserRepository users,
             AgreementService agreementService, EntityManager entityManager,
             PlatformTransactionManager transactionManager,
+            ReplyDraftRepository replyDrafts, AuditLogRepository auditLogs, StoreServiceGate serviceGate,
             @Value("${app.promotion.code:}") String promotionCode,
             @Value("${app.promotion.limit:30}") int promotionLimit) {
         this.portOneClient = portOneClient;
@@ -89,6 +104,9 @@ public class BillingService {
         this.agreementService = agreementService;
         this.entityManager = entityManager;
         this.writes = new TransactionTemplate(transactionManager);
+        this.replyDrafts = replyDrafts;
+        this.auditLogs = auditLogs;
+        this.serviceGate = serviceGate;
         this.promotionCode = promotionCode == null ? "" : promotionCode.trim().toUpperCase(java.util.Locale.ROOT);
         this.promotionLimit = promotionLimit;
     }
@@ -204,20 +222,83 @@ public class BillingService {
         }
     }
 
-    /** 자동결제 on/off. 해지가 아니다 — 꺼도 다음 결제예정일까지는 그대로 쓴다. */
+    /**
+     * 자동결제 on/off. 해지가 아니다 — 꺼도 다음 결제예정일까지는 그대로 쓴다.
+     *
+     * <p>★ 끄면 빌링키를 즉시 삭제한다(약관 제9조 제3항 제5호, 2026-09-29 결정). 다시 켜는 길은
+     * 여기 없다 — 카드가 없으므로 {@code checkout} 으로 카드를 다시 등록해야 한다.
+     */
     public BillingView setAutoRenew(UUID ownerPublicId, UUID storePublicId, AutoRenewRequest req, String ip,
             String userAgent) {
         AppUser owner = resolveUser(ownerPublicId);
         Store store = loadOwnedStore(owner, storePublicId);
+        if (req.on()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "카드를 다시 등록해 주세요"));
+        }
+        String[] oldKey = new String[1];
         writes.executeWithoutResult(status -> {
             Subscription sub = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED")
                     .filter(s -> s.getBillingKey() != null)
                     .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-            sub.setAutoRenew(req.on());
+            oldKey[0] = sub.disableAutoRenew();
             subscriptions.save(sub);
         });
-        agreementService.record(owner.getId(), store.getId(), BILLING_CONSENT_CODE, req.on(), ip, userAgent);
+        agreementService.record(owner.getId(), store.getId(), BILLING_CONSENT_CODE, false, ip, userAgent);
+        if (oldKey[0] != null) {
+            portOneClient.deleteBillingKey(oldKey[0]);
+        }
         return view(owner, store);
+    }
+
+    // ── 보류 답글 재개(결제 재개 후 사람 확인) ──────────────────────────
+
+    /**
+     * 이용 제한으로 보류됐던 답글을 사장님이 확인하고 되살린다.
+     *
+     * <p>★ 결제만으로 자동 재예약하지 않는다(약관 제9조의5 제6항) — 이 메서드가 호출돼야만 재개된다.
+     * draftIds 를 생략하거나 비우면 보류 답글 전부, 지정하면 그 초안만(전부 이 매장의 보류
+     * 답글이어야 한다 — 하나라도 아니면 전체를 거절해 부분 반영으로 혼란을 만들지 않는다).
+     */
+    @Transactional
+    public HeldReplyResumeResponse resumeHeldReplies(UUID ownerPublicId, UUID storePublicId, List<UUID> draftIds) {
+        AppUser owner = resolveUser(ownerPublicId);
+        Store store = loadOwnedStore(owner, storePublicId);
+        if (!serviceGate.isServiceable(store)) {
+            throw new ApiException(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED);
+        }
+        List<ReplyDraft> held = heldReplies(store.getId());
+        List<ReplyDraft> targets = held;
+        if (draftIds != null && !draftIds.isEmpty()) {
+            Map<UUID, ReplyDraft> byPublicId = held.stream().collect(Collectors.toMap(ReplyDraft::getPublicId, d -> d));
+            targets = new ArrayList<>();
+            for (UUID id : draftIds) {
+                ReplyDraft d = byPublicId.get(id);
+                if (d == null) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                            Map.of("draftId", id, "reason", "이 매장의 보류 답글이 아닙니다."));
+                }
+                targets.add(d);
+            }
+        }
+        for (ReplyDraft d : targets) {
+            d.resumeAfterReactivation(owner.getId());
+            replyDrafts.save(d);
+            auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
+                    .action("DRAFT_RESUMED_BY_OWNER").targetType("REPLY_DRAFT").targetId(d.getId()).build());
+        }
+        return new HeldReplyResumeResponse(targets.size(), view(owner, store));
+    }
+
+    /** BLOCKED 이고 STORE_INACTIVE 단독으로 막힌 답글만 '보류 답글' 이다. */
+    private List<ReplyDraft> heldReplies(Long storeId) {
+        return replyDrafts.findByStoreIdAndStatus(storeId, "BLOCKED").stream()
+                .filter(BillingService::isHeldReply)
+                .toList();
+    }
+
+    private static boolean isHeldReply(ReplyDraft d) {
+        String[] flags = d.getGuardrailFlags();
+        return flags != null && flags.length == 1 && HELD_REPLY_FLAG.equals(flags[0]);
     }
 
     @Transactional(readOnly = true)
@@ -405,7 +486,7 @@ public class BillingService {
                 subOpt.map(s -> s.getBillingKey() != null).orElse(false),
                 subOpt.map(Subscription::isAutoRenew).orElse(false),
                 subOpt.map(Subscription::getRenewalFailures).orElse(0),
-                AMOUNT_TOTAL, chargeNow, AgreementService.CURRENT_VERSION, items);
+                AMOUNT_TOTAL, chargeNow, AgreementService.CURRENT_VERSION, items, heldReplies(store.getId()).size());
     }
 
     private static PaymentItem toItem(Payment p) {

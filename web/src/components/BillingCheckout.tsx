@@ -17,6 +17,16 @@ function krw(amount: number): string {
   return `${amount.toLocaleString("ko-KR")}원`;
 }
 
+function fmtDate(d: Date | string): string {
+  return (typeof d === "string" ? new Date(d) : d).toLocaleDateString("ko-KR");
+}
+
+function addDays(days: number): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 /** 상태별 청구 시점 안내 — 카드를 등록하면 정확히 언제·얼마가 결제되는지 먼저 말한다. */
 function stateNotice(billing: BillingResponse): string {
   if (billing.trialPending) {
@@ -41,6 +51,10 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  // 약관 제9조의4 제3항 — 자동화된 결제 시작에 앞서 기준·시점·금액·해지 방법을 동의 전에 명시한다.
+  const trialEndDate = billing.trialPending ? addDays(billing.trialDays) : billing.trialEndsAt ? new Date(billing.trialEndsAt) : null;
+  const firstBillingDate = billing.nextBillingAt ? new Date(billing.nextBillingAt) : trialEndDate;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -130,6 +144,34 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       <p className="field__hint">
         카드번호·유효기간·CVC는 결제대행사 화면에서만 입력합니다. 소담리뷰는 이를 받거나 저장하지 않습니다.
       </p>
+      <div className="consent-table-wrap">
+        <table>
+          <tbody>
+            {trialEndDate ? (
+              <tr>
+                <th>체험 종료일</th>
+                <td>{fmtDate(trialEndDate)}</td>
+              </tr>
+            ) : null}
+            <tr>
+              <th>{trialEndDate ? "첫 결제예정일" : "결제일"}</th>
+              <td>{firstBillingDate ? fmtDate(firstBillingDate) : "결제 즉시"}</td>
+            </tr>
+            <tr>
+              <th>결제금액</th>
+              <td>월 {krw(billing.amountKrw)} (VAT 포함)</td>
+            </tr>
+            <tr>
+              <th>결제방법</th>
+              <td>등록한 카드로 매월 자동결제</td>
+            </tr>
+            <tr>
+              <th>해지방법</th>
+              <td>결제 화면에서 언제든 자동결제 중단 가능</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <label className="consent-check">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         무료체험 종료 또는 결제주기 도래 시 등록한 카드로 월 이용료가 자동결제되는 데 동의합니다. (필수)

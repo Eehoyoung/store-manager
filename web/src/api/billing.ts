@@ -36,6 +36,13 @@ export interface BillingResponse {
   chargeNowKrw: number;
   consentVersion: string;
   payments: BillingPayment[];
+  /** 이용 중지로 게시되지 않은 채 BLOCKED(STORE_INACTIVE) 로 남은 예약 답글 수. */
+  heldReplyCount: number;
+}
+
+export interface ResumeHeldRepliesResponse {
+  resumed: number;
+  view: BillingResponse;
 }
 
 export const billingApi = {
@@ -44,6 +51,12 @@ export const billingApi = {
     apiRequest<BillingResponse>(`/stores/${storeId}/billing/checkout`, { method: "POST", body: payload }),
   setAutoRenew: (storeId: string, on: boolean) =>
     apiRequest<BillingResponse>(`/stores/${storeId}/billing/auto-renew`, { method: "PUT", body: { on } }),
+  /** draftIds 를 생략하면 이용 중지로 보류된 답글 전부를 게시 예약한다. */
+  resumeHeldReplies: (storeId: string, draftIds?: string[]) =>
+    apiRequest<ResumeHeldRepliesResponse>(`/stores/${storeId}/billing/held-replies/resume`, {
+      method: "POST",
+      body: draftIds ? { draftIds } : {},
+    }),
 };
 
 /** 매장 API가 결제 미비로 막혔을 때(402) 공통 판별 — 빈 화면 대신 결제 안내로 분기한다. */

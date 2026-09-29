@@ -243,6 +243,35 @@ public class ReplyDraft {
         this.guardrailFlags = new String[] {reason};
     }
 
+    /**
+     * 이용 제한으로 보류됐던 답글을 결제 재개 후 사람이 확인하고 되살린다.
+     *
+     * <p><b>★ 약관 제9조의5 제6항</b> — 결제만으로 자동 재예약하지 않는다. 사장님이 이 답글을
+     * 확인하고 눌러야 다시 예약된다(지연 없음 — 이미 밀려 있던 것을 지금 확인했다).
+     *
+     * <p><b>★ 위험 승인 필드(approvedBy·riskAckAt)는 건드리지 않는다.</b> 이 답글이 risk>=3
+     * 미승인 건이었다면 {@code PublishScheduler} 가 디스패치 시 다시 막는다 — 여기서
+     * 그 검증을 우회하는 통로를 만들지 않는다.
+     *
+     * <p><b>★ 승인 대상은 {@code STORE_INACTIVE} 단독으로 막힌 초안뿐이다.</b> 다른 사유
+     * (가드레일·위험도·사장님 취소 등)와 함께거나 단독으로 걸린 건은 결제 재개와 무관하다.
+     */
+    public void resumeAfterReactivation(Long userId) {
+        if (userId == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "재개한 사용자가 있어야 합니다."));
+        }
+        requireStatus("BLOCKED");
+        String[] flags = this.guardrailFlags == null ? new String[0] : this.guardrailFlags;
+        if (flags.length != 1 || !"STORE_INACTIVE".equals(flags[0])) {
+            throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
+                    Map.of("reason", "이용 제한으로 보류된 답글만 재개할 수 있습니다.", "currentFlags", List.of(flags)));
+        }
+        this.status = "SCHEDULED";
+        this.scheduledAt = Instant.now();
+        this.guardrailFlags = new String[0];
+        this.updatedAt = Instant.now();
+    }
+
     /** 실 모델이 아닌 결과는 무인 게시할 수 없으므로 운영 화면에서 식별 가능한 BLOCKED로 남긴다. */
     public void blockForAutomationUnavailable() {
         requireStatus("DRAFT");
