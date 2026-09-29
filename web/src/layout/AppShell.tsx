@@ -33,18 +33,26 @@ export function AppShell() {
   };
 
   useEffect(() => {
-    if (storeId) return;
-    // 마지막으로 보던 매장이 없으면(최초 로그인 등) 첫 매장을 기본값으로 삼아 네비게이션 링크를 채운다.
+    if (!user) return;
+    // 저장된 매장이 이 계정 것인지 확인한다 — 같은 브라우저에서 다른 계정으로 로그인했거나 매장을 지웠으면
+    // localStorage 에 남은 ID 로 모든 매장 화면이 404 가 된다. 없거나 남의 것이면 첫 매장으로 바꾼다.
     storesApi
       .list()
       .then((stores) => {
-        if (stores[0]) setStoreId(stores[0].id);
+        const saved = localStorage.getItem(CURRENT_STORE_KEY);
+        if (saved && stores.some((s) => s.id === saved)) return;
+        if (stores[0]) {
+          setStoreId(stores[0].id);
+        } else {
+          localStorage.removeItem(CURRENT_STORE_KEY);
+          setStoreIdState(null);
+        }
       })
       .catch(() => {
         // 무시 — 매장 목록 화면에서 다시 시도하면 된다.
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeId]);
+  }, [user?.id]);
 
   const reviewsPath = storeId ? `/stores/${storeId}/reviews` : "/stores";
   const dashboardPath = storeId ? `/stores/${storeId}/dashboard` : "/stores";
