@@ -71,3 +71,18 @@ export function describeGeneratedBy(code: string | null | undefined): string | n
   }
   return GENERATED_BY_LABELS[code] ?? null;
 }
+
+// 동의 내역 화면용. 서버 AgreementService 의 코드와 같아야 한다 — 모르는 코드는 그대로 보여준다.
+const AGREEMENT_LABELS: Record<string, string> = {
+  TERMS_OF_SERVICE: "이용약관",
+  PRIVACY_POLICY: "개인정보 수집·이용",
+  HQ_DATA_SHARING: "가맹본부 정보 제공",
+  HQ_REVIEW_SHARING: "가맹본부 리뷰 열람",
+  HQ_AFFILIATION_WITHDRAWAL_REQUESTED: "가맹본부 소속 해제 요청",
+  PLATFORM_CREDENTIAL: "배달앱 로그인 정보 처리 위탁",
+  BILLING_AUTO_PAYMENT: "카드 자동결제",
+};
+
+export function describeAgreement(code: string): string {
+  return AGREEMENT_LABELS[code] ?? code;
+}

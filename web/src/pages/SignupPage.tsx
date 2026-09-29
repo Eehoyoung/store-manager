@@ -251,7 +251,8 @@ export function SignupPage() {
           />
           {form.franchiseCode ? (
             <section className="consent-box consent-box--hq">
-              <h2>가맹코드를 넣으시면 본부가 우리 매장 리뷰를 볼 수 있게 됩니다.</h2>
+              <details className="consent-fold">
+              <summary>가맹코드를 넣으시면 본부가 우리 매장 리뷰를 볼 수 있게 됩니다 (보기만 가능)</summary>
               <p>본부에서 받으신 가맹코드를 넣으시면, 저희가 확인한 뒤 본부에서 사장님 매장의 리뷰와 운영 현황을 <strong>볼 수 있게</strong> 됩니다.</p>
               <div className="consent-table-wrap"><table><thead><tr><th>본부가 볼 수 있는 것</th><th>본부가 볼 수 없는 것</th></tr></thead><tbody>
                 <tr><td>매장 이름과 주소</td><td>사장님 이메일·전화번호</td></tr>
@@ -264,11 +265,15 @@ export function SignupPage() {
                 <tr><td>별점 평균, 자주 나오는 불만, 다른 매장과 비교한 순위</td><td /></tr>
               </tbody></table></div>
               <p><strong>본부는 보기만 할 수 있습니다.</strong> 본부가 사장님 답글을 고치거나, 지우거나, 매장 설정을 바꿀 수는 없습니다. 본부가 언제 무엇을 봤는지는 모두 기록에 남습니다.</p>
+              </details>
               <label className="consent-check"><input type="checkbox" checked={agreedHq} onChange={(e) => setAgreedHq(e.target.checked)} /> (선택) 가맹본부에 위 정보가 제공되는 것에 동의합니다.</label>
+              <details className="consent-fold">
+              <summary>동의하지 않으셔도 모든 기능·요금이 같습니다</summary>
               <ul><li>제공받는 곳: 가맹코드를 발급한 가맹본부</li><li>제공 목적: 브랜드 전체 리뷰 현황 파악과 가맹점 지원</li><li>제공 항목: 위 표의 '본부가 볼 수 있는 것'</li><li>제공 기간: 서비스를 이용하시는 동안. 사장님이 요청하시면 언제든 중단합니다</li></ul>
               <p><strong>동의하지 않으셔도 됩니다.</strong> 가맹코드를 넣지 않으셔도 리뷰 수집, 답글 자동 생성, 자동 게시 등 <strong>서비스의 모든 기능을 똑같이</strong> 쓰실 수 있고 요금도 같습니다. 저희가 드리는 불이익은 없습니다.</p>
               <p className="field__hint">다만 본부와 맺으신 가맹계약에 별도로 정해진 내용이 있을 수 있으며, 그 부분은 저희가 관여하지 않습니다. 나중에 마음이 바뀌시면 고객문의로 <strong>소속 해제</strong>를 요청하실 수 있습니다.</p>
               <Link to="/legal/hq-data-sharing" target="_blank">전문 보기</Link>
+              </details>
             </section>
           ) : null}
           <Field
@@ -329,8 +334,11 @@ export function SignupPage() {
             {fieldErrors.agreedTerms ? <p className="field__error">{fieldErrors.agreedTerms}</p> : null}
             <label className="consent-check"><input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} /> (필수) 개인정보 수집·이용에 동의합니다 <Link to="/legal/privacy" target="_blank">전문 보기</Link></label>
             {fieldErrors.agreedPrivacy ? <p className="field__error">{fieldErrors.agreedPrivacy}</p> : null}
+            <details className="consent-fold">
+            <summary>이름·이메일·매장·사업자 정보를 가입과 매장 확인에 쓰고, 계약 종료 시까지 보관합니다</summary>
             <div className="consent-table-wrap"><table><thead><tr><th>수집 항목</th><th>이용 목적</th><th>보유 기간</th></tr></thead><tbody><tr><td>이름, 이메일, 비밀번호</td><td>회원 가입·본인 확인·로그인</td><td>이용계약 종료 시까지</td></tr><tr><td>전화번호 (선택)</td><td>중요 안내 연락</td><td>이용계약 종료 시까지</td></tr><tr><td>매장명, 매장 주소</td><td>매장 등록·리뷰 관리</td><td>이용계약 종료 시까지</td></tr><tr><td>사업자등록번호, 개업일자, 대표자명</td><td>국세청 사업자 진위확인·매장 운영 확인</td><td>이용계약 종료 시까지</td></tr><tr><td>가맹코드 (선택)</td><td>가맹본부 소속 확인</td><td>이용계약 종료 시까지</td></tr></tbody></table></div>
             <p>동의를 거부하실 수 있으나, 필수 항목에 동의하지 않으시면 서비스에 가입하실 수 없습니다. 전화번호·가맹코드는 선택 항목이며, 입력하지 않으셔도 가입하실 수 있습니다.</p>
+            </details>
           </section>
           </div> : null}
           {error ? (

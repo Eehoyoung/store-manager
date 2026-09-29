@@ -1838,3 +1838,9 @@
     display: none;
   }
 }
+/* 긴 안내·약관 요약은 한 줄로 접고 ▼ 로 펼친다. 동의 체크박스는 접힌 영역 밖에 둔다. */
+.consent-fold { margin: 12px 0; }
+.consent-fold > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 12px; font-weight: 700; line-height: 1.6; }
+.consent-fold > summary::-webkit-details-marker { display: none; }
+.consent-fold > summary::after { content: "▼"; flex: 0 0 auto; font-size: 12px; transition: transform .15s; }
+.consent-fold[open] > summary::after { transform: rotate(180deg); }

@@ -196,15 +196,20 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
       <h2>계정 등록</h2>
       <form onSubmit={submit} noValidate>
         <section className="consent-box">
-          <h3>배달앱 아이디와 비밀번호가 왜 필요한가요?</h3>
+          <details className="consent-fold">
+          <summary>리뷰를 가져오고 답글을 올리려고 배달앱 로그인 정보를 암호화해 보관합니다</summary>
           <p>사장님을 대신해 배달앱에 들어가서 <strong>리뷰를 가져오고 답글을 올리려면</strong> 배달앱 로그인 정보가 필요합니다.</p>
           <div className="consent-table-wrap"><table><tbody><tr><th>저장 방식</th><td>비밀번호는 암호로 잠가서 저장합니다. 저희 직원도 그냥은 볼 수 없습니다</td></tr><tr><th>기록에 남나요</th><td>비밀번호는 어떤 기록에도 그대로 남기지 않습니다</td></tr><tr><th>언제 쓰나요</th><td>리뷰를 가져올 때와 답글을 올릴 때만 씁니다</td></tr><tr><th>쓸 때마다</th><td>누가 언제 썼는지 기록이 남습니다</td></tr><tr><th>지우고 싶으면</th><td>연동을 해제하시면 바로 지웁니다</td></tr></tbody></table></div>
+          </details>
           <label className="consent-check"><input type="checkbox" checked={form.agreedCredentialEntrust} onChange={(e) => setForm((f) => ({ ...f, agreedCredentialEntrust: e.target.checked }))} /> (필수) 배달앱 로그인 정보의 처리 위탁에 동의합니다</label>
+          <details className="consent-fold">
+          <summary>맡기는 곳: 기웅정보통신(주) — 배달앱 접속·답글 등록 대행</summary>
           <p>배달앱 접속과 답글 등록은 저희가 직접 하지 않고 전문 업체가 대신합니다.</p>
           <ul><li>맡기는 곳: 기웅정보통신(주)</li><li>맡기는 일: 배달앱에 접속해 리뷰를 가져오고 답글을 등록하는 일</li><li>넘기는 정보: 배달앱 로그인 아이디와 비밀번호, 조회할 기간, 올릴 답글 내용</li></ul>
           <p>저희는 이 업체가 정보를 안전하게 다루도록 계약으로 정하고 관리합니다. <Link to="/legal/platform-credential" target="_blank">전문 보기</Link></p>
+          </details>
         </section>
-        <section className="service-warning"><h3>⚠️ 꼭 확인해 주세요</h3><ul><li><strong>사장님이 직접 운영하시는 매장의 계정만</strong> 넣어 주세요. 다른 사람 계정을 넣으시면 안 됩니다.</li><li>배달앱에서 비밀번호를 바꾸시면 <strong>여기서도 꼭 바꿔 주세요.</strong> 그렇지 않으면 리뷰를 가져오지 못합니다.</li><li>배달앱 회사의 정책에 따라 이런 자동 프로그램 사용이 제한될 수 있습니다. 사장님께서 이용 중인 배달앱의 약관을 확인해 주세요.</li></ul></section>
+        <section className="service-warning"><details className="consent-fold"><summary>⚠️ 본인 매장 계정만 넣어 주세요 · 비밀번호를 바꾸면 여기서도 바꿔 주세요</summary><ul><li><strong>사장님이 직접 운영하시는 매장의 계정만</strong> 넣어 주세요. 다른 사람 계정을 넣으시면 안 됩니다.</li><li>배달앱에서 비밀번호를 바꾸시면 <strong>여기서도 꼭 바꿔 주세요.</strong> 그렇지 않으면 리뷰를 가져오지 못합니다.</li><li>배달앱 회사의 정책에 따라 이런 자동 프로그램 사용이 제한될 수 있습니다. 사장님께서 이용 중인 배달앱의 약관을 확인해 주세요.</li></ul></details></section>
         <div className="platform-account-form__grid">
           <div className="field"><label className="field__label" htmlFor="platform">플랫폼</label><select id="platform" className="field__input field__select" value={form.platform} onChange={update("platform")}><option value="BAEMIN">배민</option><option value="YOGIYO">요기요</option><option value="COUPANGEATS">쿠팡이츠</option></select></div>
           <div className="field"><label className="field__label" htmlFor="storeId">매장</label><select id="storeId" className="field__input field__select" value={form.storeId} onChange={update("storeId")}>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>

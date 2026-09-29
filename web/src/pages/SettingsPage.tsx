@@ -7,6 +7,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { formatPhone } from "../lib/format";
+import { describeAgreement } from "../lib/labels";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
 import { Skeleton } from "../components/Skeleton";
@@ -94,7 +95,7 @@ function AgreementHistoryCard() {
     <p className="field__hint">동의 여부, 적용한 문서 버전과 시각을 확인할 수 있습니다.</p>
     {message ? <p role="status">{message}</p> : null}
     {rows.length ? <ul className="settings-page__agreement-list">{rows.map((row, index) => <li key={`${row.code}-${row.agreedAt}-${index}`}>
-      <strong>{row.code}</strong><span>{row.agreed ? "동의" : "철회/거부"}</span>
+      <strong>{describeAgreement(row.code)}</strong><span>{row.agreed ? "동의" : "철회/거부"}</span>
       <time dateTime={row.agreedAt}>{new Date(row.agreedAt).toLocaleString("ko-KR")}</time>
       <span>문서 {row.docVersion}</span><Link to={row.documentUrl}>전문 보기</Link>
     </li>)}</ul> : <p>표시할 동의 내역이 없습니다.</p>}
