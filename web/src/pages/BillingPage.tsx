@@ -171,6 +171,28 @@ export function BillingPage() {
                 <td>{fmtDate(billing.nextBillingAt)}</td>
               </tr>
             ) : null}
+            {billing.nextBillingAt && billing.hasCard && billing.autoRenew ? (
+              <tr>
+                <th>결제 예정 금액</th>
+                <td>{billing.amountKrw.toLocaleString("ko-KR")}원</td>
+              </tr>
+            ) : null}
+            <tr>
+              <th>결제수단</th>
+              <td>{billing.hasCard ? "카드 등록됨" : "미등록"}</td>
+            </tr>
+            {billing.hasCard ? (
+              <tr>
+                <th>자동결제</th>
+                <td>{billing.autoRenew ? "켜짐" : "꺼짐 (현재 이용 기간까지만 이용)"}</td>
+              </tr>
+            ) : null}
+            {billing.renewalFailures > 0 ? (
+              <tr>
+                <th>결제 실패</th>
+                <td>{billing.renewalFailures}회 — 카드를 확인해 주세요</td>
+              </tr>
+            ) : null}
             {billing.restrictedFrom && (billing.serviceState === "GRACE" || billing.serviceState === "RESTRICTED") ? (
               <tr>
                 <th>{billing.serviceState === "GRACE" ? "이용 중지 예정일" : "이용 중지일"}</th>

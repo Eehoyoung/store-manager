@@ -49,6 +49,7 @@ export function AppShell() {
   const reviewsPath = storeId ? `/stores/${storeId}/reviews` : "/stores";
   const dashboardPath = storeId ? `/stores/${storeId}/dashboard` : "/stores";
   const personaPath = storeId ? `/stores/${storeId}/persona` : "/stores";
+  const billingPath = storeId ? `/stores/${storeId}/billing` : "/stores";
 
   const handleLogout = async () => {
     await logout();
@@ -88,6 +89,7 @@ export function AppShell() {
           </div>
           <div className="shell__nav-group shell__nav-group--account">
             <span className="shell__nav-group-title">계정</span>
+            <NavLink to={billingPath} className={navLinkClass}>결제</NavLink>
             <NavLink to="/settings" className={navLinkClass}>설정</NavLink>
           </div>
         </nav>
