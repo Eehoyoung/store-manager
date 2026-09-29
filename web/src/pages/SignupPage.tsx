@@ -329,8 +329,8 @@ export function SignupPage() {
             {fieldErrors.agreedTerms ? <p className="field__error">{fieldErrors.agreedTerms}</p> : null}
             <label className="consent-check"><input type="checkbox" checked={agreedPrivacy} onChange={(e) => setAgreedPrivacy(e.target.checked)} /> (필수) 개인정보 수집·이용에 동의합니다 <Link to="/legal/privacy" target="_blank">전문 보기</Link></label>
             {fieldErrors.agreedPrivacy ? <p className="field__error">{fieldErrors.agreedPrivacy}</p> : null}
-            <div className="consent-table-wrap"><table><thead><tr><th>수집 항목</th><th>이용 목적</th><th>보유 기간</th></tr></thead><tbody><tr><td>이름, 이메일, 비밀번호</td><td>회원 가입·본인 확인·로그인</td><td>이용계약 종료 시까지</td></tr><tr><td>전화번호 (선택)</td><td>중요 안내 연락</td><td>이용계약 종료 시까지</td></tr><tr><td>매장명, 매장 주소</td><td>매장 등록·리뷰 관리</td><td>이용계약 종료 시까지</td></tr></tbody></table></div>
-            <p>동의를 거부하실 수 있으나, 필수 항목에 동의하지 않으시면 서비스에 가입하실 수 없습니다. 전화번호는 선택 항목이며, 입력하지 않으셔도 가입하실 수 있습니다.</p>
+            <div className="consent-table-wrap"><table><thead><tr><th>수집 항목</th><th>이용 목적</th><th>보유 기간</th></tr></thead><tbody><tr><td>이름, 이메일, 비밀번호</td><td>회원 가입·본인 확인·로그인</td><td>이용계약 종료 시까지</td></tr><tr><td>전화번호 (선택)</td><td>중요 안내 연락</td><td>이용계약 종료 시까지</td></tr><tr><td>매장명, 매장 주소</td><td>매장 등록·리뷰 관리</td><td>이용계약 종료 시까지</td></tr><tr><td>사업자등록번호, 개업일자, 대표자명</td><td>국세청 사업자 진위확인·매장 운영 확인</td><td>이용계약 종료 시까지</td></tr><tr><td>가맹코드 (선택)</td><td>가맹본부 소속 확인</td><td>이용계약 종료 시까지</td></tr></tbody></table></div>
+            <p>동의를 거부하실 수 있으나, 필수 항목에 동의하지 않으시면 서비스에 가입하실 수 없습니다. 전화번호·가맹코드는 선택 항목이며, 입력하지 않으셔도 가입하실 수 있습니다.</p>
           </section>
           </div> : null}
           {error ? (
