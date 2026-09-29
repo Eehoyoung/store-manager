@@ -19,6 +19,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     List<Subscription> findByNextBillingAtBefore(Instant tomorrow);
 
     /**
+     * 유료 전환 사전고지 대상 — 체험 중이고, 자동결제가 켜져 있고(해지했으면 전환이 없다), 체험 종료가
+     * {@code noticeFrom} 이전이며 아직 지나지 않았고, 아직 고지하지 않은 구독.
+     */
+    @Query("select s from Subscription s where s.status = 'TRIAL' and s.autoRenew = true "
+            + "and s.billingKey is not null and s.trialNoticeSentAt is null "
+            + "and s.trialEndsAt > :now and s.trialEndsAt <= :noticeFrom")
+    List<Subscription> findTrialConversionNoticeDue(@Param("now") Instant now, @Param("noticeFrom") Instant noticeFrom);
+
+    /**
      * 청구 직전 매장 단위 잠금(조건부 UPDATE). PG 호출을 트랜잭션 밖에서 하므로 행 잠금(SELECT FOR UPDATE)
      * 대신 이 조건부 UPDATE로 동시 결제를 막는다 — 두 번 누르면 두 번 결제되는 사고를 막는다.
      */
