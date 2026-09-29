@@ -3,8 +3,12 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { PublicOnlyRoute } from "./auth/PublicOnlyRoute";
+import { AdminProtectedRoute } from "./auth/AdminSession";
+import { HqProtectedRoute } from "./auth/HqSession";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./layout/AppShell";
+import { AdminShell } from "./layout/AdminShell";
+import { HqShell } from "./layout/HqShell";
 import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -13,20 +17,28 @@ import { ReviewsPage } from "./pages/ReviewsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PersonaPage } from "./pages/PersonaPage";
 import { BillingPage } from "./pages/BillingPage";
-import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
-import { HqStoresPage } from "./pages/hq/HqStoresPage";
-import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
 import { PlatformAccountsPage } from "./pages/PlatformAccountsPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { AdminPage } from "./pages/AdminPage";
+import { AdminLoginPage } from "./pages/admin/AdminLoginPage";
+import { AdminFranchisesPage } from "./pages/admin/AdminFranchisesPage";
+import { AdminFranchiseDetailPage } from "./pages/admin/AdminFranchiseDetailPage";
+import { AdminAffiliationsPage } from "./pages/admin/AdminAffiliationsPage";
 import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 import { AdminFailures } from "./pages/AdminFailures";
+import { HqLoginPage } from "./pages/hq/HqLoginPage";
+import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
+import { HqOverviewPage } from "./pages/hq/HqOverviewPage";
+import { HqStoresPage } from "./pages/hq/HqStoresPage";
+import { HqAnalyticsPage } from "./pages/hq/HqAnalyticsPage";
+import { HqComparePage } from "./pages/hq/HqComparePage";
+import { HqReviewsPage } from "./pages/hq/HqReviewsPage";
+import { HqReportPage } from "./pages/hq/HqReportPage";
 import { LegalDocumentPage } from "./pages/LegalDocumentPage";
 import { IntroPage } from "./pages/IntroPage";
 
-// 라우트 표 (문서 14 §2). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
-// /admin·/hq 는 권한이 있을 때만 메뉴에 노출한다(AppShell) — 라우트 자체는 등록해 두고
-// 서버가 403/404 로 막는다. 링크를 보여주고 클릭 후 거절하는 흐름을 만들지 말 것.
+// 라우트 표 (문서 14 §2, 문서 26). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
+// ★ 시스템 관리자(/admin/**)·가맹본부(/hq/**)는 사장님 세션(USER)과 완전히 분리된 이메일 OTP
+//   세션이다(docs/26a auth). 각자 전용 로그인·셸·가드를 쓴다 — 사장님 ProtectedRoute 를 타지 않는다.
 function App() {
   return (
     <AppProviders>
@@ -68,16 +80,34 @@ export function AppRoutes() {
           <Route path="/stores/:storeId/persona" element={<PersonaPage />} />
           <Route path="/stores/:storeId/billing" element={<BillingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+        </Route>
+      </Route>
+
+      {/* 시스템 콘솔 — 이메일 OTP 전용, 사장님 세션으로 접근 불가(문서 26a auth.jwtClaim). */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route element={<AdminProtectedRoute />}>
+        <Route element={<AdminShell />}>
+          <Route path="/admin" element={<Navigate to="/admin/franchises" replace />} />
+          <Route path="/admin/franchises" element={<AdminFranchisesPage />} />
+          <Route path="/admin/franchises/:brand" element={<AdminFranchiseDetailPage />} />
+          <Route path="/admin/affiliations" element={<AdminAffiliationsPage />} />
           <Route path="/admin/subscriptions" element={<AdminSubscriptions />} />
           <Route path="/admin/failures" element={<AdminFailures />} />
+        </Route>
+      </Route>
 
-          {/* 가맹본부 — 조회 전용(문서 14 §11). 쓰기 라우트를 추가하지 말 것. */}
-          {/* ★ WP-01(2026-08-28) — 개별 리뷰 조회(/hq/brands/:brand/reviews) 라우트 제거.
-              hq-data-sharing.md 가 본부에 개별 리뷰를 제공하지 않는다고 명시했다. */}
+      {/* 가맹본부 — 조회 전용, 이메일 OTP 전용(문서 14 §11, 문서 26). 쓰기 라우트를 추가하지 말 것. */}
+      <Route path="/hq/login" element={<HqLoginPage />} />
+      <Route element={<HqProtectedRoute />}>
+        <Route element={<HqShell />}>
+          <Route path="/hq" element={<Navigate to="/hq/brands" replace />} />
           <Route path="/hq/brands" element={<HqBrandsPage />} />
+          <Route path="/hq/brands/:brand" element={<HqOverviewPage />} />
           <Route path="/hq/brands/:brand/stores" element={<HqStoresPage />} />
           <Route path="/hq/brands/:brand/analytics" element={<HqAnalyticsPage />} />
+          <Route path="/hq/brands/:brand/compare" element={<HqComparePage />} />
+          <Route path="/hq/brands/:brand/reviews" element={<HqReviewsPage />} />
+          <Route path="/hq/brands/:brand/report" element={<HqReportPage />} />
         </Route>
       </Route>
 

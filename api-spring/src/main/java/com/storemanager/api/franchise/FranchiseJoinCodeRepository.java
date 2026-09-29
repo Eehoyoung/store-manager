@@ -8,4 +8,6 @@ public interface FranchiseJoinCodeRepository extends JpaRepository<FranchiseJoin
     Optional<FranchiseJoinCode> findByCodeHashAndActiveTrue(String codeHash);
 
     boolean existsByBrandName(String brandName);
+
+    Optional<FranchiseJoinCode> findByBrandName(String brandName);
 }

@@ -34,13 +34,28 @@ public class JwtTokenProvider {
     }
 
     public String createAccessToken(String userPublicId) {
+        return createAccessToken(userPublicId, null, null, accessTtlSeconds);
+    }
+
+    /**
+     * 시스템 관리자·가맹본부 담당자 세션용 토큰 (docs/26a auth.jwtClaim).
+     * {@code sessionType} 이 null 이면 클레임 없는 기존 USER 토큰과 동일한 모양이 된다.
+     * {@code st} 는 세션 종류, {@code sid} 는 Redis 서버 세션 키다 — 둘 다 있어야
+     * {@link com.storemanager.api.security.JwtAuthFilter} 가 ADMIN/HQ 권한을 부여한다.
+     */
+    public String createAccessToken(String subject, String sessionType, String sid, long ttlSeconds) {
         Instant now = Instant.now();
-        return Jwts.builder()
-                .subject(userPublicId)
+        var builder = Jwts.builder()
+                .subject(subject)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(accessTtlSeconds)))
-                .signWith(key)
-                .compact();
+                .expiration(Date.from(now.plusSeconds(ttlSeconds)));
+        if (sessionType != null) {
+            builder.claim("st", sessionType);
+        }
+        if (sid != null) {
+            builder.claim("sid", sid);
+        }
+        return builder.signWith(key).compact();
     }
 
     /** 회전 방식 Refresh 토큰용 랜덤 문자열. Redis 에 rt:{token} 키로 저장한다. */
@@ -50,8 +65,13 @@ public class JwtTokenProvider {
 
     /** 토큰을 검증하고 subject(사용자 public_id)를 반환한다. 유효하지 않으면 JwtException. */
     public String parseSubject(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    /** 토큰을 검증하고 전체 클레임을 반환한다(st/sid 포함). 유효하지 않으면 JwtException. */
+    public Claims parseClaims(String token) {
         Jws<Claims> jws = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
-        return jws.getPayload().getSubject();
+        return jws.getPayload();
     }
 
     public long getAccessTtlSeconds() {

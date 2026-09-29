@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { agreementsApi } from "../api/agreements";
 import { Card } from "../components/Card";
 
-const allowed = new Set(["terms", "privacy", "hq-data-sharing", "platform-credential"]);
+const allowed = new Set(["terms", "privacy", "hq-data-sharing", "platform-credential", "hq-review-sharing"]);
 
 export function LegalDocumentPage() {
   const { slug = "" } = useParams();

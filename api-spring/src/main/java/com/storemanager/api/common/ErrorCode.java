@@ -28,6 +28,9 @@ public enum ErrorCode {
     PLATFORM_LINK_ERROR(HttpStatus.UNPROCESSABLE_ENTITY, "플랫폼 계정 연동에 실패했습니다."),
     INVALID_FRANCHISE_CODE(HttpStatus.UNPROCESSABLE_ENTITY, "가맹코드가 올바르지 않거나 사용할 수 없습니다."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
+    // ★ 검증 실패는 항상 이 한 종류만 반환한다 — 이메일 등록 여부·시도 횟수 초과 등을 구분해서
+    //   알려주지 않는다(docs/26a auth.otp). 세분화하면 계정 존재 여부가 새어 나간다.
+    OTP_INVALID(HttpStatus.UNAUTHORIZED, "인증번호가 올바르지 않거나 만료되었습니다."),
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "외부 연동 처리 중 오류가 발생했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "서비스를 일시적으로 사용할 수 없습니다.");
 

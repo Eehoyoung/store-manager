@@ -3,8 +3,6 @@ import { LegalFooter } from "./LegalFooter";
 import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { storesApi } from "../api/stores";
-import { hqApi } from "../api/hq";
-import { adminApi } from "../api/admin";
 import { Button } from "../components/Button";
 import { StatusBanner } from "../components/StatusBanner";
 
@@ -28,30 +26,6 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [storeId, setStoreIdState] = useState<string | null>(() => localStorage.getItem(CURRENT_STORE_KEY));
-  // 본부 권한이 있을 때만 '가맹본부' 메뉴를 노출한다(U2).
-  // ★ 빈 배열은 정상 응답이다 — 권한이 없는 일반 사장님이며 에러가 아니다.
-  // 호출이 실패해도 앱이 깨지면 안 되므로 조용히 메뉴만 감춘다.
-  const [isHq, setIsHq] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    hqApi
-      .brands()
-      .then((brands) => {
-        if (alive) setIsHq(brands.length > 0);
-      })
-      .catch(() => {
-        if (alive) setIsHq(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    adminApi.me().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
-  }, []);
 
   const setStoreId = (id: string) => {
     localStorage.setItem(CURRENT_STORE_KEY, id);
@@ -112,18 +86,6 @@ export function AppShell() {
             <NavLink to={personaPath} className={navLinkClass}>페르소나</NavLink>
             <NavLink to="/platform-accounts" className={navLinkClass}>배달앱 연동</NavLink>
           </div>
-          {isHq ? <div className="shell__nav-group">
-            <span className="shell__nav-group-title">가맹본부</span>
-            <NavLink to="/hq/brands" className={navLinkClass}>
-              가맹본부
-            </NavLink>
-          </div> : null}
-          {isAdmin ? <div className="shell__nav-group">
-            <span className="shell__nav-group-title">관리자</span>
-            <NavLink to="/admin" className={navLinkClass}>소속 승인</NavLink>
-            <NavLink to="/admin/subscriptions" className={navLinkClass}>서비스 상태</NavLink>
-            <NavLink to="/admin/failures" className={navLinkClass}>실패 건</NavLink>
-          </div> : null}
           <div className="shell__nav-group shell__nav-group--account">
             <span className="shell__nav-group-title">계정</span>
             <NavLink to="/settings" className={navLinkClass}>설정</NavLink>

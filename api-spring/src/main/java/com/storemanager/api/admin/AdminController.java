@@ -1,7 +1,7 @@
 package com.storemanager.api.admin;
 
 import com.storemanager.api.franchise.FranchiseService;
-import com.storemanager.api.security.CurrentUser;
+import com.storemanager.api.security.CurrentAdmin;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.user.AppUserRepository;
 import jakarta.validation.Valid;
@@ -11,20 +11,23 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * 시스템 관리자 콘솔 (docs/26a endpoints.adminConsole 의 기존 유지분).
+ * ★ /api/v1/admin/** 전체는 {@code SecurityConfig} 가 {@code SESSION_ADMIN} 권한으로 이미
+ * 막는다 — 이 컨트롤러의 각 메서드는 더 이상 {@code guard.requireAdmin(...)} 을 호출하지 않는다.
+ * 관리자는 app_user 가 없어 {@link CurrentAdmin} 으로 이메일·비식별 참조값만 꺼낸다.
+ */
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
-    private final AdminAccessGuard guard;
     private final FranchiseService franchises;
     private final AdminSubscriptionService subscriptions;
     private final AdminFailureService failures;
     private final AuditLogRepository audits;
     private final AppUserRepository users;
 
-    public AdminController(AdminAccessGuard guard, FranchiseService franchises,
-            AdminSubscriptionService subscriptions, AdminFailureService failures,
-            AuditLogRepository audits, AppUserRepository users) {
-        this.guard = guard;
+    public AdminController(FranchiseService franchises, AdminSubscriptionService subscriptions,
+            AdminFailureService failures, AuditLogRepository audits, AppUserRepository users) {
         this.franchises = franchises;
         this.subscriptions = subscriptions;
         this.failures = failures;
@@ -34,27 +37,23 @@ public class AdminController {
 
     @GetMapping("/me")
     public AdminMe me() {
-        guard.requireAdmin(CurrentUser.publicId());
-        return new AdminMe(true);
+        return new AdminMe(true, CurrentAdmin.email());
     }
 
     @GetMapping("/franchise-requests")
     public List<FranchiseService.AffiliationResponse> requests() {
-        guard.requireAdmin(CurrentUser.publicId());
         return franchises.pendingAffiliations();
     }
 
     @PatchMapping("/franchise-requests/{requestId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void decide(@PathVariable UUID requestId, @Valid @RequestBody DecisionRequest req) {
-        var admin = guard.requireAdmin(CurrentUser.publicId());
-        franchises.decideAffiliation(requestId, req.decision(), admin);
+        franchises.decideAffiliation(requestId, req.decision(), req.reason(), CurrentAdmin.ref());
     }
 
     /** 매장별 서비스 상태. 운영자가 무엇을 결정해야 하는지 한 화면에서 본다. */
     @GetMapping("/stores")
     public List<AdminSubscriptionService.StoreServiceRow> stores() {
-        guard.requireAdmin(CurrentUser.publicId());
         return subscriptions.list();
     }
 
@@ -65,26 +64,23 @@ public class AdminController {
     @PostMapping("/stores/{storeId}/subscription/activate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void activate(@PathVariable UUID storeId, @Valid @RequestBody ServiceDecisionRequest req) {
-        var admin = guard.requireAdmin(CurrentUser.publicId());
-        subscriptions.activate(storeId, req.note(), admin.getId());
+        subscriptions.activate(storeId, req.note(), CurrentAdmin.ref());
     }
 
     /** 서비스 정지. 해지가 아니라 정지다 — 재개할 수 있다. */
     @PostMapping("/stores/{storeId}/subscription/suspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void suspend(@PathVariable UUID storeId, @Valid @RequestBody ServiceDecisionRequest req) {
-        var admin = guard.requireAdmin(CurrentUser.publicId());
-        subscriptions.suspend(storeId, req.note(), admin.getId());
+        subscriptions.suspend(storeId, req.note(), CurrentAdmin.ref());
     }
 
-    public record AdminMe(boolean admin) {}
+    public record AdminMe(boolean admin, String email) {}
     /** note 는 입금자명·입금일 같은 판단 근거다. 요금 분쟁 시 유일한 기록이므로 필수로 받는다. */
     public record ServiceDecisionRequest(@NotBlank @jakarta.validation.constraints.Size(max = 200) String note) {}
-    public record DecisionRequest(@NotBlank String decision) {}
+    public record DecisionRequest(@NotBlank String decision, String reason) {}
 
     @GetMapping("/hq-withdrawal-requests")
     public List<HqWithdrawalRequest> hqWithdrawalRequests() {
-        guard.requireAdmin(CurrentUser.publicId());
         return audits.findByActionOrderByCreatedAtAsc("HQ_AFFILIATION_WITHDRAWAL_REQUESTED").stream()
                 .map(log -> users.findById(log.getActorId())
                         .map(user -> new HqWithdrawalRequest(log.getId(), user.getName(), user.getEmail(),
@@ -104,7 +100,6 @@ public class AdminController {
      */
     @GetMapping("/failures")
     public FailureReport failures(@RequestParam(defaultValue = "100") int limit) {
-        guard.requireAdmin(CurrentUser.publicId());
         return new FailureReport(
                 failures.publishFailures(limit),
                 failures.collectFailures(limit),

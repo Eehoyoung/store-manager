@@ -2,22 +2,38 @@ package com.storemanager.api.hq;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.agreement.UserAgreement;
+import com.storemanager.api.agreement.UserAgreementRepository;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.common.PersonalIdentifierMasker;
 import com.storemanager.api.draft.PublishScheduleCalculator;
+import com.storemanager.api.draft.ReplyDraft;
+import com.storemanager.api.draft.ReviewAnalysis;
 import com.storemanager.api.hq.HqDtos.CategoryBucket;
+import com.storemanager.api.hq.HqDtos.CollectDelayedStoreItem;
 import com.storemanager.api.hq.HqDtos.HqAnalyticsResponse;
 import com.storemanager.api.hq.HqDtos.HqBrandResponse;
+import com.storemanager.api.hq.HqDtos.HqOverviewResponse;
 import com.storemanager.api.hq.HqDtos.HqStoreResponse;
 import com.storemanager.api.hq.HqDtos.DailyRiskItem;
 import com.storemanager.api.hq.HqDtos.IssueTagItem;
 import com.storemanager.api.hq.HqDtos.MenuIssueItem;
 import com.storemanager.api.hq.HqDtos.PlatformLinkStatus;
+import com.storemanager.api.hq.HqDtos.PriorityStoreItem;
 import com.storemanager.api.hq.HqDtos.RatingBucket;
+import com.storemanager.api.hq.HqDtos.ReportResponse;
+import com.storemanager.api.hq.HqDtos.ReportTotals;
 import com.storemanager.api.hq.HqDtos.RiskClusterItem;
 import com.storemanager.api.hq.HqDtos.StoreComparisonItem;
+import com.storemanager.api.hq.HqReviewDtos.ReviewDetailResponse;
+import com.storemanager.api.hq.HqReviewDtos.ReviewItem;
+import com.storemanager.api.hq.HqReviewDtos.ReviewListResponse;
+import com.storemanager.api.review.ReviewQueryRepository;
+import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.user.AppUser;
 import java.time.Instant;
@@ -32,17 +48,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 가맹본부 조회 서비스 (Sprint 8, FR-802·804).
+ * 가맹본부 조회 서비스 (Sprint 8, FR-802·804 · docs/26a 본부 홈·개별 리뷰·보고서 확장).
  * ★ 조회 전용이다 — 이 클래스에 쓰기 메서드를 추가하지 않는다(H8). 기존 서비스의 쓰기 메서드도 호출하지 않는다.
  * ★ 모든 조회는 HqAccessGuard 로 접근통제를 거치고, 반드시 AuditLog 를 남긴다(H7, FR-805).
  * ★ 집계는 HqQueryRepository 의 DB 쿼리 결과를 조립만 한다 — 매장별 반복 쿼리(N+1) 없음.
- * ★ WP-01(2026-08-28) — FR-803 개별 리뷰 통합 조회를 제거했다. hq-data-sharing.md 가
- * "개별 리뷰 내용·사진·주문 메뉴·작성일·작성자 표시는 볼 수 없다"고 명시했는데 코드가 그걸 어기고
- * 있었다. 본부는 이제 analytics(집계)로만 브랜드 상태를 본다.
  */
 @Service
 public class HqService {
@@ -50,51 +64,34 @@ public class HqService {
     private static final ZoneId KST = PublishScheduleCalculator.KST;
     private static final int RECENT_DAYS = 30;
     private static final int DEFAULT_ANALYTICS_RANGE_DAYS = 30;
+    private static final int OVERVIEW_TREND_DAYS = 7;
+    /** 수집 지연 판정 — 하루 1회 폴링(10시 KST)이 이틀 연속 실패하면 지연으로 본다. */
+    private static final int COLLECT_DELAY_DAYS = 2;
+    private static final int REVIEW_MAX_LOOKBACK_DAYS = 90;
+    private static final int REVIEW_EXCERPT_LENGTH = 80;
 
-    /**
-     * 본부가 조회할 수 있는 최대 소급 기간(일).
-     *
-     * <p>★ 이 값은 성능 튜닝이 아니라 <b>노출 범위 정책</b>이다. 본부는 가맹점 리뷰를
-     * 조회만 할 수 있고, 그 조회조차 최근 90일로 제한한다. 개인정보 최소 원칙이고,
-     * 브랜드 운영 판단에 3년 전 리뷰가 필요하지 않다.
-     *
-     * <p>부수 효과로 조회 부하도 준다 — 상한이 없으면 본부 화면 한 번에
-     * 브랜드 전체 × 보유기간 전체(현재 3년)를 스캔한다.
-     *
-     * <p>★ 저장 기간과 혼동하지 말 것. 데이터는 {@code PRIVACY_RETENTION_DAYS} 까지
-     * 보관된다. 이 상수는 <b>본부에게 보여 주는 창</b>의 크기일 뿐이고,
-     * 가맹점주 본인의 조회는 이 제한을 받지 않는다.
-     */
     static final int HQ_MAX_LOOKBACK_DAYS = 90;
-
-    /**
-     * 최소 집계 기준(WP-02) — 이 값 미만인 항목은 개수·비율 등 수치를 내려보내지 않는다.
-     *
-     * <p>★ hq-data-sharing.md · privacy.md 가 "적은 건수 … 조합으로 특정 리뷰 작성자를 다시
-     * 알아볼 수 없도록 최소 집계 기준을 적용합니다"고 약속한 바로 그 값이다. 통상 k-익명성
-     * 논의에서 쓰는 k=5 를 채택했다 — 집단이 4명 이하면 배경지식과 결합해 개인을 특정하기
-     * 쉬워진다는 것이 일반적 근거다.
-     *
-     * <p>★ 파일럿처럼 매장 수가 적은 브랜드는 이 값 때문에 대부분의 항목이 가려질 수 있다.
-     * 그렇다고 기준을 낮추지 말 것 — 매장이 적을수록 오히려 재식별 위험이 크다. 대신
-     * belowThreshold 로 항목은 남기고 "몇 건이 가려졌는지"(issueTagsBelowThreshold 등)를
-     * 항상 함께 내려 본부가 "문제 없음"으로 오독하지 않게 한다(T-3, analysisCoverageRate 와
-     * 같은 원칙).
-     */
     static final long MIN_AGGREGATION_THRESHOLD = 5;
 
     private final HqAccessGuard hqAccessGuard;
     private final FranchiseHqMemberRepository hqMemberRepository;
     private final HqQueryRepository hqQueryRepository;
+    private final ReviewQueryRepository reviewQueryRepository;
+    private final UserAgreementRepository userAgreementRepository;
+    private final HqReviewAccessProperties reviewAccessProperties;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
 
     public HqService(HqAccessGuard hqAccessGuard, FranchiseHqMemberRepository hqMemberRepository,
-            HqQueryRepository hqQueryRepository, AuditLogRepository auditLogRepository,
-            ObjectMapper objectMapper) {
+            HqQueryRepository hqQueryRepository, ReviewQueryRepository reviewQueryRepository,
+            UserAgreementRepository userAgreementRepository, HqReviewAccessProperties reviewAccessProperties,
+            AuditLogRepository auditLogRepository, ObjectMapper objectMapper) {
         this.hqAccessGuard = hqAccessGuard;
         this.hqMemberRepository = hqMemberRepository;
         this.hqQueryRepository = hqQueryRepository;
+        this.reviewQueryRepository = reviewQueryRepository;
+        this.userAgreementRepository = userAgreementRepository;
+        this.reviewAccessProperties = reviewAccessProperties;
         this.auditLogRepository = auditLogRepository;
         this.objectMapper = objectMapper;
     }
@@ -119,7 +116,231 @@ public class HqService {
     public List<HqStoreResponse> listStores(UUID userPublicId, String brandName) {
         AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
         audit(user, "HQ_STORES_VIEW", "BRAND", null, brandName);
+        return computeStoreRows(brandName);
+    }
 
+    /** docs/26a endpoints.hq — 본부 홈 요약. */
+    @Transactional
+    public HqOverviewResponse overview(UUID userPublicId, String brandName) {
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        audit(user, "HQ_OVERVIEW_VIEW", "BRAND", null, brandName);
+
+        List<HqStoreResponse> stores = computeStoreRows(brandName);
+        long storeCount = stores.size();
+        long serviceActive = stores.stream().filter(s -> "IN_SERVICE".equals(s.serviceStatus())).count();
+        long suspended = storeCount - serviceActive;
+        long unlinked = stores.stream().filter(s -> s.platformLinks().isEmpty()).count();
+
+        Instant staleBefore = Instant.now().minus(COLLECT_DELAY_DAYS, ChronoUnit.DAYS);
+        List<CollectDelayedStoreItem> delayed = stores.stream()
+                .filter(s -> s.activated() && (s.lastCollectedAt() == null
+                        || Instant.parse(s.lastCollectedAt()).isBefore(staleBefore)))
+                .map(s -> new CollectDelayedStoreItem(s.storeId(), s.name(), s.lastCollectedAt()))
+                .toList();
+
+        long pendingTotal = stores.stream().mapToLong(s -> nz(s.pendingCount())).sum();
+        long blockedTotal = stores.stream().mapToLong(s -> nz(s.blockedCount())).sum();
+        long highRiskTotal = stores.stream().mapToLong(s -> nz(s.highRiskCount())).sum();
+
+        List<Long> storeIds = storeIdsOf(brandName);
+        Instant to = Instant.now();
+        Instant from = to.minus(OVERVIEW_TREND_DAYS, ChronoUnit.DAYS);
+        Instant previousFrom = from.minus(OVERVIEW_TREND_DAYS, ChronoUnit.DAYS);
+        List<IssueTagItem> rising;
+        double coverage;
+        String dataAsOf;
+        if (storeIds.isEmpty()) {
+            rising = List.of();
+            coverage = 0;
+            dataAsOf = null;
+        } else {
+            long total = ((Number) hqQueryRepository.brandReviewCountAndAvgRating(storeIds, from, to).get(0)[0])
+                    .longValue();
+            long analyzed = hqQueryRepository.analyzedReviewCount(storeIds, from, to);
+            coverage = total == 0 ? 0 : round4((double) analyzed / total);
+            rising = topIssues(storeIds, from, to, previousFrom, from, analyzed,
+                    hqQueryRepository.analyzedReviewCount(storeIds, previousFrom, from)).stream()
+                    .filter(i -> "NEW".equals(i.signal()) || "RISING".equals(i.signal()))
+                    // ★ 최소 집계 기준(WP-02)은 본부 홈에서도 동일하게 지킨다 — signal 판정은
+                    //   count>=3 부터지만 기준은 5 다. 3~4건은 신호는 뜨되 수치는 가린다.
+                    .filter(i -> !revealsIndividual(i.count()) && !revealsIndividual(i.previousCount()))
+                    .limit(5)
+                    .map(i -> new IssueTagItem(i.tag(), i.count(), i.previousCount(), i.rate(), i.previousRate(),
+                            i.delta(), i.affectedStores(), i.avgRating(), i.signal(), false))
+                    .toList();
+            dataAsOf = hqQueryRepository.lastCollectedAtByStore(storeIds).stream().map(row -> (Instant) row[1])
+                    .filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).map(Instant::toString)
+                    .orElse(null);
+        }
+
+        List<PriorityStoreItem> priority = stores.stream()
+                .filter(s -> nz(s.highRiskCount()) > 0 || nz(s.blockedCount()) > 0 || nz(s.pendingCount()) > 0)
+                .sorted(Comparator
+                        .comparingLong((HqStoreResponse s) -> nz(s.highRiskCount())).reversed()
+                        .thenComparing(Comparator.comparingLong((HqStoreResponse s) -> nz(s.pendingCount())).reversed()))
+                .limit(10)
+                .map(s -> new PriorityStoreItem(s.storeId(), s.name(), priorityReason(s), s.highRiskCount(),
+                        s.pendingCount()))
+                .toList();
+
+        return new HqOverviewResponse(storeCount, serviceActive, suspended, unlinked, delayed, pendingTotal,
+                blockedTotal, highRiskTotal, rising, coverage, dataAsOf, priority);
+    }
+
+    public HqAnalyticsResponse analytics(UUID userPublicId, String brandName, String fromStr, String toStr) {
+        return analytics(userPublicId, brandName, fromStr, toStr, null);
+    }
+
+    /** FR-804 — 브랜드 집계(별점·카테고리 분포, 이슈 태그 랭킹, 매장별 비교). storeIdFilter(선택)는 docs/26a analytics 필터. */
+    @Transactional
+    public HqAnalyticsResponse analytics(UUID userPublicId, String brandName, String fromStr, String toStr,
+            UUID storeIdFilter) {
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        audit(user, "HQ_ANALYTICS_VIEW", "BRAND", null, brandName);
+        List<Store> stores = storeIdFilter == null ? hqQueryRepository.findStoresByBrandName(brandName)
+                : List.of(hqAccessGuard.requireStoreInBrand(storeIdFilter, brandName));
+        return analyticsData(stores, fromStr, toStr);
+    }
+
+    /** docs/26a endpoints.hq — 인쇄용/CSV 보고서. 개별 리뷰 원문은 절대 포함하지 않는다. */
+    @Transactional
+    public ReportResponse report(UUID userPublicId, String brandName, String fromStr, String toStr) {
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        audit(user, "HQ_REPORT_VIEW", "BRAND", null, brandName);
+        List<Store> stores = hqQueryRepository.findStoresByBrandName(brandName);
+        HqAnalyticsResponse data = analyticsData(stores, fromStr, toStr);
+        return new ReportResponse(data.from() + " ~ " + data.to(), data.previousFrom() + " ~ " + data.previousTo(),
+                data.dataAsOf(), data.analysisCoverageRate(),
+                new ReportTotals(data.totalReviews(), data.analyzedReviews(), data.avgRating(),
+                        data.highRiskReviews()),
+                data.storeComparison(), data.issueTagRanking());
+    }
+
+    // ── docs/26a endpoints.hq — 개별 리뷰 (플래그 게이트) ──────────────────
+
+    @Transactional
+    public ReviewListResponse listReviews(UUID userPublicId, String brandName, String fromStr, String toStr,
+            UUID storeIdFilter, String platform, Integer rating, String replyStatus, Integer riskLevel,
+            UUID cursor, int size) {
+        requireReviewFeature();
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        if (size < 1 || size > 100) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 합니다."));
+        }
+        List<Store> brandStores = storeIdFilter == null ? hqQueryRepository.findStoresByBrandName(brandName)
+                : List.of(hqAccessGuard.requireStoreInBrand(storeIdFilter, brandName));
+        List<Store> consented = brandStores.stream().filter(this::reviewAccessAllowed).toList();
+        audit(user, "HQ_REVIEWS_LIST_VIEW", "BRAND", null, brandName);
+        if (consented.isEmpty()) {
+            return new ReviewListResponse(List.of(), null);
+        }
+        Map<Long, Store> storeById = new HashMap<>();
+        for (Store s : consented) {
+            storeById.put(s.getId(), s);
+        }
+        List<Long> storeIds = new ArrayList<>(storeById.keySet());
+
+        LocalDate toDate = parseOrDefault(toStr, LocalDate.now(KST));
+        LocalDate fromDate = parseOrDefault(fromStr, toDate.minusDays(RECENT_DAYS - 1L));
+        long rangeDays = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
+        if (rangeDays <= 0 || rangeDays > REVIEW_MAX_LOOKBACK_DAYS) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    Map.of("range", "조회 기간은 최근 " + REVIEW_MAX_LOOKBACK_DAYS + "일 이내여야 합니다."));
+        }
+        Instant from = fromDate.atStartOfDay(KST).toInstant();
+        Instant to = toDate.plusDays(1).atStartOfDay(KST).toInstant();
+
+        UnifiedReview boundary = cursor == null ? null : reviewQueryRepository.findByPublicId(cursor)
+                .filter(r -> storeById.containsKey(r.getStoreId()))
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        List<UnifiedReview> fetched = hqQueryRepository.hqReviewSearch(storeIds, blankToNull(platform),
+                toShort(rating), toShort(riskLevel), blankToNull(replyStatus), from, to,
+                boundary == null ? OPEN_END : boundary.getWrittenAt(), boundary == null ? Long.MAX_VALUE : boundary.getId(),
+                PageRequest.of(0, size + 1));
+
+        boolean hasMore = fetched.size() > size;
+        List<UnifiedReview> page = hasMore ? fetched.subList(0, size) : fetched;
+        List<Long> reviewIds = page.stream().map(UnifiedReview::getId).toList();
+        Map<Long, ReviewAnalysis> analysisByReviewId = new HashMap<>();
+        Map<Long, ReplyDraft> draftByReviewId = new HashMap<>();
+        if (!reviewIds.isEmpty()) {
+            for (ReviewAnalysis a : reviewQueryRepository.findAnalysesByReviewIds(reviewIds)) {
+                analysisByReviewId.put(a.getReviewId(), a);
+            }
+            for (ReplyDraft d : reviewQueryRepository.findLatestDraftsByReviewIds(reviewIds)) {
+                draftByReviewId.put(d.getReviewId(), d);
+            }
+        }
+        List<ReviewItem> items = page.stream()
+                .map(r -> toReviewItem(r, storeById.get(r.getStoreId()), analysisByReviewId.get(r.getId()),
+                        draftByReviewId.get(r.getId())))
+                .toList();
+        String nextCursor = hasMore ? page.get(page.size() - 1).getPublicId().toString() : null;
+        return new ReviewListResponse(items, nextCursor);
+    }
+
+    @Transactional
+    public ReviewDetailResponse getReview(UUID userPublicId, String brandName, UUID reviewPublicId) {
+        requireReviewFeature();
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        UnifiedReview review = reviewQueryRepository.findByPublicId(reviewPublicId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        Store store = hqQueryRepository.findById(review.getStoreId())
+                .filter(s -> brandName.equals(s.getBrandName()))
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        if (!reviewAccessAllowed(store)) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        audit(user, "HQ_REVIEW_DETAIL_VIEW", "UNIFIED_REVIEW", review.getId(), brandName);
+
+        ReviewAnalysis analysis = reviewQueryRepository.findAnalysesByReviewIds(List.of(review.getId())).stream()
+                .findFirst().orElse(null);
+        ReplyDraft draft = reviewQueryRepository.findLatestDraftsByReviewIds(List.of(review.getId())).stream()
+                .findFirst().orElse(null);
+        ReviewItem summary = toReviewItem(review, store, analysis, draft);
+        String maskedBody = PersonalIdentifierMasker.mask(review.getBody());
+        return new ReviewDetailResponse(summary.reviewId(), summary.storeName(), summary.platform(),
+                summary.writtenAt(), summary.rating(), summary.excerpt(), summary.authorDisplay(),
+                summary.category(), summary.issueTags(), summary.riskLevel(), summary.riskReasons(),
+                summary.replyStatus(), maskedBody);
+    }
+
+    private ReviewItem toReviewItem(UnifiedReview r, Store store, ReviewAnalysis analysis, ReplyDraft draft) {
+        String maskedBody = PersonalIdentifierMasker.mask(r.getBody());
+        String excerpt = maskedBody == null ? "" : maskedBody.substring(0, Math.min(maskedBody.length(),
+                REVIEW_EXCERPT_LENGTH));
+        return new ReviewItem(r.getPublicId().toString(), store == null ? null : store.getName(), r.getPlatform(),
+                toIso(r.getWrittenAt()), toInt(r.getRating()), excerpt, r.getAuthorMasked(),
+                analysis == null ? null : analysis.getCategory(),
+                analysis == null ? List.of() : List.of(analysis.getIssueTags()),
+                analysis == null ? null : (int) analysis.getRiskLevel(),
+                analysis == null ? List.of() : List.of(analysis.getRiskReasons()),
+                draft == null ? "NONE" : draft.getStatus());
+    }
+
+    /** docs/26 §4.2 5조건 중 owner 동의 관련 2개 — 나머지(세션·멤버·브랜드·매장소속·플래그)는 앞단에서 확인한다. */
+    private boolean reviewAccessAllowed(Store store) {
+        Long ownerId = store.getOwnerId();
+        UserAgreement consent = userAgreementRepository
+                .findTopByUserIdAndAgreementCodeOrderByCreatedAtDesc(ownerId, AgreementService.HQ_REVIEW_SHARING)
+                .orElse(null);
+        if (consent == null || !consent.isAgreed()) {
+            return false;
+        }
+        return !auditLogRepository.existsByActionAndActorIdAndCreatedAtAfter(
+                "HQ_AFFILIATION_WITHDRAWAL_REQUESTED", ownerId, consent.getCreatedAt());
+    }
+
+    private void requireReviewFeature() {
+        if (!reviewAccessProperties.isEnabled()) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+    }
+
+    // ── 내부 — 매장 목록 계산(listStores/overview 공용) ─────────────────────
+
+    private List<HqStoreResponse> computeStoreRows(String brandName) {
         List<Store> stores = hqQueryRepository.findStoresByBrandName(brandName);
         if (stores.isEmpty()) {
             return List.of();
@@ -148,6 +369,10 @@ public class HqService {
         for (Object[] row : hqQueryRepository.recentReviewStatsByStore(storeIds, recentFrom)) {
             recentStatsByStore.put(((Number) row[0]).longValue(), new Object[] {row[1], row[2]});
         }
+        Map<Long, Object[]> allTimeStatsByStore = new HashMap<>();
+        for (Object[] row : hqQueryRepository.allTimeReviewStatsByStore(storeIds)) {
+            allTimeStatsByStore.put(((Number) row[0]).longValue(), new Object[] {row[1], row[2]});
+        }
 
         Map<Long, Map<String, Long>> draftStatusByStore = draftStatusCountsByStore(storeIds);
         Map<Long, Long> highRiskByStore = highRiskCountsByStore(storeIds);
@@ -162,34 +387,69 @@ public class HqService {
             long recentCount = recent == null ? 0L : ((Number) recent[0]).longValue();
             Double recentAvg = recent == null || recent[1] == null ? null : ((Number) recent[1]).doubleValue();
 
-            // ★ WP-03 — analytics 와 같은 최소 집계 기준을 매장 목록 통계에도 적용한다.
             boolean pendingBelow = revealsIndividual(pending);
             boolean blockedBelow = revealsIndividual(blocked);
             boolean highRiskBelow = revealsIndividual(highRisk);
             boolean recentBelow = revealsIndividual(recentCount);
             boolean belowThreshold = pendingBelow || blockedBelow || highRiskBelow || recentBelow;
 
+            List<PlatformLinkStatus> links = linksByStore.getOrDefault(id, List.of());
+            String linkStatus = overallLinkStatus(links);
+            Object[] allTime = allTimeStatsByStore.get(id);
+            long allTimeCount = allTime == null ? 0L : ((Number) allTime[0]).longValue();
+            Double allTimeAvg = allTime == null || allTime[1] == null ? null : ((Number) allTime[1]).doubleValue();
+            long publishedLike = statusCounts.getOrDefault("PUBLISHED", 0L)
+                    + statusCounts.getOrDefault("ALREADY_REPLIED", 0L);
+            boolean allTimeBelow = revealsIndividual(allTimeCount);
+            Double replyRate = allTimeBelow || allTimeCount == 0 ? null
+                    : round4((double) publishedLike / allTimeCount);
+
             return new HqStoreResponse(store.getPublicId().toString(), store.getName(), store.getAddress(),
-                    store.getActivatedAt() != null, toServiceStatus(subStatusByStore.get(id)),
-                    linksByStore.getOrDefault(id, List.of()), toIso(lastCollectedByStore.get(id)),
+                    store.getActivatedAt() != null, toServiceStatus(subStatusByStore.get(id)), links,
+                    toIso(lastCollectedByStore.get(id)),
                     pendingBelow ? null : pending, blockedBelow ? null : blocked,
                     highRiskBelow ? null : highRisk, recentBelow ? null : recentCount,
-                    recentBelow ? null : recentAvg, belowThreshold);
+                    recentBelow ? null : recentAvg, belowThreshold,
+                    linkStatus, allTimeBelow ? null : allTimeCount, allTimeBelow ? null : allTimeAvg, replyRate);
         }).toList();
     }
 
-    /** FR-804 — 브랜드 집계(별점·카테고리 분포, 이슈 태그 랭킹, 매장별 비교). ★ 감사로그 INSERT 때문에 readOnly 를 걸지 않는다. */
-    @Transactional
-    public HqAnalyticsResponse analytics(UUID userPublicId, String brandName, String fromStr, String toStr) {
-        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
-        audit(user, "HQ_ANALYTICS_VIEW", "BRAND", null, brandName);
+    private List<Long> storeIdsOf(String brandName) {
+        return hqQueryRepository.findStoresByBrandName(brandName).stream().map(Store::getId).toList();
+    }
 
-        List<Store> stores = hqQueryRepository.findStoresByBrandName(brandName);
+    private static String overallLinkStatus(List<PlatformLinkStatus> links) {
+        if (links.isEmpty()) {
+            return "NONE";
+        }
+        if (links.stream().anyMatch(l -> "ERROR".equals(l.linkStatus()))) {
+            return "ERROR";
+        }
+        if (links.stream().anyMatch(l -> "LINKED".equals(l.linkStatus()))) {
+            return "LINKED";
+        }
+        return links.get(0).linkStatus();
+    }
+
+    private static String priorityReason(HqStoreResponse s) {
+        if (nz(s.highRiskCount()) > 0) {
+            return "고위험 리뷰 " + s.highRiskCount() + "건";
+        }
+        if (nz(s.blockedCount()) > 0) {
+            return "차단된 초안 " + s.blockedCount() + "건";
+        }
+        return "검수 대기 " + s.pendingCount() + "건";
+    }
+
+    private static long nz(Long v) {
+        return v == null ? 0L : v;
+    }
+
+    // ── 내부 — analytics 데이터 조립(analytics/report 공용, 감사로그 없음) ────
+
+    private HqAnalyticsResponse analyticsData(List<Store> stores, String fromStr, String toStr) {
         LocalDate toDate = parseOrDefault(toStr, LocalDate.now(KST));
         LocalDate fromDate = parseOrDefault(fromStr, toDate.minusDays(DEFAULT_ANALYTICS_RANGE_DAYS - 1L));
-        // ★ 90일보다 이전을 요청하면 거절하지 않고 90일로 당긴다.
-        //   거절하면 화면이 통째로 비어 원인을 알 수 없다. 응답의 from/to 에 실제 적용 기간이
-        //   담겨 화면에 그대로 표시되므로, 조용히 다른 결과를 주는 것도 아니다.
         LocalDate earliest = LocalDate.now(KST).minusDays(HQ_MAX_LOOKBACK_DAYS - 1L);
         if (fromDate.isBefore(earliest)) {
             fromDate = earliest;
@@ -229,28 +489,8 @@ public class HqService {
         List<CategoryBucket> categoryDist = hqQueryRepository.brandCategoryDistribution(storeIds, from, to).stream()
                 .map(row -> new CategoryBucket((String) row[0], ((Number) row[1]).longValue())).toList();
 
-        // ── 이슈 태그 랭킹 (WP-02: 최소 집계 기준 미만이면 수치를 가린다) ──────────
-        Map<String, Object[]> currentIssues = rowsByKey(hqQueryRepository.brandIssueTagStats(storeIds, from, to));
-        Map<String, Object[]> previousIssues = rowsByKey(
-                hqQueryRepository.brandIssueTagStats(storeIds, previousFrom, previousTo));
-        Set<String> allTags = new LinkedHashSet<>(currentIssues.keySet());
-        allTags.addAll(previousIssues.keySet());
-        List<RawIssueTag> rawIssueTags = allTags.stream().map(tag -> {
-            Object[] current = currentIssues.get(tag);
-            Object[] previous = previousIssues.get(tag);
-            long count = number(current, 1);
-            long previousCount = number(previous, 1);
-            long affectedStores = number(current, 2);
-            Double rate = ratePer100(count, analyzed);
-            Double previousRate = ratePer100(previousCount, previousAnalyzed);
-            Double delta = rate == null || previousRate == null ? null : round1(rate - previousRate);
-            Double issueAvgRating = current == null || current[3] == null ? null
-                    : round1(((Number) current[3]).doubleValue());
-            return new RawIssueTag(tag, count, previousCount, affectedStores, rate, previousRate, delta,
-                    issueAvgRating, issueSignal(count, previousCount, affectedStores, delta));
-        }).sorted(Comparator.comparingInt((RawIssueTag i) -> signalPriority(i.signal()))
-                .thenComparing(RawIssueTag::count, Comparator.reverseOrder()).thenComparing(RawIssueTag::tag))
-                .toList();
+        List<RawIssueTag> rawIssueTags = topIssues(storeIds, from, to, previousFrom, previousTo, analyzed,
+                previousAnalyzed);
         long issueTagsBelowThreshold = rawIssueTags.stream()
                 .filter(i -> revealsIndividual(i.count()) || revealsIndividual(i.previousCount())).count();
         List<IssueTagItem> issueTags = rawIssueTags.stream().map(i -> {
@@ -261,7 +501,6 @@ public class HqService {
                     below ? "BELOW_THRESHOLD" : i.signal(), below);
         }).toList();
 
-        // ── 위험 사유 군집 (WP-02) ────────────────────────────────────────
         Map<String, Object[]> currentRisks = rowsByKey(hqQueryRepository.brandRiskClusters(storeIds, from, to));
         Map<String, Object[]> previousRisks = rowsByKey(
                 hqQueryRepository.brandRiskClusters(storeIds, previousFrom, previousTo));
@@ -285,7 +524,6 @@ public class HqService {
         long highRiskReviews = ((Number) highRiskSummary[0]).longValue();
         long highRiskAffectedStores = ((Number) highRiskSummary[1]).longValue();
 
-        // ── 메뉴 × 이슈 (WP-02) ──────────────────────────────────────────
         List<Object[]> rawMenuRows = hqQueryRepository.brandMenuIssues(storeIds, from, to);
         long menuIssuesBelowThreshold = rawMenuRows.stream()
                 .filter(row -> revealsIndividual(((Number) row[2]).longValue())).count();
@@ -298,7 +536,6 @@ public class HqService {
                     below ? null : affected, below ? null : avg, below);
         }).toList();
 
-        // ── 일자별 위험 흐름 (WP-02) — 하루 표본이 가장 작다 ─────────────────
         List<Object[]> rawDailyRows = hqQueryRepository.brandDailyRiskTrend(storeIds, from, to);
         long dailyRiskBelowThreshold = rawDailyRows.stream().filter(row -> {
             long issueCount = ((Number) row[2]).longValue();
@@ -325,7 +562,6 @@ public class HqService {
             periodDraftStatusByStore.computeIfAbsent(storeId, k -> new HashMap<>())
                     .put((String) row[1], ((Number) row[2]).longValue());
         }
-        // 미처리 건수는 "현재 기준"(기간 무관) — listStores 와 동일한 지표를 재사용해 일관성을 유지한다(T-26 원칙).
         Map<Long, Map<String, Long>> allTimeDraftStatusByStore = draftStatusCountsByStore(storeIds);
         Map<Long, Long> highRiskByStore = highRiskCountsByStore(storeIds);
 
@@ -342,8 +578,6 @@ public class HqService {
             Map<String, Long> allTimeStatus = allTimeDraftStatusByStore.getOrDefault(id, Map.of());
             long unprocessed = allTimeStatus.getOrDefault("DRAFT", 0L) + allTimeStatus.getOrDefault("BLOCKED", 0L)
                     + highRiskByStore.getOrDefault(id, 0L);
-            // ★ 매장 비교표도 같은 기준으로 가린다. 리뷰가 1~4건인 매장은 평균 별점과 완료율이
-            //   곧 그 몇 건을 가리킨다. 매장 자체는 목록에 남긴다 — 빼면 '문제 없음' 으로 읽힌다.
             boolean reviewBelow = revealsIndividual(reviewCount);
             boolean unprocessedBelow = revealsIndividual(unprocessed);
             boolean below = reviewBelow || unprocessedBelow;
@@ -362,9 +596,33 @@ public class HqService {
                 menuIssues, dailyRiskTrend, comparison);
     }
 
+    private List<RawIssueTag> topIssues(List<Long> storeIds, Instant from, Instant to, Instant previousFrom,
+            Instant previousTo, long analyzed, long previousAnalyzed) {
+        Map<String, Object[]> currentIssues = rowsByKey(hqQueryRepository.brandIssueTagStats(storeIds, from, to));
+        Map<String, Object[]> previousIssues = rowsByKey(
+                hqQueryRepository.brandIssueTagStats(storeIds, previousFrom, previousTo));
+        Set<String> allTags = new LinkedHashSet<>(currentIssues.keySet());
+        allTags.addAll(previousIssues.keySet());
+        return allTags.stream().map(tag -> {
+            Object[] current = currentIssues.get(tag);
+            Object[] previous = previousIssues.get(tag);
+            long count = number(current, 1);
+            long previousCount = number(previous, 1);
+            long affectedStores = number(current, 2);
+            Double rate = ratePer100(count, analyzed);
+            Double previousRate = ratePer100(previousCount, previousAnalyzed);
+            Double delta = rate == null || previousRate == null ? null : round1(rate - previousRate);
+            Double issueAvgRating = current == null || current[3] == null ? null
+                    : round1(((Number) current[3]).doubleValue());
+            return new RawIssueTag(tag, count, previousCount, affectedStores, rate, previousRate, delta,
+                    issueAvgRating, issueSignal(count, previousCount, affectedStores, delta));
+        }).sorted(Comparator.comparingInt((RawIssueTag i) -> signalPriority(i.signal()))
+                .thenComparing(RawIssueTag::count, Comparator.reverseOrder()).thenComparing(RawIssueTag::tag))
+                .toList();
+    }
+
     // ── 내부 헬퍼 ─────────────────────────────────────────────────────────
 
-    /** WP-02 집계 전 원본 값. 정렬은 실제 값 기준으로 하고, 가리는 것은 마지막 표시 단계에서만 한다. */
     private record RawIssueTag(String tag, long count, long previousCount, long affectedStores, Double rate,
             Double previousRate, Double delta, Double avgRating, String signal) {
     }
@@ -372,16 +630,10 @@ public class HqService {
     private record RawRiskCluster(String reason, long count, long previousCount, long affectedStores) {
     }
 
-    /**
-     * ★ WP-02 — 이 개수를 그대로 내려보내면 특정 리뷰(들)를 다시 알아볼 수 있는지 판정한다.
-     * 0 은 "그 이슈가 없다"는 뜻이라 안전하다. 1~{@code MIN_AGGREGATION_THRESHOLD-1} 은
-     * 적은 인원(리뷰) 집합을 그대로 노출하는 것이라 가린다.
-     */
     private static boolean revealsIndividual(long count) {
         return count > 0 && count < MIN_AGGREGATION_THRESHOLD;
     }
 
-    /** listStores/analytics 공용 — 매장별 · 리뷰당 최신 초안 상태 건수(기간 무관, "지금 미처리" 기준). */
     private Map<Long, Map<String, Long>> draftStatusCountsByStore(List<Long> storeIds) {
         Map<Long, Map<String, Long>> result = new HashMap<>();
         for (Object[] row : hqQueryRepository.latestDraftStatusCountsByStore(storeIds)) {
@@ -391,7 +643,6 @@ public class HqService {
         return result;
     }
 
-    /** listStores/analytics 공용 — 매장별 고위험(risk_level>=3) 미종결 리뷰 수. */
     private Map<Long, Long> highRiskCountsByStore(List<Long> storeIds) {
         Map<Long, Long> result = new HashMap<>();
         for (Object[] row : hqQueryRepository.highRiskPendingCountsByStore(storeIds)) {
@@ -400,16 +651,6 @@ public class HqService {
         return result;
     }
 
-    /**
-     * 절대규칙 5·6/H9: 구독 상세는 절대 넣지 않고 coarse 한 이용중/정지만 넘긴다.
-     *
-     * <p>★ 구독 레코드가 없는 것(null)은 "정지"가 아니다. 계좌이체 구독은 나중에 붙었고
-     * 그 이전에 등록된 매장에는 subscription 행 자체가 없다. 이걸 SUSPENDED 로 매핑하면
-     * 정상 운영 중인 매장이 본부 화면에 전부 '정지'로 보인다(실기동에서 실제로 그렇게 나왔다).
-     * 정지는 <b>명시적으로 정지된 경우</b>에만 말한다.
-     *
-     * <p>PAST_DUE(미납)는 IN_SERVICE 다 — 실제 서비스 중단은 D+21 의 SUSPENDED 전이에서 일어난다.
-     */
     private static String toServiceStatus(String subscriptionStatus) {
         if (subscriptionStatus == null) {
             return "IN_SERVICE";
@@ -462,7 +703,6 @@ public class HqService {
         return analyzed == 0 ? null : round1((double) count * 100 / analyzed);
     }
 
-    /** 고정·투명 기준. 파일럿에서 오탐이 확인되기 전까지 별도 설정 시스템은 만들지 않는다. */
     private static String issueSignal(long count, long previousCount, long affectedStores, Double deltaRatePoints) {
         if (count >= 3 && affectedStores >= 2 && previousCount == 0) {
             return "NEW";
@@ -488,4 +728,20 @@ public class HqService {
     private static LocalDate parseOrDefault(String s, LocalDate fallback) {
         return s == null || s.isBlank() ? fallback : LocalDate.parse(s);
     }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s;
+    }
+
+    private static Short toShort(Integer v) {
+        return v == null ? null : v.shortValue();
+    }
+
+    private static Integer toInt(Short v) {
+        return v == null ? null : v.intValue();
+    }
+
+    // ★ 기간 필터는 null 을 넘기지 않고 넓은 경계값으로 대체한다(ReviewService 와 같은 이유 — Postgres 가
+    //   null 타임스탬프 파라미터의 타입을 추론하지 못해 500 이 난다).
+    private static final Instant OPEN_END = LocalDate.of(9999, 1, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
 }

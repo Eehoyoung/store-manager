@@ -20,6 +20,10 @@ class AgreementDocumentTest {
         assertThat(privacy).contains("가맹본부 제공에 대한 동의 철회");
         assertThat(hq).contains("본부는 보기만 할 수 있습니다", "동의하지 않으셔도 됩니다");
         assertThat(credential).contains("기웅정보통신(주)", "사장님이 직접 운영하시는 매장의 계정만");
+
+        // ★ hq-review-sharing 은 법무 검토 전이라 초안 표시를 의도적으로 남긴다(docs/26a decisions.reviewConsent).
+        String reviewSharing = read(base + "hq-review-sharing.md");
+        assertThat(reviewSharing).contains("법무 검토 전 초안", "동의하지 않으셔도 됩니다", "철회");
     }
 
     private String read(String path) throws Exception {

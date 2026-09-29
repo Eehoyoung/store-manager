@@ -15,10 +15,11 @@ import org.springframework.core.io.ClassPathResource;
  */
 class AgreementDocumentsTest {
 
-    private static final String[] SLUGS = {"terms", "privacy", "hq-data-sharing", "platform-credential"};
+    private static final String[] SLUGS =
+            {"terms", "privacy", "hq-data-sharing", "platform-credential", "hq-review-sharing"};
 
     @Test
-    void 현행_버전의_동의_문서_네_개가_모두_있다() throws Exception {
+    void 현행_버전의_동의_문서_다섯_개가_모두_있다() throws Exception {
         for (String slug : SLUGS) {
             var resource = new ClassPathResource(
                     "agreements/" + AgreementService.CURRENT_VERSION + "/" + slug + ".md");

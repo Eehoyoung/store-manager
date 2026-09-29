@@ -29,6 +29,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // 시스템 콘솔·가맹본부 담당자 이메일 OTP 발송 (Gmail SMTP + 앱 비밀번호, docs/26a)
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // 카카오 알림톡 — 공식 SOLAPI Java SDK
     implementation 'com.solapi:sdk:1.1.0'

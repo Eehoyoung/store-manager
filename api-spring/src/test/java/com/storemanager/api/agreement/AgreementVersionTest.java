@@ -36,7 +36,9 @@ class AgreementVersionTest {
         try (Stream<Path> files = Files.list(current)) {
             docs = files.filter(f -> f.toString().endsWith(".md")).toList();
         }
-        assertThat(docs).hasSize(4);
+        // ★ docs/26a — HQ_REVIEW_SHARING 신설로 4종(terms·privacy·hq-data-sharing·platform-credential)
+        //   에 hq-review-sharing 1종이 더해져 5종이 됐다.
+        assertThat(docs).hasSize(5);
 
         String[] parts = AgreementService.CURRENT_VERSION.split("-");
         for (Path doc : docs) {

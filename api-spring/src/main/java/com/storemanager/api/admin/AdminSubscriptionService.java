@@ -79,7 +79,7 @@ public class AdminSubscriptionService {
 
     /** 입금 확인 → 구독 활성화. 구독 행이 없으면 만든다. */
     @Transactional
-    public void activate(UUID storePublicId, String note, Long adminUserId) {
+    public void activate(UUID storePublicId, String note, String adminRef) {
         Store store = loadStore(storePublicId);
         if (store.getActivatedAt() == null) {
             // 자격증명 처리 위탁 동의가 없는 매장을 활성화하면 법적 근거 없이 데이터를 다루게 된다.
@@ -95,20 +95,20 @@ public class AdminSubscriptionService {
                         .build());
         sub.activateByOperator(now, now.atZone(KST).plusMonths(1).toInstant());
         subscriptionRepository.save(sub);
-        audit(adminUserId, "SUBSCRIPTION_ACTIVATED", store.getId(), note);
-        log.info("구독 활성화 storeId={} adminUserId={}", store.getId(), adminUserId);
+        audit(adminRef, "SUBSCRIPTION_ACTIVATED", store.getId(), note);
+        log.info("구독 활성화 storeId={}", store.getId());
     }
 
     /** 서비스 정지. 해지가 아니라 정지다 — 재개할 수 있다. */
     @Transactional
-    public void suspend(UUID storePublicId, String note, Long adminUserId) {
+    public void suspend(UUID storePublicId, String note, String adminRef) {
         Store store = loadStore(storePublicId);
         Subscription sub = subscriptionRepository
                 .findByStoreIdAndStatusNot(store.getId(), "CANCELED")
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         sub.suspend();
-        audit(adminUserId, "SUBSCRIPTION_SUSPENDED", store.getId(), note);
-        log.info("구독 정지 storeId={} adminUserId={}", store.getId(), adminUserId);
+        audit(adminRef, "SUBSCRIPTION_SUSPENDED", store.getId(), note);
+        log.info("구독 정지 storeId={}", store.getId());
     }
 
     private Store loadStore(UUID storePublicId) {
@@ -116,22 +116,23 @@ public class AdminSubscriptionService {
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
     }
 
-    private void audit(Long adminUserId, String action, Long storeId, String note) {
+    /** ★ 관리자는 app_user 가 없다(docs/26a) — actorId 는 항상 null, adminRef 로만 누구인지 남긴다. */
+    private void audit(String adminRef, String action, Long storeId, String note) {
         auditLogRepository.save(AuditLog.builder()
                 .actorType("ADMIN")
-                .actorId(adminUserId)
+                .actorId(null)
                 .action(action)
                 .targetType("STORE")
                 .targetId(storeId)
                 // ★ 입금 확인 근거(입금자명·일자 등)를 남긴다. 요금 분쟁 시 유일한 근거다.
-                .detail(toDetailJson(note))
+                .detail(toDetailJson(adminRef, note))
                 .build());
     }
 
     /** 감사로그 detail 은 jsonb 다. 운영자가 적은 근거를 문자열로 밀어 넣으면 파싱이 깨진다. */
-    private String toDetailJson(String note) {
+    private String toDetailJson(String adminRef, String note) {
         try {
-            return objectMapper.writeValueAsString(Map.of("note", note == null ? "" : note));
+            return objectMapper.writeValueAsString(Map.of("adminRef", adminRef, "note", note == null ? "" : note));
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return "{}";
         }

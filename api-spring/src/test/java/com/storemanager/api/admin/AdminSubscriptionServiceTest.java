@@ -28,7 +28,7 @@ class AdminSubscriptionServiceTest {
         var service = new AdminSubscriptionService(stores, subscriptions, mock(AppUserRepository.class),
                 mock(AuditLogRepository.class), new ObjectMapper());
 
-        assertThatThrownBy(() -> service.activate(storeId, "입금 확인", 3L))
+        assertThatThrownBy(() -> service.activate(storeId, "입금 확인", "adminref1234"))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.CONSENT_REQUIRED);
         verifyNoInteractions(subscriptions);

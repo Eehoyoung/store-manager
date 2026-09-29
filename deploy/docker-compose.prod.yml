@@ -110,8 +110,18 @@ services:
       # ★ 운영에서는 true. KMS 어댑터가 준비되기 전에는 기동이 차단된다 — 의도된 것이다.
       CREDENTIAL_REQUIRE_KMS: ${CREDENTIAL_REQUIRE_KMS:-false}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?}
-      APP_ADMIN_USER_IDS: ${APP_ADMIN_USER_IDS:-}
+      APP_ADMIN_EMAILS: ${APP_ADMIN_EMAILS:-}
       AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?}
+      # 시스템 관리자·가맹본부 담당자 이메일 OTP 발송(docs/26a). 운영은 MAIL_REQUIRED=true —
+      # 계정이 비면 기동을 막는다(fail-closed).
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REQUIRED: ${MAIL_REQUIRED:-true}
+      # 가맹본부 개별 리뷰 조회. 법무 검토·재동의 화면 전까지 false 로 둔다.
+      HQ_REVIEW_ACCESS_ENABLED: ${HQ_REVIEW_ACCESS_ENABLED:-false}
       BUSINESS_VERIFICATION_ENABLED: ${BUSINESS_VERIFICATION_ENABLED:-true}
       NTS_SERVICE_KEY: ${NTS_SERVICE_KEY:?}
       PORTONE_API_SECRET: ${PORTONE_API_SECRET:?}

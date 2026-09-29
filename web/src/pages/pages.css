@@ -1776,3 +1776,65 @@
 .queue-item__scheduled-notice p {
   margin: 0;
 }
+
+/* ── 이메일 OTP 로그인(시스템 콘솔·가맹본부, 문서 26a) ───────── */
+.otp-form__desc {
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-5);
+}
+.otp-form__resend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+.otp-form__back {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  min-height: var(--touch-target);
+}
+
+/* ── 가맹본부 개별 리뷰 목록 — 카드를 클릭 가능하게(문서 26a hq.reviews) ── */
+.hq-review--button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.hq-review--button:hover {
+  border-color: var(--color-primary);
+}
+
+/* ── 가맹본부 보고서 — 인쇄용 레이아웃(문서 26 §6.6) ─────────── */
+.hq-report__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.hq-report__print-head {
+  display: none;
+}
+@media print {
+  .hq-report__no-print {
+    display: none;
+  }
+  .hq-report__print-head {
+    display: block;
+    margin-bottom: var(--space-5);
+  }
+  .shell__header,
+  .shell__nav,
+  .annunciator,
+  .legal-footer {
+    display: none;
+  }
+}

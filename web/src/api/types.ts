@@ -301,6 +301,8 @@ export interface HqStore {
   recentReviewCount: number | null;
   recentAvgRating: number | null;
   belowThreshold: boolean;
+  /** ★ docs/26a 8.4 추가 필드 — 서버가 아직 안 주면 undefined 로 온다. 화면은 없으면 표시를 생략한다. */
+  replyRate?: number | null;
 }
 
 export interface HqIssueTagItem {
@@ -385,6 +387,174 @@ export interface HqAnalyticsResponse {
   menuIssues: HqMenuIssueItem[];
   dailyRiskTrend: HqDailyRiskItem[];
   storeComparison: HqStoreComparisonItem[];
+}
+
+// ── 시스템 관리자·가맹본부 OTP 세션 (docs/26, 26a) ──────────────────────────
+
+export type SessionKind = "USER" | "ADMIN" | "HQ";
+
+/** POST /admin-auth/verify, /hq-auth/verify, 각 /refresh 의 공통 응답 모양. */
+export interface OtpVerifyResponse {
+  accessToken: string;
+  expiresAt: string;
+  sessionType: "ADMIN" | "HQ";
+  user?: { name: string; email: string };
+}
+
+// ── 시스템 콘솔 — 가맹본부 관리 ───────────────────────────────────────────
+
+export type FranchiseStatus = "ACTIVE" | "SUSPENDED";
+export type HqMemberStatus = "ACTIVE" | "REVOKED";
+export type AffiliationStatus = "PENDING" | "APPROVED" | "REJECTED" | "RELEASE_REQUESTED" | "RELEASED";
+
+export interface AdminFranchiseListItem {
+  brandName: string;
+  status: FranchiseStatus;
+  memberCount: number;
+  activeMemberCount: number;
+  approvedStoreCount: number;
+  pendingRequestCount: number;
+  joinCodeActive: boolean;
+  joinCodeRotatedAt: string | null;
+  lastHqLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminFranchiseMember {
+  memberId: string;
+  name: string;
+  email: string;
+  title: string | null;
+  status: HqMemberStatus;
+  lastLoginAt: string | null;
+  invitedAt: string;
+  revokedAt: string | null;
+}
+
+export interface AdminFranchiseApprovedStore {
+  storeId: string;
+  storeName: string;
+  address: string | null;
+  approvedAt: string;
+}
+
+export interface AdminFranchiseJoinCode {
+  active: boolean;
+  rotatedAt: string | null;
+  rotatedByRef: string | null;
+}
+
+export interface AdminFranchiseDetail {
+  brandName: string;
+  status: FranchiseStatus;
+  createdAt: string;
+  joinCode: AdminFranchiseJoinCode | null;
+  members: AdminFranchiseMember[];
+  approvedStores: AdminFranchiseApprovedStore[];
+}
+
+export interface AdminAuditLogRow {
+  action: string;
+  actorType: string;
+  createdAt: string;
+  detail: Record<string, unknown> | null;
+}
+
+export interface AdminAffiliationRow {
+  id: string;
+  brandName: string;
+  requesterName: string;
+  requesterEmail: string;
+  storeName: string;
+  storeAddress: string | null;
+  status: AffiliationStatus;
+  requestedAt: string;
+  decidedAt: string | null;
+  reason: string | null;
+  hqConsentVersion: string | null;
+  hqConsentAt: string | null;
+  reviewSharingAgreed: boolean | null;
+}
+
+// ── 가맹본부 화면 확장 — 홈·개별 리뷰·보고서 (docs/26a) ─────────────────────
+
+export interface HqFeatures {
+  reviewAccessEnabled: boolean;
+}
+
+export interface HqOverviewCollectDelayedStore {
+  storeId: string;
+  storeName: string;
+  lastCollectedAt: string | null;
+}
+
+export interface HqOverviewPriorityStore {
+  storeId: string;
+  storeName: string;
+  reason: string;
+  highRiskCount: number;
+  pendingCount: number;
+}
+
+export interface HqOverviewRisingIssue {
+  tag: string;
+  count: number;
+  deltaRatePoints: number | null;
+  signal: string;
+}
+
+export interface HqOverviewResponse {
+  storeCount: number;
+  serviceActiveCount: number;
+  suspendedCount: number;
+  unlinkedCount: number;
+  collectDelayedStores: HqOverviewCollectDelayedStore[];
+  pendingReviewCount: number;
+  blockedCount: number;
+  highRiskCount: number;
+  risingIssues: HqOverviewRisingIssue[];
+  analysisCoverageRate: number;
+  dataAsOf: string | null;
+  priorityStores: HqOverviewPriorityStore[];
+}
+
+export interface HqReviewListItem {
+  reviewId: string;
+  storeName: string;
+  platform: string;
+  writtenAt: string | null;
+  rating: number | null;
+  excerpt: string;
+  authorDisplay: string;
+  category: string | null;
+  issueTags: string[];
+  riskLevel: number | null;
+  riskReasons: string[];
+  replyStatus: string | null;
+}
+
+export interface HqReviewListResponse {
+  items: HqReviewListItem[];
+  nextCursor: string | null;
+}
+
+export interface HqReviewDetail extends HqReviewListItem {
+  body: string;
+}
+
+/**
+ * ★ 계약(docs/26a)이 totals·storeRows·issueRows 의 필드를 명시하지 않았다.
+ * 서버 필드를 그대로 통과시키고 화면은 알려진 키만 골라 쓴다 — 모르는 키가 와도 깨지지 않는다.
+ */
+export interface HqReportResponse {
+  /** "yyyy-MM-dd ~ yyyy-MM-dd" (HqDtos.ReportResponse) */
+  period: string;
+  previousPeriod: string;
+  dataAsOf: string | null;
+  analysisCoverageRate: number;
+  totals: { totalReviews: number; analyzedReviews: number; avgRating: number | null; highRiskReviews: number };
+  storeRows: HqStoreComparisonItem[];
+  issueRows: HqIssueTagItem[];
 }
 
 /** PersonaDtos.StoreFactsResponse — 사장님이 확정 입력한 매장 사실. */

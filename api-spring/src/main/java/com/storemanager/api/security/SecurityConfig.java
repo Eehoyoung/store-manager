@@ -5,6 +5,7 @@ import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.common.ErrorResponse;
 import com.storemanager.api.naver.ExtensionAuthService;
 import com.storemanager.api.naver.ExtensionTokenFilter;
+import com.storemanager.api.sysauth.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -134,8 +135,8 @@ public class SecurityConfig {
      * 싱글턴이 먼저 완성된 뒤에 필요한 시점에 조회하므로 순환이 끊긴다.
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, ExtensionAuthService extensionAuthService)
-            throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, ExtensionAuthService extensionAuthService,
+            SessionService sessionService) throws Exception {
         http
                 .cors(c -> c.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -147,6 +148,8 @@ public class SecurityConfig {
                                 "/api/v1/agreements/documents/**", "/api/v1/legal/business-info",
                                 "/actuator/health", "/swagger-ui/**", "/v3/api-docs/**")
                         .permitAll()
+                        // 시스템 관리자·가맹본부 담당자 OTP 로그인 — 로그인 전이라 인증 토큰이 없다(docs/26a auth).
+                        .requestMatchers("/api/v1/admin-auth/**", "/api/v1/hq-auth/**").permitAll()
                         // 페어링 코드 → 확장 토큰 교환은 아직 로그인 수단이 없는 확장이 부르므로 무인증이다.
                         // 코드 자체가 5분 TTL 1회용이라(ExtensionAuthService) 무인증이어도 안전하다.
                         .requestMatchers("/api/v1/naver/extension/pair").permitAll()
@@ -155,11 +158,16 @@ public class SecurityConfig {
                         // 운영 콘솔 collector(2026-09-26). 관리 포트로 들어온 metrics 만 무인증이다 —
                         // 관리 포트를 분리하면 이 필터체인이 관리 컨텍스트에도 그대로 적용되기 때문.
                         .requestMatchers(managementMetrics(managementPort)).permitAll()
-                        .anyRequest().authenticated())
+                        // ★ 일반 사용자(SESSION_USER) 토큰으로는 여기 접근할 수 없다(docs/26a auth.authorities).
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("SESSION_ADMIN")
+                        .requestMatchers("/api/v1/hq/**").hasAuthority("SESSION_HQ")
+                        // ★ 반대 방향도 막는다 — 관리자·본부 OTP 토큰으로 사장님 API 를 부를 수 없다.
+                        .anyRequest().hasAuthority("SESSION_USER"))
                 .exceptionHandling(eh -> eh
                         .authenticationEntryPoint(this::handleUnauthorized)
                         .accessDeniedHandler(this::handleForbidden))
-                .addFilterBefore(new JwtAuthFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new JwtAuthFilter(jwtTokenProvider, sessionService),
+                        UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new ExtensionTokenFilter(extensionAuthService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

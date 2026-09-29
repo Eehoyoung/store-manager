@@ -1,8 +1,25 @@
-import { getAccessToken, setAccessToken, triggerForceLogout } from "../auth/tokenStore";
+import { getAccessToken, getSessionKind, setAccessToken, triggerForceLogout } from "../auth/tokenStore";
 import type { ApiErrorEnvelope } from "./types";
 
 // docs/13 §1 공통규약: Base URL 환경변수, 기본값은 로컬 Spring.
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+
+// docs/26a — 세션 종류별 refresh 엔드포인트. 자기 자신은 재시도 대상에서 제외한다(무한 루프 방지).
+const REFRESH_PATH: Record<"USER" | "ADMIN" | "HQ", string> = {
+  USER: "/auth/refresh",
+  ADMIN: "/admin-auth/refresh",
+  HQ: "/hq-auth/refresh",
+};
+const AUTH_ENDPOINTS = new Set([
+  "/auth/login",
+  "/auth/refresh",
+  "/admin-auth/request",
+  "/admin-auth/verify",
+  "/admin-auth/refresh",
+  "/hq-auth/request",
+  "/hq-auth/verify",
+  "/hq-auth/refresh",
+]);
 
 /** 서버가 docs/13 §1.1 에러 봉투({code,message,traceId,details})로 응답한 실패. */
 export class ApiError extends Error {
@@ -43,14 +60,15 @@ async function refreshOnce(): Promise<boolean> {
 }
 
 async function doRefresh(): Promise<boolean> {
+  const kind = getSessionKind();
   try {
-    const res = await fetch(`${BASE_URL}/auth/refresh`, { method: "POST", credentials: "include" });
+    const res = await fetch(`${BASE_URL}${REFRESH_PATH[kind]}`, { method: "POST", credentials: "include" });
     if (!res.ok) {
       triggerForceLogout();
       return false;
     }
     const data = (await res.json()) as { accessToken: string };
-    setAccessToken(data.accessToken);
+    setAccessToken(data.accessToken, kind);
     return true;
   } catch {
     triggerForceLogout();
@@ -78,9 +96,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
     throw new NetworkError("서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.");
   }
 
-  // /auth/login, /auth/refresh 자체의 401 은 재시도 대상이 아니다(무한 루프 방지).
-  const isAuthEndpoint = path === "/auth/login" || path === "/auth/refresh";
-  if (res.status === 401 && !_retried && !isAuthEndpoint) {
+  // 로그인·발급·refresh 자체의 401 은 재시도 대상이 아니다(무한 루프 방지).
+  if (res.status === 401 && !_retried && !AUTH_ENDPOINTS.has(path)) {
     const ok = await refreshOnce();
     if (ok) return apiRequest<T>(path, options, true);
   }

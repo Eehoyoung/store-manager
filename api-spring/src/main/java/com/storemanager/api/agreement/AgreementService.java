@@ -17,11 +17,17 @@ public class AgreementService {
      * 문서를 고칠 때는 새 디렉터리를 만들고 여기를 함께 올린다. 옛 디렉터리는 지우지 않는다 —
      * 과거 동의가 가리키는 문서다.
      */
-    public static final String CURRENT_VERSION = "2026-09-20";
+    public static final String CURRENT_VERSION = "2026-09-29";
     public static final String TERMS = "TERMS_OF_SERVICE";
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";
     public static final String CREDENTIAL = "PLATFORM_CREDENTIAL";
+    /**
+     * 개별 리뷰 원문 제공 동의(docs/26 §4.2, docs/26a decisions.reviewConsent) — 선택, 사용자 단위
+     * ({@code storeId=null}). {@code HQ}(집계) 와 별개다 — 집계에 동의해도 개별 리뷰는 별도 동의가
+     * 필요하다. {@code app.hq.review-access-enabled} 가 꺼져 있으면 카탈로그·API 모두 숨긴다.
+     */
+    public static final String HQ_REVIEW_SHARING = "HQ_REVIEW_SHARING";
 
     private final UserAgreementRepository repository;
 
@@ -40,6 +46,12 @@ public class AgreementService {
         repository.save(UserAgreement.builder()
                 .userId(userId).storeId(storeId).agreementCode(code).docVersion(CURRENT_VERSION)
                 .agreed(agreed).agreedAt(Instant.now()).ip(toAddress(ip)).userAgent(trim(userAgent, 300)).build());
+    }
+
+    /** 사용자 단위(storeId 없는) 최신 동의가 현재 '동의함' 상태인지. HQ_REVIEW_SHARING 조회에 쓴다. */
+    public boolean isCurrentlyAgreed(Long userId, String code) {
+        return repository.findTopByUserIdAndAgreementCodeOrderByCreatedAtDesc(userId, code)
+                .map(UserAgreement::isAgreed).orElse(false);
     }
 
     public List<AgreementHistoryRow> history(Long userId) {
@@ -83,6 +95,7 @@ public class AgreementService {
             case PRIVACY -> "privacy";
             case HQ -> "hq-data-sharing";
             case CREDENTIAL -> "platform-credential";
+            case HQ_REVIEW_SHARING -> "hq-review-sharing";
             default -> "terms";
         };
     }

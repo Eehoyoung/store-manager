@@ -8,6 +8,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { formatPhone } from "../lib/format";
 import { Field } from "../components/Field";
+import { Modal } from "../components/Modal";
 import { Skeleton } from "../components/Skeleton";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../auth/AuthContext";
@@ -57,6 +58,7 @@ export function SettingsPage() {
       </section>
       <section id="settings-panel-agreements" role="tabpanel" hidden={tab !== "agreements"}>
         <AgreementHistoryCard />
+        <HqReviewSharingCard />
       </section>
     </div>
   );
@@ -104,6 +106,88 @@ function AgreementHistoryCard() {
     {withdrawal?.requested ? <p role="status">가맹본부 소속 해제 요청이 접수되어 처리 중입니다.</p> : null}
     {withdrawal && !withdrawal.canRequest && !withdrawal.requested && !withdrawal.brandName ? <p>현재 가맹본부 소속 매장이 없어 해제 요청을 할 수 없습니다.</p> : null}
   </Card>;
+}
+
+/**
+ * 문서 26 §4.2, 26a decisions.reviewFlag/ownerConsentUi — 개별 리뷰 제공 동의 카드.
+ * 기능 플래그(reviewSharingEnabled)가 꺼져 있으면 렌더링 자체를 하지 않는다 — 화면에서
+ * "동의할 수 있는데 안 보인다"가 아니라 애초에 기능이 없는 것처럼 보여야 한다.
+ */
+function HqReviewSharingCard() {
+  const [status, setStatus] = useState<HqWithdrawalStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    agreementsApi.hqWithdrawalStatus().then(setStatus).catch(() => undefined);
+  }, []);
+
+  if (!status?.reviewSharingEnabled) return null;
+
+  const agree = async () => {
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await agreementsApi.setHqReviewSharing(true);
+      setStatus({ ...status, reviewSharingAgreed: true });
+      setMessage("개별 리뷰 제공에 동의했습니다.");
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : "동의를 저장하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const withdraw = async () => {
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await agreementsApi.setHqReviewSharing(false);
+      setStatus({ ...status, reviewSharingAgreed: false });
+      setMessage("개별 리뷰 제공 동의를 철회했습니다. 이후 본부는 개별 리뷰를 조회할 수 없습니다.");
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : "철회를 저장하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+      setConfirmOpen(false);
+    }
+  };
+
+  return (
+    <Card className="settings-page__card">
+      <div className="settings-page__card-head">
+        <h2>개별 리뷰 제공 동의</h2>
+        <Badge tone={status.reviewSharingAgreed ? "success" : "neutral"} icon={status.reviewSharingAgreed ? "✓" : "•"}>
+          {status.reviewSharingAgreed ? "동의함" : "동의 안 함"}
+        </Badge>
+      </div>
+      <p>
+        동의하면 가맹본부 담당자가 이 매장의 개별 리뷰 원문·별점·작성일·분석 결과를 조회할 수 있습니다.
+        집계(가맹점 현황·이상징후)는 이 동의와 별개로 이미 제공되고 있습니다.
+      </p>
+      <Link to="/legal/hq-review-sharing">제공 항목 전문 보기</Link>
+      {message ? <p role="status">{message}</p> : null}
+      {status.reviewSharingAgreed ? (
+        <Button type="button" variant="secondary" onClick={() => setConfirmOpen(true)}>동의 철회</Button>
+      ) : (
+        <Button type="button" loading={submitting} onClick={() => void agree()}>동의</Button>
+      )}
+      <Modal
+        open={confirmOpen}
+        title="개별 리뷰 제공 동의 철회"
+        onClose={() => setConfirmOpen(false)}
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setConfirmOpen(false)} disabled={submitting}>취소</Button>
+            <Button type="button" variant="danger" loading={submitting} onClick={() => void withdraw()}>철회</Button>
+          </>
+        }
+      >
+        <p>철회하면 가맹본부는 이 매장의 개별 리뷰를 더 이상 조회할 수 없습니다. 집계 조회에는 영향이 없습니다.</p>
+      </Modal>
+    </Card>
+  );
 }
 
 function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdated: (profile: AccountProfile) => void }) {

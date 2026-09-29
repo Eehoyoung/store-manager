@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.hq.HqReviewAccessProperties;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.util.Optional;
@@ -36,7 +37,7 @@ class AgreementControllerTest {
                 .thenReturn(Optional.of(AppUser.builder().id(1L).publicId(publicId).email("a@b.com").name("사장")
                         .franchiseBrandName("가맹본부").build()));
 
-        new AgreementController(service, users, audits).requestHqWithdrawal();
+        new AgreementController(service, users, audits, new HqReviewAccessProperties(false)).requestHqWithdrawal();
 
         verify(service).record(1L, null, AgreementService.HQ, false, null, null);
         verify(audits).save(any());
@@ -50,7 +51,8 @@ class AgreementControllerTest {
         AgreementService service = mock(AgreementService.class);
         AppUserRepository users = mock(AppUserRepository.class);
         AuditLogRepository audits = mock(AuditLogRepository.class);
-        AgreementController controller = new AgreementController(service, users, audits);
+        AgreementController controller =
+                new AgreementController(service, users, audits, new HqReviewAccessProperties(false));
         when(users.findByPublicIdAndDeletedAtIsNull(publicId)).thenReturn(Optional.of(
                 AppUser.builder().id(1L).publicId(publicId).email("a@b.com").name("사장").build()));
         when(users.findActiveByPublicIdForUpdate(publicId)).thenReturn(Optional.of(

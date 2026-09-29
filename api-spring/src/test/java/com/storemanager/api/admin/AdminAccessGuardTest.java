@@ -1,33 +1,30 @@
 package com.storemanager.api.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.when;
 
-import com.storemanager.api.common.ApiException;
-import com.storemanager.api.common.ErrorCode;
-import com.storemanager.api.user.AppUser;
-import com.storemanager.api.user.AppUserRepository;
-import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class AdminAccessGuardTest {
-    @Mock AppUserRepository users;
 
     @Test
-    void 허용목록에_없는_사용자는_관리자_API에_접근할수없다() {
-        UUID id = UUID.randomUUID();
-        when(users.findByPublicIdAndDeletedAtIsNull(id)).thenReturn(Optional.of(
-                AppUser.builder().publicId(id).email("other@example.com").name("일반사용자").build()));
+    void 허용목록에_없는_이메일은_관리자가_아니다() {
+        var guard = new AdminAccessGuard("boss@sodam.test");
 
-        ApiException ex = assertThrows(ApiException.class,
-                () -> new AdminAccessGuard(users, UUID.randomUUID().toString()).requireAdmin(id));
+        assertThat(guard.isAdminEmail("other@example.com")).isFalse();
+    }
 
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+    @Test
+    void 허용목록에_있으면_대소문자와_무관하게_관리자다() {
+        var guard = new AdminAccessGuard("boss@sodam.test, second@sodam.test");
+
+        assertThat(guard.isAdminEmail("BOSS@sodam.test")).isTrue();
+        assertThat(guard.isAdminEmail(" second@sodam.test ")).isTrue();
+    }
+
+    @Test
+    void 값이_비면_아무도_관리자가_아니다() {
+        var guard = new AdminAccessGuard("");
+
+        assertThat(guard.isAdminEmail("anyone@example.com")).isFalse();
     }
 }

@@ -65,8 +65,17 @@ services:
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?CREDENTIAL_MASTER_KEY를 .env에 설정하세요}
       CREDENTIAL_KEY_ID: ${CREDENTIAL_KEY_ID:-local-docker}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?INTERNAL_TOKEN을 .env에 설정하세요}
-      APP_ADMIN_USER_IDS: ${APP_ADMIN_USER_IDS:-}
+      APP_ADMIN_EMAILS: ${APP_ADMIN_EMAILS:-}
       AUTHOR_HASH_SALT: ${AUTHOR_HASH_SALT:?AUTHOR_HASH_SALT를 .env에 설정하세요}
+      # 시스템 관리자·가맹본부 담당자 이메일 OTP 발송(docs/26a). 기본 false — 계정 없어도 기동하되 발송은 건너뛴다.
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REQUIRED: ${MAIL_REQUIRED:-false}
+      # 가맹본부 개별 리뷰 조회. 법무 검토 전까지 false 유지.
+      HQ_REVIEW_ACCESS_ENABLED: ${HQ_REVIEW_ACCESS_ENABLED:-false}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.
       BUSINESS_NAME: ${BUSINESS_NAME:-소담}
       BUSINESS_SERVICE_NAME: ${BUSINESS_SERVICE_NAME:-소담리뷰}

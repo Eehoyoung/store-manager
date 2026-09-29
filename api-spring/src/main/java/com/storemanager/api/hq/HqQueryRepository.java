@@ -1,5 +1,6 @@
 package com.storemanager.api.hq;
 
+import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.store.Store;
 import java.time.Instant;
 import java.util.List;
@@ -39,6 +40,11 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
     @Query("SELECT r.storeId, COUNT(r), AVG(r.rating) FROM UnifiedReview r "
             + "WHERE r.storeId IN :storeIds AND r.writtenAt >= :from GROUP BY r.storeId")
     List<Object[]> recentReviewStatsByStore(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from);
+
+    /** docs/26a stores 확장 — 전체 기간 리뷰수·평균별점(기간 필터 없음, T-26 '현재 상태' 관례). */
+    @Query("SELECT r.storeId, COUNT(r), AVG(r.rating) FROM UnifiedReview r "
+            + "WHERE r.storeId IN :storeIds GROUP BY r.storeId")
+    List<Object[]> allTimeReviewStatsByStore(@Param("storeIds") List<Long> storeIds);
 
     /**
      * 매장별 · 리뷰당 최신 초안 상태 건수 — 기간 필터 없음(현재 미처리 현황, AnalyticsQueryRepository T-26 관례와 동일).
@@ -185,4 +191,29 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
             """)
     List<Object[]> perStorePeriodDraftStatusCounts(@Param("storeIds") List<Long> storeIds, @Param("from") Instant from,
             @Param("to") Instant to);
+
+    // ── docs/26a: 개별 리뷰 조회(플래그 게이트) ────────────────────────────
+
+    /**
+     * 브랜드 개별 리뷰 키셋 검색(docs/26a endpoints.hq.reviews). {@code ReviewQueryRepository.searchAfter}
+     * 와 같은 관례 — join 은 필터에만 쓰고 엔티티는 UnifiedReview 만 페이징으로 가져온다.
+     * ★ tag 필터는 배열 포함 검사가 JPQL 표준 함수가 아니라 지원하지 않는다(범위를 좁힌 것 — 계약과의 차이).
+     */
+    @Query("""
+            SELECT r FROM UnifiedReview r
+            LEFT JOIN ReviewAnalysis a ON a.reviewId = r.id
+            LEFT JOIN ReplyDraft d ON d.id = (SELECT MAX(d2.id) FROM ReplyDraft d2 WHERE d2.reviewId = r.id)
+            WHERE r.storeId IN :storeIds
+              AND r.writtenAt >= :from AND r.writtenAt < :to
+              AND (:platform IS NULL OR r.platform = :platform)
+              AND (:rating IS NULL OR r.rating = :rating)
+              AND (:riskLevel IS NULL OR a.riskLevel >= :riskLevel)
+              AND (:status IS NULL OR COALESCE(d.status, 'NONE') = :status)
+              AND (r.writtenAt < :cursorWrittenAt OR (r.writtenAt = :cursorWrittenAt AND r.id < :cursorId))
+            ORDER BY r.writtenAt DESC, r.id DESC
+            """)
+    List<UnifiedReview> hqReviewSearch(@Param("storeIds") List<Long> storeIds, @Param("platform") String platform,
+            @Param("rating") Short rating, @Param("riskLevel") Short riskLevel, @Param("status") String status,
+            @Param("from") Instant from, @Param("to") Instant to, @Param("cursorWrittenAt") Instant cursorWrittenAt,
+            @Param("cursorId") Long cursorId, org.springframework.data.domain.Pageable pageable);
 }

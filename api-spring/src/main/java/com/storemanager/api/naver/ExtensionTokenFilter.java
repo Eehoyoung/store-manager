@@ -35,7 +35,9 @@ public class ExtensionTokenFilter extends OncePerRequestFilter {
         if (token != null && !token.isBlank()) {
             String userPublicId = extensionAuthService.resolve(token);
             if (userPublicId != null) {
-                var auth = new UsernamePasswordAuthenticationToken(userPublicId, null, List.of());
+                var auth = new UsernamePasswordAuthenticationToken(userPublicId, null,
+                        // 확장 토큰은 사장님 본인 세션이다 — 사장님 API 권한과 같다(docs/26a auth.authorities).
+                        List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("SESSION_USER")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

@@ -53,7 +53,7 @@ export function HqBrandsPage() {
   }
 
   if (brands.length === 1) {
-    return <Navigate to={`/hq/brands/${encodeURIComponent(brands[0].brandName)}/stores`} replace />;
+    return <Navigate to={`/hq/brands/${encodeURIComponent(brands[0].brandName)}`} replace />;
   }
 
   return (
@@ -62,7 +62,7 @@ export function HqBrandsPage() {
       <ul className="hq-brand-list">
         {brands.map((b) => (
           <li key={b.brandName}>
-            <Link to={`/hq/brands/${encodeURIComponent(b.brandName)}/stores`} className="card hq-brand-card">
+            <Link to={`/hq/brands/${encodeURIComponent(b.brandName)}`} className="card hq-brand-card">
               <p className="hq-brand-card__name">{b.brandName}</p>
               <p className="hq-brand-card__count">매장 {b.storeCount}개</p>
             </Link>

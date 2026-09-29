@@ -39,4 +39,23 @@ public class FranchiseJoinCode {
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    @Column(name = "rotated_at")
+    private Instant rotatedAt;
+
+    /** 교체한 시스템 관리자의 adminRef(비식별). */
+    @Column(name = "rotated_ref")
+    private String rotatedRef;
+
+    /** 코드 교체. 기존 승인 매장에는 영향을 주지 않는다(가맹코드는 소속 심사 시점에만 쓰인다). */
+    public void rotate(String newCodeHash, String actorRef, Instant at) {
+        this.codeHash = newCodeHash;
+        this.active = true;
+        this.rotatedAt = at;
+        this.rotatedRef = actorRef;
+    }
+
+    public void changeActive(boolean active) {
+        this.active = active;
+    }
 }

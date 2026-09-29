@@ -30,7 +30,8 @@ final class HqDtos {
      */
     record HqStoreResponse(String storeId, String name, String address, boolean activated, String serviceStatus,
             List<PlatformLinkStatus> platformLinks, String lastCollectedAt, Long pendingCount, Long blockedCount,
-            Long highRiskCount, Long recentReviewCount, Double recentAvgRating, boolean belowThreshold) {
+            Long highRiskCount, Long recentReviewCount, Double recentAvgRating, boolean belowThreshold,
+            String linkStatus, Long reviewCount, Double avgRating, Double replyRate) {
     }
 
     record RatingBucket(int rating, long count) {
@@ -98,5 +99,31 @@ final class HqDtos {
             List<IssueTagItem> issueTagRanking, List<RiskClusterItem> riskClusters,
             List<MenuIssueItem> menuIssues, List<DailyRiskItem> dailyRiskTrend,
             List<StoreComparisonItem> storeComparison) {
+    }
+
+    // ── docs/26a endpoints.hq — 본부 홈 ──────────────────────────────────
+
+    record CollectDelayedStoreItem(String storeId, String storeName, String lastCollectedAt) {
+    }
+
+    record PriorityStoreItem(String storeId, String storeName, String reason, Long highRiskCount, Long pendingCount) {
+    }
+
+    record HqOverviewResponse(long storeCount, long serviceActiveCount, long suspendedCount, long unlinkedCount,
+            List<CollectDelayedStoreItem> collectDelayedStores, long pendingReviewCount, long blockedCount,
+            long highRiskCount, List<IssueTagItem> risingIssues, double analysisCoverageRate, String dataAsOf,
+            List<PriorityStoreItem> priorityStores) {
+    }
+
+    // ── docs/26a endpoints.hq — 보고서 ────────────────────────────────────
+
+    record ReportTotals(long totalReviews, long analyzedReviews, Double avgRating, long highRiskReviews) {
+    }
+
+    record ReportResponse(String period, String previousPeriod, String dataAsOf, double analysisCoverageRate,
+            ReportTotals totals, List<StoreComparisonItem> storeRows, List<IssueTagItem> issueRows) {
+    }
+
+    record HqFeaturesResponse(boolean reviewAccessEnabled) {
     }
 }

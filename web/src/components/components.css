@@ -292,6 +292,14 @@ textarea.field__input {
   }
 }
 
+/* ── ReasonModal (시스템 콘솔 변경 사유 입력) ───────────────── */
+.reason-modal__desc {
+  margin-bottom: var(--space-4);
+}
+.reason-modal__textarea {
+  min-height: 96px;
+}
+
 /* ── Pagination ─────────────────────────────────────────── */
 .pagination {
   display: flex;
