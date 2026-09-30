@@ -1,5 +1,6 @@
 package com.storemanager.api.hq;
 
+import com.storemanager.api.billing.PricingDtos.HqBrandPricingResponse;
 import com.storemanager.api.hq.HqDtos.HqAnalyticsResponse;
 import com.storemanager.api.hq.HqDtos.HqBrandResponse;
 import com.storemanager.api.hq.HqDtos.HqFeaturesResponse;
@@ -61,6 +62,12 @@ public class HqController {
     @GetMapping("/brands/{brandName}/stores")
     public List<HqStoreResponse> stores(@PathVariable String brandName) {
         return hqService.listStores(CurrentUser.publicId(), brandName);
+    }
+
+    /** V49 — 가맹 브랜드 구간 단가. 매장별 결제 상태·금액은 포함하지 않는다(H9). */
+    @GetMapping("/brands/{brandName}/pricing")
+    public HqBrandPricingResponse pricing(@PathVariable String brandName) {
+        return hqService.pricing(CurrentUser.publicId(), brandName);
     }
 
     /** FR-804 — 브랜드 집계(별점·카테고리 분포, 이슈 태그 랭킹, 매장별 비교). */

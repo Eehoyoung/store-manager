@@ -2,6 +2,7 @@ package com.storemanager.api.admin;
 
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.billing.PricingTier;
 import com.storemanager.api.billing.Subscription;
 import com.storemanager.api.billing.SubscriptionRepository;
 import com.storemanager.api.common.ApiException;
@@ -36,7 +37,6 @@ public class AdminSubscriptionService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminSubscriptionService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    private static final BigDecimal PRICE_KRW = new BigDecimal("30000");
 
     private final StoreRepository storeRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -91,7 +91,7 @@ public class AdminSubscriptionService {
                 .findByStoreIdAndStatusNot(store.getId(), "CANCELED")
                 .orElseGet(() -> Subscription.builder()
                         .storeId(store.getId())
-                        .priceKrw(PRICE_KRW)
+                        .priceKrw(BigDecimal.valueOf(PricingTier.DEFAULT_UNIT_PRICE))
                         .build());
         sub.activateByOperator(now, now.atZone(KST).plusMonths(1).toInstant());
         subscriptionRepository.save(sub);

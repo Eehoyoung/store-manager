@@ -22,12 +22,15 @@ final class BillingDtos {
      *
      * @param heldReplyCount 이용 제한으로 보류된 답글 수(BLOCKED·STORE_INACTIVE 단독). 결제를
      *        재개해도 자동으로 나가지 않는다 — 화면이 이 값으로 재개 배너를 띄운다.
+     * @param unitPriceKrw 이번 결제 대상 월의 매장 단가(부가세 별도, V49 가맹 브랜드 구간 단가).
+     * @param brandPaidStoreCount 매장이 가맹 브랜드 소속일 때만 값이 있다(소속 아니면 null) — 그
+     *        브랜드의 현재 유료 이용 매장 수. 화면이 "N개 매장 기준 단가입니다" 를 보여줄 때 쓴다.
      */
     record BillingView(boolean enabled, String portoneStoreId, String channelKey, CustomerInfo customer,
             String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
             String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
             long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
-            int heldReplyCount) {}
+            int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount) {}
 
     record CheckoutRequest(@NotBlank @Size(max = 200) String billingKey, boolean billingConsentAgreed,
             @NotBlank @Size(max = 20) String billingConsentVersion) {}

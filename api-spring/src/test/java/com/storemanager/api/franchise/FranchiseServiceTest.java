@@ -105,4 +105,51 @@ class FranchiseServiceTest {
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INVALID_FRANCHISE_CODE);
     }
+
+    // ── 가맹 브랜드 구간 단가(V49) — 약정 매장 수 ─────────────────────────────
+
+    @Test
+    void 약정_매장수를_설정한다() {
+        FranchiseBrand brand = FranchiseBrand.builder().brandName("소담치킨").build();
+        when(franchiseBrandRepository.findByBrandName("소담치킨")).thenReturn(Optional.of(brand));
+
+        service.setCommittedStoreCount("소담치킨", 50, "계약 체결", "admin-ref");
+
+        assertThat(brand.getCommittedStoreCount()).isEqualTo(50);
+        verify(auditLogRepository).save(any());
+    }
+
+    @Test
+    void 약정_매장수를_null로_해제할_수_있다() {
+        FranchiseBrand brand = FranchiseBrand.builder().brandName("소담치킨").committedStoreCount(50).build();
+        when(franchiseBrandRepository.findByBrandName("소담치킨")).thenReturn(Optional.of(brand));
+
+        service.setCommittedStoreCount("소담치킨", null, "약정 해제", "admin-ref");
+
+        assertThat(brand.getCommittedStoreCount()).isNull();
+    }
+
+    @Test
+    void 약정_매장수는_1미만이거나_100000_초과면_거절한다() {
+        FranchiseBrand brand = FranchiseBrand.builder().brandName("소담치킨").build();
+        when(franchiseBrandRepository.findByBrandName("소담치킨")).thenReturn(Optional.of(brand));
+
+        ApiException tooLow = assertThrows(ApiException.class,
+                () -> service.setCommittedStoreCount("소담치킨", 0, "사유", "admin-ref"));
+        assertThat(tooLow.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+
+        ApiException tooHigh = assertThrows(ApiException.class,
+                () -> service.setCommittedStoreCount("소담치킨", 100_001, "사유", "admin-ref"));
+        assertThat(tooHigh.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        assertThat(brand.getCommittedStoreCount()).isNull(); // 거절됐으니 바뀌지 않는다
+    }
+
+    @Test
+    void 존재하지_않는_브랜드의_약정_매장수는_설정할_수_없다() {
+        when(franchiseBrandRepository.findByBrandName("없는브랜드")).thenReturn(Optional.empty());
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.setCommittedStoreCount("없는브랜드", 50, "사유", "admin-ref"));
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+    }
 }

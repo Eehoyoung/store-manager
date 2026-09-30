@@ -9,6 +9,7 @@ import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
@@ -42,10 +43,12 @@ public class TrialConversionNoticeService {
     private final MailService mail;
     private final TransactionTemplate writes;
     private final String publicOrigin;
+    private final BrandPricingService brandPricingService;
 
     public TrialConversionNoticeService(SubscriptionRepository subscriptions, StoreRepository stores,
             AppUserRepository users, AuditLogRepository auditLogs, MailService mail,
-            PlatformTransactionManager tx, @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin) {
+            PlatformTransactionManager tx, @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin,
+            BrandPricingService brandPricingService) {
         this.subscriptions = subscriptions;
         this.stores = stores;
         this.users = users;
@@ -53,6 +56,7 @@ public class TrialConversionNoticeService {
         this.mail = mail;
         this.writes = new TransactionTemplate(tx);
         this.publicOrigin = publicOrigin;
+        this.brandPricingService = brandPricingService;
     }
 
     /** 고지 대상을 모두 보낸다. 보낸 건수를 돌려준다. 스케줄러와 테스트가 같은 길을 쓴다. */
@@ -87,12 +91,17 @@ public class TrialConversionNoticeService {
         return "[소담리뷰] 무료체험이 곧 끝나고 유료로 전환됩니다";
     }
 
-    /** 고지 필수 항목: 전환 예정일·금액·결제방법·해지 방법(약관 9.4조 3·4항). */
+    /**
+     * 고지 필수 항목: 전환 예정일·금액·결제방법·해지 방법(약관 9.4조 3·4항). 금액은 체험 종료일
+     * (=첫 결제예정일) 연월의 매장 단가다 — 가맹 브랜드 구간 단가제(V49)라 매장마다 다를 수 있다.
+     */
     String body(Store store, Subscription sub) {
         String day = sub.getTrialEndsAt().atZone(KST).format(DATE);
+        int total = PricingTier.total(brandPricingService.unitPriceFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST))));
         return store.getName() + " 매장의 30일 무료체험이 " + day + "에 끝납니다.\n\n"
                 + "- 유료 전환일(첫 결제일): " + day + "\n"
-                + "- 결제 금액: 월 33,000원(부가세 포함)\n"
+                + "- 결제 금액: 월 " + String.format("%,d", total) + "원(부가세 포함). "
+                + "가맹 브랜드 매장 수에 따라 매월 달라질 수 있습니다.\n"
                 + "- 결제 방법: 등록하신 카드로 매월 같은 날 자동결제(KG이니시스)\n"
                 + "- 해지 방법: 소담리뷰 결제 화면에서 '자동결제 해지'를 누르면 됩니다. "
                 + "체험 종료 전에 해지하면 결제되지 않습니다.\n\n"

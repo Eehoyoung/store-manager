@@ -151,6 +151,9 @@ export function BillingPage() {
         <p className="billing-page__price">
           월 {billing.amountKrw.toLocaleString("ko-KR")}원 <small>(VAT 포함)</small>
         </p>
+        {billing.brandPaidStoreCount != null ? (
+          <p className="field__hint">가맹 브랜드 유료 이용 {billing.brandPaidStoreCount}곳 기준 단가예요.</p>
+        ) : null}
         <table>
           <tbody>
             {billing.lastPaidAt ? (

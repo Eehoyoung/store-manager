@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../../api/admin";
-import type { AdminFranchiseListItem } from "../../api/types";
+import type { AdminFranchiseListItem, AdminFranchisePricing, MonthPrice } from "../../api/types";
 import { ApiError } from "../../api/client";
+import { describePriceBasis } from "../../lib/labels";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -16,6 +17,18 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString("ko-KR");
 }
 
+function MonthPriceCell({ p }: { p: MonthPrice }) {
+  return (
+    <td>
+      <div>
+        {p.unitPriceKrw.toLocaleString("ko-KR")}원{" "}
+        <Badge tone={p.confirmed ? "success" : "neutral"}>{p.confirmed ? "확정" : "예상"}</Badge>
+      </div>
+      <small className="field__hint">{describePriceBasis(p)}</small>
+    </td>
+  );
+}
+
 // 문서 26 §5.1·§5.2 — 가맹본부 목록·검색·생성. 시스템 콘솔의 첫 화면이다.
 export function AdminFranchisesPage() {
   const [q, setQ] = useState("");
@@ -24,6 +37,8 @@ export function AdminFranchisesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [revealCode, setRevealCode] = useState<{ brandName: string; joinCode: string } | null>(null);
   const [retryTick, setRetryTick] = useState(0);
+  const [pricing, setPricing] = useState<AdminFranchisePricing[] | null>(null);
+  const [pricingError, setPricingError] = useState<string | null>(null);
 
   useEffect(() => {
     adminApi
@@ -31,6 +46,13 @@ export function AdminFranchisesPage() {
       .then(setItems)
       .catch((e) => setError(e instanceof ApiError ? e.message : "가맹본부 목록을 불러오지 못했습니다."));
   }, [q, retryTick]);
+
+  useEffect(() => {
+    adminApi
+      .pricing()
+      .then(setPricing)
+      .catch((e) => setPricingError(e instanceof ApiError ? e.message : "브랜드별 단가를 불러오지 못했습니다."));
+  }, [retryTick]);
 
   return (
     <div className="admin-page">
@@ -91,6 +113,42 @@ export function AdminFranchisesPage() {
           </table>
         </div>
       ) : null}
+
+      <Card>
+        <h2>브랜드별 단가</h2>
+        <p className="field__hint">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 확정됩니다.</p>
+        {pricingError ? <EmptyState title="브랜드별 단가를 불러오지 못했습니다" description={pricingError} /> : null}
+        {pricing === null && !pricingError ? <Skeleton height={120} /> : null}
+        {pricing && pricing.length === 0 ? <EmptyState title="등록된 가맹본부가 없습니다" /> : null}
+        {pricing && pricing.length > 0 ? (
+          <div className="hq-table-wrap">
+            <table className="hq-store-table">
+              <thead>
+                <tr>
+                  <th>브랜드</th>
+                  <th>약정 매장</th>
+                  <th>현재 유료 이용 매장</th>
+                  <th>지난달</th>
+                  <th>이번 달</th>
+                  <th>다음 달</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pricing.map((p) => (
+                  <tr key={p.brandName}>
+                    <td><Link to={`/admin/franchises/${encodeURIComponent(p.brandName)}`}>{p.brandName}</Link></td>
+                    <td>{p.committedStoreCount != null ? `${p.committedStoreCount}곳` : "미설정"}</td>
+                    <td>{p.paidStoreCount}곳</td>
+                    <MonthPriceCell p={p.lastMonth} />
+                    <MonthPriceCell p={p.thisMonth} />
+                    <MonthPriceCell p={p.nextMonth} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </Card>
 
       <CreateFranchiseModal
         open={createOpen}
