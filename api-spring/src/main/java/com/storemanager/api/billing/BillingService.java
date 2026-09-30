@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -60,9 +61,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class BillingService {
 
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    private static final BigDecimal PRICE_KRW = BigDecimal.valueOf(30000);
-    private static final BigDecimal VAT_KRW = BigDecimal.valueOf(3000);
-    private static final long AMOUNT_TOTAL = 33000L;
     private static final int TRIAL_DAYS = 30;
     private static final Duration LOCK = Duration.ofMinutes(2);
     /** 코드 문자열은 여기 상수로만 둔다 — AgreementService 는 다른 담당자 소유다. */
@@ -82,6 +80,7 @@ public class BillingService {
     private final ReplyDraftRepository replyDrafts;
     private final AuditLogRepository auditLogs;
     private final StoreServiceGate serviceGate;
+    private final BrandPricingService brandPricingService;
     /**
      * 무료체험 쿠폰번호(2026-09-28). 개별 전달하는 비공개 코드라 저장소에 적지 않고 env 로만 준다.
      * ★ 비어 있으면 어떤 코드도 받지 않는다(fail-closed). 코드가 곧 DataAPI·LLM 비용이다.
@@ -94,6 +93,7 @@ public class BillingService {
             AgreementService agreementService, EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             ReplyDraftRepository replyDrafts, AuditLogRepository auditLogs, StoreServiceGate serviceGate,
+            BrandPricingService brandPricingService,
             @Value("${app.promotion.code:}") String promotionCode,
             @Value("${app.promotion.limit:30}") int promotionLimit) {
         this.portOneClient = portOneClient;
@@ -107,6 +107,7 @@ public class BillingService {
         this.replyDrafts = replyDrafts;
         this.auditLogs = auditLogs;
         this.serviceGate = serviceGate;
+        this.brandPricingService = brandPricingService;
         this.promotionCode = promotionCode == null ? "" : promotionCode.trim().toUpperCase(java.util.Locale.ROOT);
         this.promotionLimit = promotionLimit;
     }
@@ -135,7 +136,7 @@ public class BillingService {
         }
         return subscriptions.save(Subscription.builder()
                 .storeId(store.getId())
-                .priceKrw(PRICE_KRW)
+                .priceKrw(BigDecimal.valueOf(PricingTier.DEFAULT_UNIT_PRICE))
                 .status("TRIAL")
                 .promotionCode(code)
                 .build());
@@ -200,9 +201,11 @@ public class BillingService {
             boolean grace = "GRACE".equals(state);
             Instant periodStart = grace ? sub.getNextBillingAt() : now;
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
+            // ★ 청구 대상 월: 유예 중 재결제는 원래 결제예정일의 연월, 그 외(신규 청구)는 오늘의 연월.
+            int unit = brandPricingService.unitPriceFor(store, YearMonth.from(periodStart.atZone(KST)));
             String paymentId = "sub-" + store.getId() + "-" + randomToken();
             PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", req.billingKey(),
-                    customer(store, owner));
+                    customer(store, owner), unit, PricingTier.vat(unit));
             if (charge.outcome() == PortOneClient.Outcome.DECLINED) {
                 discardRejectedKey(oldKey, req.billingKey());
                 throw new ApiException(ErrorCode.PAYMENT_DECLINED, Map.of("reason", charge.reason()));
@@ -346,7 +349,10 @@ public class BillingService {
             Store store = stores.findById(storeId).orElseThrow();
             AppUser owner = users.findById(store.getOwnerId()).orElse(null);
             Map<String, Object> customer = owner == null ? Map.of("id", customerId(store)) : customer(store, owner);
-            PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", sub.getBillingKey(), customer);
+            // ★ 정기 갱신은 결제예정일(nextBillingAt)의 KST 연월 단가를 쓴다.
+            int unit = brandPricingService.unitPriceFor(store, YearMonth.from(sub.getNextBillingAt().atZone(KST)));
+            PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", sub.getBillingKey(), customer,
+                    unit, PricingTier.vat(unit));
             Instant periodStart = sub.getNextBillingAt();
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
             switch (charge.outcome()) {
@@ -371,16 +377,23 @@ public class BillingService {
 
     // ── 청구 공통 ────────────────────────────────────────────────────────
 
+    /**
+     * ★ 재시도 시 금액이 바뀌면 안 된다(같은 paymentId). {@code payments.findByPgTxId} 가 이미 있으면
+     * 새로 넘어온 unitKrw·vatKrw 를 무시하고 그 행에 이미 적힌 금액을 그대로 청구한다 — UNKNOWN
+     * 재조회 사이 브랜드 단가가 바뀌어도 첫 시도 때 확정한 금액으로 청구가 끝난다.
+     */
     private PortOneClient.Charge charge(Long subscriptionId, String paymentId, String orderName, String billingKey,
-            Map<String, Object> customer) {
+            Map<String, Object> customer, int unitKrw, int vatKrw) {
         writes.executeWithoutResult(status -> {
             if (payments.findByPgTxId(paymentId).isPresent()) {
                 return;
             }
             payments.save(Payment.builder().subscriptionId(subscriptionId).idempotencyKey("portone:" + paymentId)
-                    .pgTxId(paymentId).amountKrw(PRICE_KRW).vatKrw(VAT_KRW).method("PORTONE_CARD").build());
+                    .pgTxId(paymentId).amountKrw(BigDecimal.valueOf(unitKrw)).vatKrw(BigDecimal.valueOf(vatKrw))
+                    .method("PORTONE_CARD").build());
         });
-        PortOneClient.Charge charge = portOneClient.pay(paymentId, billingKey, orderName, AMOUNT_TOTAL, customer);
+        long total = payments.findByPgTxId(paymentId).orElseThrow().totalKrw().longValue();
+        PortOneClient.Charge charge = portOneClient.pay(paymentId, billingKey, orderName, total, customer);
         if (charge.outcome() != PortOneClient.Outcome.UNKNOWN) {
             writes.executeWithoutResult(status -> {
                 Payment p = payments.findByPgTxId(paymentId).orElseThrow();
@@ -447,7 +460,8 @@ public class BillingService {
         Integer got = writes.execute(status -> {
             if (subscriptions.findByStoreIdAndStatusNot(storeId, "CANCELED").isEmpty()) {
                 // 구독 행이 없으면 UNPAID 와 같다. 잠금을 걸 행이 있어야 하므로 먼저 만든다.
-                subscriptions.saveAndFlush(Subscription.builder().storeId(storeId).priceKrw(PRICE_KRW).build());
+                subscriptions.saveAndFlush(Subscription.builder().storeId(storeId)
+                        .priceKrw(BigDecimal.valueOf(PricingTier.DEFAULT_UNIT_PRICE)).build());
             }
             return subscriptions.lockBilling(storeId, now, now.plus(LOCK));
         });
@@ -467,7 +481,17 @@ public class BillingService {
         Optional<Subscription> subOpt = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED");
         String state = subOpt.map(s -> s.serviceStateAt(now)).orElse("UNPAID");
         boolean trialPending = subOpt.map(BillingService::isTrialPending).orElse(false);
-        long chargeNow = trialPending || "TRIAL".equals(state) || "ACTIVE".equals(state) ? 0L : AMOUNT_TOTAL;
+        // ★ 이번 결제 대상 월 — checkout()·renew() 와 같은 기준이다. TRIAL·ACTIVE·GRACE 는 결제예정일의 연월,
+        //   그 외(UNPAID·RESTRICTED — 지금 청구하면 오늘부터 새 주기)는 오늘의 연월.
+        boolean scheduled = "TRIAL".equals(state) || "ACTIVE".equals(state) || "GRACE".equals(state);
+        YearMonth chargeMonth = scheduled && subOpt.get().getNextBillingAt() != null
+                ? YearMonth.from(subOpt.get().getNextBillingAt().atZone(KST))
+                : YearMonth.from(now.atZone(KST));
+        int unit = brandPricingService.unitPriceFor(store, chargeMonth);
+        long total = PricingTier.total(unit);
+        long chargeNow = trialPending || "TRIAL".equals(state) || "ACTIVE".equals(state) ? 0L : total;
+        Integer brandPaidStoreCount = store.getBrandName() == null ? null
+                : brandPricingService.paidStoreCount(store.getBrandName());
         List<PaymentItem> items = subOpt.map(s -> payments
                         .findBySubscriptionIdOrderByCreatedAtDesc(s.getId(), PageRequest.of(0, 12))
                         .getContent().stream().map(BillingService::toItem).toList())
@@ -486,7 +510,8 @@ public class BillingService {
                 subOpt.map(s -> s.getBillingKey() != null).orElse(false),
                 subOpt.map(Subscription::isAutoRenew).orElse(false),
                 subOpt.map(Subscription::getRenewalFailures).orElse(0),
-                AMOUNT_TOTAL, chargeNow, AgreementService.CURRENT_VERSION, items, heldReplies(store.getId()).size());
+                total, chargeNow, AgreementService.CURRENT_VERSION, items, heldReplies(store.getId()).size(),
+                unit, brandPaidStoreCount);
     }
 
     private static PaymentItem toItem(Payment p) {

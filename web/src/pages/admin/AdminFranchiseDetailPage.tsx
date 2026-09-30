@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { adminApi } from "../../api/admin";
-import type { AdminAuditLogRow, AdminFranchiseDetail, AdminFranchiseMember } from "../../api/types";
+import type { AdminAuditLogRow, AdminFranchiseDetail, AdminFranchiseMember, AdminFranchisePricing } from "../../api/types";
 import { ApiError } from "../../api/client";
+import { describePriceBasis } from "../../lib/labels";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -17,12 +18,29 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString("ko-KR");
 }
 
+// 표시용 미리보기 상수 — 실제 단가는 서버(다음 달 확정은 매월 25일 기준)가 계산한다.
+const TIER_TABLE: { min: number; max: number | null; priceKrw: number }[] = [
+  { min: 1, max: 49, priceKrw: 30000 },
+  { min: 50, max: 99, priceKrw: 29000 },
+  { min: 100, max: 199, priceKrw: 27000 },
+  { min: 200, max: 299, priceKrw: 26000 },
+  { min: 300, max: 399, priceKrw: 25000 },
+  { min: 400, max: 499, priceKrw: 24000 },
+  { min: 500, max: null, priceKrw: 23000 },
+];
+
+function previewTierPrice(storeCount: number): number {
+  const tier = TIER_TABLE.find((t) => storeCount >= t.min && (t.max == null || storeCount <= t.max));
+  return (tier ?? TIER_TABLE[0]).priceKrw;
+}
+
 type ReasonAction =
   | { type: "franchiseStatus"; next: "ACTIVE" | "SUSPENDED" }
   | { type: "joinCodeStatus"; next: boolean }
   | { type: "joinCodeRotate" }
   | { type: "memberStatus"; member: AdminFranchiseMember; next: "ACTIVE" | "REVOKED" }
-  | { type: "memberRevokeSessions"; member: AdminFranchiseMember };
+  | { type: "memberRevokeSessions"; member: AdminFranchiseMember }
+  | { type: "committedStoreCount"; value: number | null };
 
 // 문서 26 §5.2~§5.4 — 본부 상세: 상태·가맹코드·담당자·승인 매장·감사기록. 모든 변경에 사유를 받는다.
 export function AdminFranchiseDetailPage() {
@@ -37,10 +55,18 @@ export function AdminFranchiseDetailPage() {
   const [editMember, setEditMember] = useState<AdminFranchiseMember | null>(null);
   const [revealCode, setRevealCode] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
+  const [pricing, setPricing] = useState<AdminFranchisePricing | null>(null);
+  const [committedInput, setCommittedInput] = useState("");
 
   const load = () =>
-    Promise.all([adminApi.franchiseDetail(brand), adminApi.auditLogs(brand)])
-      .then(([d, l]) => { setDetail(d); setLogs(l); })
+    Promise.all([adminApi.franchiseDetail(brand), adminApi.auditLogs(brand), adminApi.pricing()])
+      .then(([d, l, p]) => {
+        setDetail(d);
+        setLogs(l);
+        const mine = p.find((row) => row.brandName === brand) ?? null;
+        setPricing(mine);
+        setCommittedInput(mine?.committedStoreCount != null ? String(mine.committedStoreCount) : "");
+      })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
         else setError(e instanceof ApiError ? e.message : "본부 정보를 불러오지 못했습니다.");
@@ -78,6 +104,10 @@ export function AdminFranchiseDetailPage() {
       case "memberRevokeSessions":
         await adminApi.revokeMemberSessions(brand, reasonAction.member.memberId, reason);
         setDone(`${reasonAction.member.name} 담당자의 로그인 세션을 모두 종료했습니다.`);
+        break;
+      case "committedStoreCount":
+        await adminApi.setCommittedStoreCount(brand, reasonAction.value, reason);
+        setDone(reasonAction.value != null ? `약정 매장 수를 ${reasonAction.value}곳으로 저장했습니다.` : "약정 매장 수를 해제했습니다.");
         break;
     }
     setReasonAction(null);
@@ -118,6 +148,20 @@ export function AdminFranchiseDetailPage() {
               )}
             </div>
           </div>
+
+          <Card>
+            <h2>가맹 브랜드 구간 단가</h2>
+            {pricing ? (
+              <PricingSection
+                pricing={pricing}
+                committedInput={committedInput}
+                onChangeCommittedInput={setCommittedInput}
+                onSave={(value) => setReasonAction({ type: "committedStoreCount", value })}
+              />
+            ) : (
+              <Skeleton height={80} />
+            )}
+          </Card>
 
           <Card>
             <h2>가맹코드</h2>
@@ -253,6 +297,7 @@ function reasonDanger(action: ReasonAction | null): boolean {
     case "joinCodeRotate": return false;
     case "memberStatus": return action.next === "REVOKED";
     case "memberRevokeSessions": return true;
+    case "committedStoreCount": return false;
   }
 }
 
@@ -264,6 +309,7 @@ function reasonTitle(action: ReasonAction | null): string {
     case "joinCodeRotate": return "가맹코드 교체";
     case "memberStatus": return action.next === "REVOKED" ? "담당자 중지" : "담당자 재활성화";
     case "memberRevokeSessions": return "담당자 세션 강제 종료";
+    case "committedStoreCount": return action.value != null ? "약정 매장 수 저장" : "약정 매장 수 해제";
   }
 }
 
@@ -284,7 +330,68 @@ function reasonDescription(action: ReasonAction | null): string {
         : `${action.member.name} 담당자를 다시 로그인할 수 있게 합니다.`;
     case "memberRevokeSessions":
       return `${action.member.name} 담당자의 모든 로그인 세션을 즉시 종료합니다. 다음 요청부터 거절됩니다.`;
+    case "committedStoreCount":
+      return action.value != null
+        ? `약정 매장 수를 ${action.value}곳으로 저장합니다. 다음 달 단가 계산에 반영됩니다.`
+        : "약정 매장 수를 해제합니다. 다음 달부터 실제 유료 이용 매장 수로 단가가 계산됩니다.";
   }
+}
+
+function PricingSection({
+  pricing,
+  committedInput,
+  onChangeCommittedInput,
+  onSave,
+}: {
+  pricing: AdminFranchisePricing;
+  committedInput: string;
+  onChangeCommittedInput: (v: string) => void;
+  onSave: (value: number | null) => void;
+}) {
+  const trimmed = committedInput.trim();
+  const parsed = trimmed === "" ? null : Number(trimmed);
+  const valid = trimmed === "" || (Number.isInteger(parsed) && (parsed as number) > 0);
+  const previewCount = parsed ?? pricing.paidStoreCount;
+
+  return (
+    <>
+      <table>
+        <tbody>
+          <tr><th>현재 유료 이용 매장</th><td>{pricing.paidStoreCount}곳</td></tr>
+          <tr>
+            <th>이번 달 단가</th>
+            <td>
+              {pricing.thisMonth.unitPriceKrw.toLocaleString("ko-KR")}원{" "}
+              <Badge tone={pricing.thisMonth.confirmed ? "success" : "neutral"}>{pricing.thisMonth.confirmed ? "확정" : "예상"}</Badge>{" "}
+              <small className="field__hint">{describePriceBasis(pricing.thisMonth)}</small>
+            </td>
+          </tr>
+          <tr>
+            <th>다음 달 단가</th>
+            <td>
+              {pricing.nextMonth.unitPriceKrw.toLocaleString("ko-KR")}원{" "}
+              <Badge tone={pricing.nextMonth.confirmed ? "success" : "neutral"}>{pricing.nextMonth.confirmed ? "확정" : "예상"}</Badge>{" "}
+              <small className="field__hint">{describePriceBasis(pricing.nextMonth)}</small>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <Field
+        label="약정 매장 수 (선택)"
+        type="number"
+        min={1}
+        value={committedInput}
+        onChange={(e) => onChangeCommittedInput(e.target.value)}
+        hint="비우면 약정을 해제하고, 실제 유료 이용 매장 수로 다음 달 단가를 계산합니다."
+        error={!valid ? "1 이상의 정수를 입력해 주세요." : undefined}
+      />
+      <p className="field__hint">
+        미리보기: {previewCount}곳 기준 적용 단가{" "}
+        <strong>{previewTierPrice(previewCount).toLocaleString("ko-KR")}원(VAT 별도)</strong> — 표시용이며 실제 확정은 매월 25일 기준입니다.
+      </p>
+      <Button type="button" small disabled={!valid} onClick={() => onSave(parsed)}>저장</Button>
+    </>
+  );
 }
 
 function AddMemberModal({ open, onClose, onAdded, brand }: { open: boolean; onClose: () => void; onAdded: () => Promise<void>; brand: string }) {

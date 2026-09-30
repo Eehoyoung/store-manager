@@ -2,6 +2,8 @@
 // 출처: docs/12_프롬프트_및_평가명세.md §4 가드레일 명세(G1~G9), risk_reasons 목록.
 // 목록에 없는 새 코드가 오면(=업체·정책 변경) 원본 코드를 그대로 보여준다 — "알 수 없는 오류"로 뭉개지 않는다.
 
+import type { MonthPrice } from "../api/types";
+
 const RISK_REASON_LABELS: Record<string, string> = {
   FOOD_POISONING: "식중독 의심",
   FOREIGN_OBJECT: "이물질 발견",
@@ -85,4 +87,20 @@ const AGREEMENT_LABELS: Record<string, string> = {
 
 export function describeAgreement(code: string): string {
   return AGREEMENT_LABELS[code] ?? code;
+}
+
+// 가맹 브랜드 구간 단가 — MonthPrice.basis 를 사장님·본부 화면에 보여줄 부가 설명으로.
+// SNAPSHOT(매월 25일 확정) 외 값은 아직 확정 전이라는 뜻을 함께 담는다.
+export function describePriceBasis(p: MonthPrice): string {
+  switch (p.basis) {
+    case "SNAPSHOT":
+      return `${p.basisStoreCount ?? 0}곳 기준`;
+    case "COMMITTED":
+      return `약정 ${p.basisStoreCount ?? 0}곳 기준`;
+    case "LIVE_ESTIMATE":
+      return `현재 ${p.basisStoreCount ?? 0}곳 기준 예상`;
+    case "DEFAULT":
+    default:
+      return "기본 단가";
+  }
 }

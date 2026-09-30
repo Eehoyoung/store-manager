@@ -38,11 +38,22 @@ public class FranchiseBrand {
     @Column(name = "created_ref")
     private String createdRef;
 
+    /**
+     * 계약상 약정 매장 수(V49, 2026-09-30 가맹 브랜드 구간 단가). NULL이면 약정이 없다는 뜻이고
+     * {@code BrandPricingService} 가 기본 단가(30,000원)를 쓴다.
+     */
+    @Column(name = "committed_store_count")
+    private Integer committedStoreCount;
+
     public boolean isActive() {
         return "ACTIVE".equals(status);
     }
 
     public void changeStatus(String status) {
         this.status = status;
+    }
+
+    public void changeCommittedStoreCount(Integer committedStoreCount) {
+        this.committedStoreCount = committedStoreCount;
     }
 }

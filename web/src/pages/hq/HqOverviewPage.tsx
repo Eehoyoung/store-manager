@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { hqApi } from "../../api/hq";
-import type { HqOverviewResponse } from "../../api/types";
+import type { HqBrandPricing, HqOverviewResponse } from "../../api/types";
 import { ApiError } from "../../api/client";
+import { describePriceBasis } from "../../lib/labels";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -12,6 +13,17 @@ import { HqNav } from "./HqNav";
 import { HqAccessDenied } from "./HqAccessDenied";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+// 안내용 구간표 — 실제 단가는 서버가 계산한다.
+const TIER_TABLE = [
+  { range: "1~49곳", priceKrw: 30000 },
+  { range: "50~99곳", priceKrw: 29000 },
+  { range: "100~199곳", priceKrw: 27000 },
+  { range: "200~299곳", priceKrw: 26000 },
+  { range: "300~399곳", priceKrw: 25000 },
+  { range: "400~499곳", priceKrw: 24000 },
+  { range: "500곳 이상", priceKrw: 23000 },
+];
 
 function fmt(iso: string | null): string {
   if (!iso) return "데이터 없음";
@@ -25,6 +37,7 @@ export function HqOverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
+  const [pricing, setPricing] = useState<HqBrandPricing | null>(null);
 
   useEffect(() => {
     setData(null);
@@ -37,6 +50,7 @@ export function HqOverviewPage() {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
         else setError(e instanceof ApiError ? e.message : "본부 홈 정보를 불러오지 못했습니다.");
       });
+    hqApi.pricing(brand).then(setPricing).catch(() => setPricing(null));
   }, [brand, retryTick]);
 
   if (notFound) return <HqAccessDenied />;
@@ -65,12 +79,41 @@ export function HqOverviewPage() {
         />
       ) : null}
 
-      {data ? <OverviewContent brand={brand} data={data} /> : null}
+      {data ? <OverviewContent brand={brand} data={data} pricing={pricing} /> : null}
     </div>
   );
 }
 
-function OverviewContent({ brand, data }: { brand: string; data: HqOverviewResponse }) {
+function PricingCard({ pricing }: { pricing: HqBrandPricing }) {
+  return (
+    <Card>
+      <p className="hq-kpi__value">{pricing.paidStoreCount}곳</p>
+      <p className="hq-kpi__label">유료 이용 매장</p>
+      <p>
+        이번 달 매장당 <strong>{pricing.thisMonth.unitPriceKrw.toLocaleString("ko-KR")}원</strong>(VAT 별도) ·{" "}
+        {describePriceBasis(pricing.thisMonth)}
+      </p>
+      <p>
+        다음 달 <strong>{pricing.nextMonth.unitPriceKrw.toLocaleString("ko-KR")}원</strong>{" "}
+        <Badge tone={pricing.nextMonth.confirmed ? "success" : "neutral"}>{pricing.nextMonth.confirmed ? "확정" : "예상"}</Badge>
+      </p>
+      <p className="hq-page__note">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 정해집니다.</p>
+      <details>
+        <summary>구간표 보기 ▼</summary>
+        <table className="dashboard-table">
+          <thead><tr><th>매장 수</th><th>매장당 단가(VAT 별도)</th></tr></thead>
+          <tbody>
+            {TIER_TABLE.map((t) => (
+              <tr key={t.range}><td>{t.range}</td><td>{t.priceKrw.toLocaleString("ko-KR")}원</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </Card>
+  );
+}
+
+function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOverviewResponse; pricing: HqBrandPricing | null }) {
   const encoded = encodeURIComponent(brand);
   const coverageLow = data.analysisCoverageRate < 0.95;
 
@@ -84,6 +127,8 @@ function OverviewContent({ brand, data }: { brand: string; data: HqOverviewRespo
           ⚠ 분석 커버리지 {pct(data.analysisCoverageRate)} — 미분석 리뷰가 있어 아래 수치가 실제보다 낮게 보일 수 있습니다.
         </div>
       ) : null}
+
+      {pricing ? <PricingCard pricing={pricing} /> : null}
 
       <div className="hq-kpis">
         <Card><p className="hq-kpi__value">{data.storeCount}</p><p className="hq-kpi__label">관리 매장</p></Card>

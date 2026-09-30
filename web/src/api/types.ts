@@ -420,6 +420,37 @@ export interface AdminFranchiseListItem {
   createdAt: string;
 }
 
+// ── 가맹 브랜드 구간 단가(차등 가격제) ────────────────────────────────────
+// 매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 확정된다.
+export type PriceBasis = "SNAPSHOT" | "COMMITTED" | "DEFAULT" | "LIVE_ESTIMATE";
+
+export interface MonthPrice {
+  month: string; // YYYY-MM
+  unitPriceKrw: number;
+  totalKrw: number;
+  basisStoreCount: number | null;
+  basis: PriceBasis;
+  confirmed: boolean;
+}
+
+export interface AdminFranchisePricing {
+  brandName: string;
+  status: FranchiseStatus;
+  committedStoreCount: number | null;
+  paidStoreCount: number;
+  lastMonth: MonthPrice;
+  thisMonth: MonthPrice;
+  nextMonth: MonthPrice;
+}
+
+export interface HqBrandPricing {
+  brandName: string;
+  paidStoreCount: number;
+  lastMonth: MonthPrice;
+  thisMonth: MonthPrice;
+  nextMonth: MonthPrice;
+}
+
 export interface AdminFranchiseMember {
   memberId: string;
   name: string;

@@ -18,21 +18,40 @@ public class BillingScheduler {
 
     private final BillingService billingService;
     private final TrialConversionNoticeService trialNotices;
+    private final BrandPricingService brandPricingService;
 
-    public BillingScheduler(BillingService billingService, TrialConversionNoticeService trialNotices) {
+    public BillingScheduler(BillingService billingService, TrialConversionNoticeService trialNotices,
+            BrandPricingService brandPricingService) {
         this.billingService = billingService;
         this.trialNotices = trialNotices;
+        this.brandPricingService = brandPricingService;
     }
 
-    /** 매일 09:00(Asia/Seoul). 체험 종료 7일 전에 들어온 구독에 유료 전환 사전고지를 보낸다. */
+    /**
+     * 매일 09:00(Asia/Seoul). 체험 종료 7일 전에 들어온 구독에 유료 전환 사전고지를 보내고,
+     * 가맹 브랜드 단가 변경 안내 중 실패분을 재시도한다(V49 — 매월 25일 발송분이 대부분이지만
+     * 매일 돌려 발송 실패를 방치하지 않는다).
+     */
     @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
     public void trialConversionNotice() {
-        trialNotices.sendDue(java.time.Instant.now());
+        java.time.Instant now = java.time.Instant.now();
+        trialNotices.sendDue(now);
+        brandPricingService.sendPriceNotices(now);
     }
 
     /** 매일 00:10(Asia/Seoul). 오늘(KST)이 결제예정일인 매장을 모두 청구한다. */
     @Scheduled(cron = "0 10 0 * * *", zone = "Asia/Seoul")
     public void renew() {
         billingService.renewAllDue();
+    }
+
+    /**
+     * 매일 00:05(Asia/Seoul), 25일부터 월말까지. 다음 달 가맹 브랜드 단가를 스냅샷으로 확정한다(V49).
+     * ★ 25일 하루만 돌리면 그날 서버가 내려가 있을 때 다음 달 전체가 약정·기본 단가로 떨어진다.
+     * 스냅샷은 멱등(이미 있으면 건너뜀)이라 26일 이후 실행은 빠진 브랜드만 채운다.
+     */
+    @Scheduled(cron = "0 5 0 25-31 * *", zone = "Asia/Seoul")
+    public void brandPricingSnapshot() {
+        brandPricingService.snapshotNextMonth(java.time.Instant.now());
     }
 }

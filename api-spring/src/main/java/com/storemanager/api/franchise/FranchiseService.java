@@ -292,6 +292,21 @@ public class FranchiseService {
                 reason + " (status=" + status + ")");
     }
 
+    /**
+     * 계약상 약정 매장 수 설정(V49, 가맹 브랜드 구간 단가). null 이면 약정 해제 — 기본 단가로 돌아간다.
+     * 실제 청구 금액 계산은 {@code BrandPricingService} 가 한다, 여기서는 값만 검증·저장한다.
+     */
+    @Transactional
+    public void setCommittedStoreCount(String brandName, Integer committedStoreCount, String reason, String adminRef) {
+        FranchiseBrand brand = requireBrand(brandName);
+        if (committedStoreCount != null && (committedStoreCount < 1 || committedStoreCount > 100_000)) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED);
+        }
+        brand.changeCommittedStoreCount(committedStoreCount);
+        auditFranchise("FRANCHISE_COMMITTED_STORE_COUNT_CHANGED", brandName, "FRANCHISE_BRAND", null, adminRef,
+                (reason == null ? "" : reason) + " (committedStoreCount=" + committedStoreCount + ")");
+    }
+
     // ── 시스템 콘솔: 담당자 ─────────────────────────────────────────────────
 
     @Transactional

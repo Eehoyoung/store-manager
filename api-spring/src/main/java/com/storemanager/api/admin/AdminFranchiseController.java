@@ -1,5 +1,7 @@
 package com.storemanager.api.admin;
 
+import com.storemanager.api.billing.BrandPricingService;
+import com.storemanager.api.billing.PricingDtos.AdminBrandPricingRow;
 import com.storemanager.api.franchise.FranchiseDtos.AddMemberRequest;
 import com.storemanager.api.franchise.FranchiseDtos.AddMemberResponse;
 import com.storemanager.api.franchise.FranchiseDtos.AffiliationItem;
@@ -32,14 +34,30 @@ import org.springframework.web.bind.annotation.*;
 public class AdminFranchiseController {
 
     private final FranchiseService franchiseService;
+    private final BrandPricingService brandPricingService;
 
-    public AdminFranchiseController(FranchiseService franchiseService) {
+    public AdminFranchiseController(FranchiseService franchiseService, BrandPricingService brandPricingService) {
         this.franchiseService = franchiseService;
+        this.brandPricingService = brandPricingService;
     }
 
     @GetMapping
     public List<FranchiseListItem> list(@RequestParam(required = false) String q) {
         return franchiseService.listFranchises(q);
+    }
+
+    /** 가맹 브랜드 구간 단가(V49) — 전체 브랜드의 지난달·이번달·다음달 단가. */
+    @GetMapping("/pricing")
+    public List<AdminBrandPricingRow> pricing() {
+        return brandPricingService.summaryAll(java.time.Instant.now());
+    }
+
+    /** 계약상 약정 매장 수 설정. null 이면 약정 해제(기본 단가로 돌아간다). */
+    @PatchMapping("/{brand}/committed-store-count")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setCommittedStoreCount(@PathVariable String brand,
+            @Valid @RequestBody CommittedStoreCountRequest req) {
+        franchiseService.setCommittedStoreCount(brand, req.committedStoreCount(), req.reason(), CurrentAdmin.ref());
     }
 
     @PostMapping
@@ -104,5 +122,9 @@ public class AdminFranchiseController {
     }
 
     public record JoinCodeStatusRequest(boolean active, @jakarta.validation.constraints.NotBlank String reason) {
+    }
+
+    /** committedStoreCount 가 null 이면 약정 해제. reason 은 선택(감사로그 참고용). */
+    public record CommittedStoreCountRequest(Integer committedStoreCount, String reason) {
     }
 }

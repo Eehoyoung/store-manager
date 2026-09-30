@@ -4,6 +4,7 @@ import type {
   AdminAuditLogRow,
   AdminFranchiseDetail,
   AdminFranchiseListItem,
+  AdminFranchisePricing,
   AffiliationStatus,
   FranchiseStatus,
   HqMemberStatus,
@@ -88,6 +89,14 @@ export const adminApi = {
     apiRequest<void>(`/admin/franchises/${enc(brand)}/join-code/status`, { method: "PATCH", body: { active, reason } }),
   auditLogs: (brand: string, limit = 100) =>
     apiRequest<AdminAuditLogRow[]>(`/admin/franchises/${enc(brand)}/audit-logs?limit=${limit}`),
+
+  // ── 가맹 브랜드 구간 단가(차등 가격제) ───────────────────────────────
+  pricing: () => apiRequest<AdminFranchisePricing[]>("/admin/franchises/pricing"),
+  setCommittedStoreCount: (brand: string, committedStoreCount: number | null, reason?: string) =>
+    apiRequest<AdminFranchisePricing>(`/admin/franchises/${enc(brand)}/committed-store-count`, {
+      method: "PATCH",
+      body: { committedStoreCount, reason },
+    }),
 
   // ── 매장 서비스 상태 ────────────────────────────────────────────────
   stores: () => apiRequest<StoreServiceRow[]>("/admin/stores"),
