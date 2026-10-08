@@ -244,7 +244,8 @@ def _generate_draft(
             #   (persona_seed 는 매장당 고정값이다 — 실기동 2026-09-20).
             content = prompts.render_t0_template(
                 persona.customer_title, seed, persona.use_emoji, persona.signature,
-                req.review.platform, req.review.body
+                req.review.platform, req.review.body, rating=req.review.rating, category=category,
+                review_id=req.review_id,
             )
             content = content[: guardrails.MAX_LENGTH]
             return content, "rule-template", "T0", 0, 0, 0.0, list(dict.fromkeys(req.recent_replies))
@@ -258,6 +259,10 @@ def _generate_draft(
             req.store_id, req.review.body, k=4, category=category, issue_tags=issue_tags,
             slot_wanted=slot, platform=req.review.platform,
         )
+        # 해당 응대 형식을 직접 정한 매장은 그 형식과 GENERAL만 참고한다.
+        # 미검수 수집 답글과 다른 슬롯이 섞여 사장님이 고른 말투를 덮지 않게 한다.
+        if any(getattr(e, "sample_type", None) == slot for e in examples):
+            examples = [e for e in examples if getattr(e, "sample_type", None) in (slot, "GENERAL")]
         # ★ 슬롯 유형을 같이 넘긴다. 리뷰가 없는 형식 예시는 유형이 곧 맥락이다 —
         #   없으면 감사 형식이 불만 리뷰의 본보기로 읽힌다.
         pairs = [(e.review_text, e.reply_text, getattr(e, "sample_type", None)) for e in examples]

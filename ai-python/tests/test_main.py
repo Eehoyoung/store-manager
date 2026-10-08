@@ -51,6 +51,67 @@ def test_no_body_is_noise():
     assert res.json()["analysis"]["category"] == "NOISE"
 
 
+@pytest.mark.parametrize("rating", [0, 1, 2])
+def test_저평점_빈본문은_LLM없이_불만원인을_추정하지_않고_사과한다(monkeypatch, rating):
+    def denied(*args, **kwargs):
+        raise AssertionError("무본문 T0는 모델이나 RAG를 호출하지 않는다")
+    class Provider:
+        client = None
+        complete = denied
+    monkeypatch.setattr(main.llm, "get_provider", lambda: Provider())
+    monkeypatch.setattr(main.rag, "fetch_examples", denied)
+    result = client.post("/internal/ai/analyze-and-draft", json=_payload(rating=rating, body=""),
+                         headers=HEADERS).json()
+    assert result["analysis"]["category"] == "NOISE"
+    assert result["analysis"]["issueTags"] == []
+    assert result["analysis"]["riskReasons"] == []
+    draft = result["drafts"][0]
+    assert draft["tier"] == "T0" and draft["model"] == "rule-template"
+    assert "죄송" in draft["content"]
+    assert all(word not in draft["content"] for word in ("감사", "맛있", "반가운", "돌솥", "😊"))
+    assert result["blocked"] is False
+
+
+@pytest.mark.parametrize("category,rating,matching_slot", [("PRAISE", 5, "THANKS"), ("COMPLAINT", 1, "APOLOGY")])
+def test_사장님이_지정한_응대형식이_있으면_미검수수집답글과_다른슬롯을_섞지않는다(monkeypatch, category, rating, matching_slot):
+    examples = [main.rag.StyleExample("", "검수한 맞춤 형식", 5, True, matching_slot),
+                main.rag.StyleExample("", "검수한 일반 형식", 5, True, "GENERAL"),
+                main.rag.StyleExample("", "다른 응대 슬롯 형식", 5, True, "APOLOGY" if matching_slot == "THANKS" else "THANKS"),
+                main.rag.StyleExample("", "미검수 수집 답글", 5, True, None)]
+    calls = []
+    class CaptureProvider:
+        def complete(self, system, user, model, max_tokens):
+            calls.append(system)
+            return LlmResult("검증용 답글", model, 0, 0, 0.0)
+    monkeypatch.setattr(main.rag, "fetch_examples", lambda *args, **kwargs: examples)
+    req = main.AnalyzeAndDraftRequest.model_validate(_payload(rating))
+    result = main._generate_draft(CaptureProvider(), "T1", category, req, 0)
+    assert len(calls) == 1
+    assert "검수한 맞춤 형식" in calls[0] and "검수한 일반 형식" in calls[0]
+    assert "미검수 수집 답글" not in calls[0] and "다른 응대 슬롯 형식" not in calls[0]
+    assert result[-1] == ["검수한 맞춤 형식", "검수한 일반 형식"]
+
+
+@pytest.mark.parametrize("with_other_manual", [False, True])
+def test_원하는_응대형식이_없으면_수집답글_폴백과_기본형식삽입을_유지한다(monkeypatch, with_other_manual):
+    examples = [main.rag.StyleExample("", "기존 수집 답글", 5, True, None)]
+    if with_other_manual:
+        examples += [main.rag.StyleExample("", "다른 슬롯 형식", 5, True, "APOLOGY"),
+                     main.rag.StyleExample("", "일반 형식", 5, True, "GENERAL")]
+    calls = []
+    class CaptureProvider:
+        def complete(self, system, user, model, max_tokens):
+            calls.append(system)
+            return LlmResult("검증용 답글", model, 0, 0, 0.0)
+    monkeypatch.setattr(main.rag, "fetch_examples", lambda *args, **kwargs: examples)
+    req = main.AnalyzeAndDraftRequest.model_validate(_payload(5))
+    main._generate_draft(CaptureProvider(), "T1", "PRAISE", req, 0)
+    assert "기존 수집 답글" in calls[0]
+    assert prompts.default_style_sample("THANKS", req.persona.persona_seed) in calls[0]
+    if with_other_manual:
+        assert "다른 슬롯 형식" in calls[0] and "일반 형식" in calls[0]
+
+
 def test_rating_3_is_improvement():
     assert client.post("/internal/ai/analyze-and-draft", json=_payload(rating=3), headers=HEADERS).json()["analysis"]["category"] == "IMPROVEMENT"
 
