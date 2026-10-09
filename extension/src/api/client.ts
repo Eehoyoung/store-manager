@@ -1,5 +1,5 @@
 /**
- * Review Pilot API 클라이언트.
+ * 소담리뷰 API 클라이언트.
  *
  * ★ 요청 payload 타입에 리뷰 원문 필드를 두지 않는다 — 보낼 수 있는 것은
  *   마스킹된 body 뿐이다. 서버에는 2차 마스킹(PersonalIdentifierMasker)이
