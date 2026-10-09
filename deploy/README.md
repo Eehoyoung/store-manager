@@ -68,8 +68,20 @@ sudo chmod 600 /etc/storemanager/certs/origin.key
 > ★ 잠그지 않으면 서버 IP 로 직접 들어와 CF 를 우회하고, 실제 IP 판정도 흔들린다.
 > ★ 실제 접속자 IP 는 `CF-Connecting-IP` 로만 판정한다(Caddyfile). 동의 증적(`AuthController.clientIp`)이 이 값을 쓴다.
 
-도메인·웹 CORS·알림톡 링크·DataAPI 운영계·공개 사업자 기본정보는 운영 Compose에 고정한다.
-개발 `.env`가 운영 배포 명령에 섞여도 localhost나 개발계로 되돌아가지 않게 하기 위해서다.
+도메인·웹 CORS·알림톡 링크·공개 사업자 기본정보는 운영 Compose에 고정한다.
+개발 `.env`가 운영 배포 명령에 섞여도 localhost로 되돌아가지 않게 하기 위해서다.
+
+**DataAPI 는 반대로 안전한 쪽이 기본값이다(2026-10-09).** 키가 없으면 개발계·등록 꺼짐으로
+떨어지고, 운영계와 등록은 서버 env 에 명시해야만 켜진다. 운영 전환 때 아래 두 줄을 넣는다.
+
+```
+DATAAPI_BASE_URL=https://api.mydatahub.co.kr
+DATAAPI_WRITE_ENABLED=true
+```
+
+> ★ 키를 빠뜨려도 실매장에 답글이 달리지 않는다. 대신 운영계 토큰으로 개발계를 부르게 돼
+> 인증 실패로 수집이 멈춘다 — 눈에 보이는 실패다. 전환 직후 반드시 확인한다:
+> `dc exec worker printenv DATAAPI_BASE_URL DATAAPI_WRITE_ENABLED`
 
 ### 1.3 비밀값
 
@@ -175,7 +187,8 @@ gunzip -c backups/storemanager-YYYYmmdd-HHMMSS.sql.gz \
 
 | 변수 | 기본 | 의미 |
 |------|:----:|------|
-| `DATAAPI_WRITE_ENABLED` | `false` | **댓글 등록. 되돌릴 수 없다**(수정 API 스펙 미수령) |
+| `DATAAPI_BASE_URL` | 개발계 | 운영계(`https://api.mydatahub.co.kr`)는 env 에 명시해야 켜진다 |
+| `DATAAPI_WRITE_ENABLED` | `false` | **댓글 등록. 되돌릴 수 없다**(수정 API 스펙 미수령). `true` 를 명시해야 켜진다 |
 | `DATAAPI_CALL_BUDGET` | `0` | 0=무제한. 테스트 토큰이면 잔여 횟수를 넣는다 |
 | `DRAFT_SCHEDULER_ENABLED` | `true` | 끄면 리뷰만 쌓이고 답글이 생성되지 않는다 (LLM 비용) |
 | `RETENTION_SCHEDULER_ENABLED` | `true` | **끄면 보유기간을 정해 두고 영구 보관하게 된다** |
