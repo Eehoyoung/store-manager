@@ -809,7 +809,7 @@
   font-variant-numeric: tabular-nums;
 }
 .dashboard-table td + td {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
 }
 .dashboard-metric-list {
   list-style: none;
@@ -1619,7 +1619,7 @@
   margin: 0;
 }
 .admin-request__mono {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: var(--font-size-small);
 }
 /* 결과 고지. 경고가 아니라 사실이므로 붉게 칠하지 않고, 무시하지 못하게 테두리만 준다. */

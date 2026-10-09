@@ -154,7 +154,7 @@
   width: 100%;
   min-height: var(--touch-target);
   padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-control);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
   font-size: var(--font-size-body);
@@ -162,7 +162,7 @@
   transition: border-color 0.12s ease;
 }
 .field__input:hover:not(:disabled) {
-  border-color: #adb8ad;
+  border-color: var(--color-text-subtle);
 }
 .field__input:focus {
   border-bottom-color: var(--color-primary);
@@ -277,7 +277,7 @@ textarea.field__input {
 
 /* ── Skeleton ───────────────────────────────────────────── */
 .skeleton {
-  background: linear-gradient(90deg, var(--color-neutral-bg) 25%, #f2f5f1 37%, var(--color-neutral-bg) 63%);
+  background: linear-gradient(90deg, var(--color-neutral-bg) 25%, #F5F7FA 37%, var(--color-neutral-bg) 63%);
   background-size: 400% 100%;
   border-radius: var(--radius-sm);
   animation: skeleton-shimmer 1.4s ease infinite;
