@@ -51,3 +51,32 @@ def test_master_key_must_be_32_bytes(monkeypatch):
     monkeypatch.setattr(credentials, "MASTER_KEY_B64", base64.b64encode(b"short").decode())
     with pytest.raises(RuntimeError, match="32바이트"):
         credentials.decrypt_envelope(b"x", b"y" * 13, b"z" * 12)
+
+
+def test_single_account_check_uses_same_conditions_as_dispatch(monkeypatch):
+    """is_account_serviceable 과 active_account_ids 가 같은 SQL 조건을 쓰는지 잠근다(과제 #24).
+    DB 없이 psycopg.connect 를 가로채 실행된 SQL 만 본다."""
+    import sys
+    import types
+
+    import credentials
+
+    seen = []
+
+    class Cur:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def execute(self, sql, params): seen.append((sql, params))
+        def fetchall(self): return [(7,)]
+
+    class Conn(Cur):
+        def cursor(self): return Cur()
+
+    monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=lambda url: Conn()))
+    monkeypatch.setattr(credentials, "DATABASE_URL", "postgresql://fake")
+
+    assert credentials.active_account_ids() == [7]
+    assert credentials.is_account_serviceable("7") is True
+    (dispatch_sql, _), (single_sql, params) = seen
+    assert single_sql.replace("AND pa.id = %s", "").strip() == dispatch_sql.replace("ORDER BY pa.id", "").strip()
+    assert "sub.service_until > now()" in single_sql and params == (7,)
