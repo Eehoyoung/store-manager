@@ -136,6 +136,7 @@ echo '*/5 * * * * root /opt/storemanager/deploy/auto-deploy.sh >> /var/log/store
 tail -f /var/log/storemanager-deploy.log     # 배포 기록
 ```
 
+- 막혔을 때 진단: `sudo bash /opt/storemanager/deploy/preflight.sh` — 읽기 전용. env 키 누락·DataAPI 개발계·등록 false 명시·cron·HEAD·git status·사업자 정보를 PASS/FAIL 로 낸다(비밀값은 출력하지 않는다). 테스트: `bash deploy/tests/preflight_test.sh`
 - 끄기: `sudo rm /etc/cron.d/storemanager-deploy`. 되돌리기는 `git revert` 후 master 에 병합 — 그것도 자동으로 나간다.
 - **env 변경은 자동으로 반영되지 않는다.** env 는 저장소 밖이다. 바꾸면 여전히 `dc up -d <서비스>` 를 친다.
 - 서버에서 저장소를 직접 고치면(`git status` 가 더러우면) fast-forward 가 실패해 멈춘다. 서버에서 코드를 고치지 말 것.
