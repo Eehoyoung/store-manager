@@ -9,7 +9,7 @@ echo '*/5 * * * * root /opt/storemanager/deploy/auto-deploy.sh' >"$T/cron"
 
 # env.example 의 모든 키를 비밀 값으로 채운 뒤, 케이스별로 DataAPI 두 줄만 바꾼다.
 base() { grep -oE '^[A-Z_][A-Z0-9_]*=' deploy/env.example | sed "s/=\$/=$SECRET/" | grep -vE '^DATAAPI_(BASE_URL|WRITE_ENABLED)='; }
-run() { ENV_FILE="$T/env" CRON_FILE="$T/cron" DEPLOY_LOG="$T/none" SKIP_NET=1 SKIP_GIT=1 bash deploy/preflight.sh; }
+run() { ENV_FILE="$T/env" CRON_FILE="$T/cron" DEPLOY_LOG="${LOG:-$T/none}" SKIP_NET=1 SKIP_GIT=1 bash deploy/preflight.sh; }
 
 ok=0; bad=0
 check() { # 이름 기대종료코드 출력에_있어야_할_문자열
@@ -47,6 +47,23 @@ check "쿠폰 빈 값 → 안내만(통과)" 0 "INFO  PROMOTION_CODE 가 비었�
 
 : >"$T/cron"; { base; echo DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr; echo DATAAPI_WRITE_ENABLED=false; } >"$T/env"
 check "cron 없음 → 실패" 1 "FAIL  auto-deploy cron 이 없다"
+
+
+echo '*/5 * * * * root /opt/storemanager/deploy/auto-deploy.sh' >"$T/cron"  # 앞 케이스가 비운 cron 복원
+D='DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr
+DATAAPI_WRITE_ENABLED=false'
+{ base | grep -vE '^MAIL_(REQUIRED|PASSWORD)='; echo "$D"; echo MAIL_PASSWORD=; } >"$T/env"
+check "메일 필수 기본값 + 비밀번호 빈 값 → 실패(api-spring 기동 불가)" 1 "FAIL  MAIL_REQUIRED=true 인데 비었다: MAIL_PASSWORD"
+
+{ base | grep -v '^MAIL_REQUIRED='; echo "$D"; echo MAIL_REQUIRED=false; echo MAIL_USERNAME=; } >"$T/env"
+check "메일 필수 끔 → 안내만(통과)" 0 "INFO  MAIL_REQUIRED=false"
+
+{ base; echo "$D"; } >"$T/env"
+printf '[deploy 2026-10-09T01:00:00Z] aaaaaaa → bbbbbbb\n[deploy 2026-10-09T01:03:00Z] 빌드 실패 — 기존 컨테이너 유지\n' >"$T/log"
+LOG="$T/log" check "마지막 배포 빌드 실패 → 실패" 1 "FAIL  마지막 배포가 빌드 실패다"
+
+printf '[deploy 2026-10-09T01:00:00Z] aaaaaaa → bbbbbbb\n[deploy 2026-10-09T01:04:00Z] 완료\n' >"$T/log"
+LOG="$T/log" check "마지막 배포 완료 → 통과" 0 "PASS  DATAAPI_WRITE_ENABLED = false"
 
 echo "== ok $ok / fail $bad"
 [ "$bad" -eq 0 ]

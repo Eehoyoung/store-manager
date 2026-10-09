@@ -74,6 +74,21 @@ else
   else fail "포트원 키가 비었다:$empty — 카드 등록·체험 시작 불가"; fi
   if [ -n "$(env_val PROMOTION_CODE)" ]; then pass "PROMOTION_CODE 값 있음 — 쿠폰 체험 열림"
   else info "PROMOTION_CODE 가 비었다 — 쿠폰 체험이 열리지 않아 카드 등록 즉시 청구된다"; fi
+
+  # 3-2) api-spring 기동 게이트 — 비면 다음 재빌드 때 api-spring 이 뜨지 않는다(MailProperties).
+  #  운영 compose 의 MAIL_REQUIRED 기본값은 true 다. 지금 컨테이너가 옛 빌드라 멀쩡해 보여도
+  #  자동 배포가 풀려 api-spring 이 교체되는 순간 API 전체가 내려간다.
+  mail_req=$(env_val MAIL_REQUIRED | tr 'A-Z' 'a-z'); [ -n "$mail_req" ] || mail_req=true
+  if [ "$mail_req" = "true" ]; then
+    empty=""
+    for k in MAIL_USERNAME MAIL_PASSWORD; do [ -n "$(env_val "$k")" ] || empty="$empty $k"; done
+    if [ -z "$empty" ]; then pass "메일 계정 값 있음 (MAIL_REQUIRED=true)"
+    else fail "MAIL_REQUIRED=true 인데 비었다:$empty — api-spring 이 기동하지 않는다. 계정을 넣거나 MAIL_REQUIRED=false"; fi
+  else
+    info "MAIL_REQUIRED=false — 관리자·본부 OTP 메일이 나가지 않는다"
+  fi
+  if [ -n "$(env_val APP_ADMIN_EMAILS)" ]; then pass "APP_ADMIN_EMAILS 값 있음"
+  else info "APP_ADMIN_EMAILS 가 비었다 — 관리자 로그인 불가(fail-closed)"; fi
 fi
 
 # 4) auto-deploy cron
@@ -87,6 +102,12 @@ else fail "auto-deploy.sh 에 실행 권한이 없다 — sudo chmod 700 $REPO_D
 [ -f /run/storemanager-deploy.failed ] && info "CI 실패로 멈춘 커밋 표시가 있다: $(cut -c1-7 /run/storemanager-deploy.failed)"
 if [ -r "$DEPLOY_LOG" ]; then
   info "배포 로그 마지막 3줄:"; tail -n3 "$DEPLOY_LOG" | sed 's/^/        /'
+  # auto-deploy 는 merge 뒤에 빌드한다 — 빌드가 실패해도 HEAD 는 최신이라 아래 HEAD 점검은 PASS 로 나온다.
+  last=$(grep -F '[deploy ' "$DEPLOY_LOG" | tail -n1)
+  case $last in
+    *"빌드 실패"*) fail "마지막 배포가 빌드 실패다 — HEAD 가 최신이어도 운영은 옛 빌드. 원인: dc up -d --build 2>&1 | tail -40" ;;
+    *" → "*) info "마지막 배포 뒤 '완료'가 없다 — 빌드 중이거나 멈췄다: ps -ef | grep -E 'auto-deploy|docker (compose|build)'" ;;
+  esac
 else
   info "배포 로그가 없다 ($DEPLOY_LOG) — cron 이 한 번도 돌지 않았을 수 있다"
 fi

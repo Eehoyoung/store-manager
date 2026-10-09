@@ -37,7 +37,7 @@ if not runs or len(done) < len(runs):
 elif all(c in ("success", "skipped") for c in done):
     print("ok")
 else:
-    print("fail")') || CI=wait
+    print("fail")') || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; }
 
 case $CI in
   wait) exit 0 ;; # CI 실행 중 — 다음 주기에 다시 본다
