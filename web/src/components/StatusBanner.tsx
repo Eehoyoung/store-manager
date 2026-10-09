@@ -95,13 +95,13 @@ function detailText(phase: Phase, counts: Counts | null): string {
   switch (phase) {
     case "engaged":
       return counts && counts.pending > 0
-        ? `안전한 답글은 자동으로 올라갑니다. 게시 예정 ${counts.pending}건`
-        : "안전한 답글은 자동으로 올라갑니다.";
+        ? `안전한 답글은 자동으로 올라가요. 게시 예정 ${counts.pending}건`
+        : "안전한 답글은 자동으로 올라가요.";
     case "attention":
-      return "위험하거나 확인이 필요한 리뷰가 있어 자동 게시를 멈췄습니다.";
+      return "위험하거나 확인이 필요한 리뷰가 있어 자동 게시를 멈췄어요.";
     case "loading":
-      return "매장 상태를 불러오는 중입니다.";
+      return "매장 상태를 불러오는 중이에요.";
     default:
-      return "매장을 선택하면 운항 상태를 표시합니다.";
+      return "매장을 선택하면 운항 상태를 표시해요.";
   }
 }

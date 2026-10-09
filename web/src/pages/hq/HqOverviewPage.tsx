@@ -48,7 +48,7 @@ export function HqOverviewPage() {
       .then(setData)
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "본부 홈 정보를 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "본부 홈 정보를 불러오지 못했어요.");
       });
     hqApi.pricing(brand).then(setPricing).catch(() => setPricing(null));
   }, [brand, retryTick]);
@@ -69,7 +69,7 @@ export function HqOverviewPage() {
 
       {error ? (
         <EmptyState
-          title="본부 홈 정보를 불러오지 못했습니다"
+          title="본부 홈 정보를 불러오지 못했어요"
           description={error}
           action={
             <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -97,7 +97,7 @@ function PricingCard({ pricing }: { pricing: HqBrandPricing }) {
         다음 달 <strong>{pricing.nextMonth.unitPriceKrw.toLocaleString("ko-KR")}원</strong>{" "}
         <Badge tone={pricing.nextMonth.confirmed ? "success" : "neutral"}>{pricing.nextMonth.confirmed ? "확정" : "예상"}</Badge>
       </p>
-      <p className="hq-page__note">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 정해집니다.</p>
+      <p className="hq-page__note">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 정해져요.</p>
       <details>
         <summary>구간표 보기 ▼</summary>
         <table className="dashboard-table">
@@ -124,7 +124,7 @@ function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOver
       </p>
       {coverageLow ? (
         <div className="hq-radar__coverage-warning" role="alert">
-          ⚠ 분석 커버리지 {pct(data.analysisCoverageRate)} — 미분석 리뷰가 있어 아래 수치가 실제보다 낮게 보일 수 있습니다.
+          ⚠ 분석 커버리지 {pct(data.analysisCoverageRate)} — 미분석 리뷰가 있어 아래 수치가 실제보다 낮게 보일 수 있어요.
         </div>
       ) : null}
 
@@ -156,7 +156,7 @@ function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOver
       <Card>
         <h2>우선 확인 매장</h2>
         {data.priorityStores.length === 0 ? (
-          <EmptyState title="지금 우선 확인할 매장이 없습니다" />
+          <EmptyState title="지금 우선 확인할 매장이 없어요" />
         ) : (
           <ul className="hq-menu-issues">
             {data.priorityStores.map((s) => (
@@ -178,7 +178,7 @@ function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOver
         <Card>
           <h2>수집 지연 매장</h2>
           {data.collectDelayedStores.length === 0 ? (
-            <EmptyState title="지연된 매장이 없습니다" />
+            <EmptyState title="지연된 매장이 없어요" />
           ) : (
             <ul className="hq-menu-issues">
               {data.collectDelayedStores.map((s) => (
@@ -193,7 +193,7 @@ function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOver
         <Card>
           <h2>신규·급증 이슈</h2>
           {data.risingIssues.length === 0 ? (
-            <EmptyState title="신규·급증 이슈가 없습니다" />
+            <EmptyState title="신규·급증 이슈가 없어요" />
           ) : (
             <ul className="hq-alert-list">
               {data.risingIssues.map((item) => (
@@ -211,7 +211,7 @@ function OverviewContent({ brand, data, pricing }: { brand: string; data: HqOver
       </div>
 
       <p className="hq-page__note">
-        더 자세한 흐름은 <Link to={`/hq/brands/${encoded}/analytics`}>브랜드 집계</Link>에서 확인할 수 있습니다.
+        더 자세한 흐름은 <Link to={`/hq/brands/${encoded}/analytics`}>브랜드 집계</Link>에서 확인할 수 있어요.
       </p>
     </>
   );

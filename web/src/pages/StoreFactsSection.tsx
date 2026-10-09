@@ -35,14 +35,14 @@ const PLACEHOLDER: Record<string, string> = {
 };
 
 const HINT: Record<string, string> = {
-  주차: "주차 불만 리뷰에 그대로 안내됩니다",
-  대기시간: "웨이팅 불만 리뷰에 예약 방법을 알려 드립니다",
-  좌석: "자리가 좁다는 리뷰에 단체 안내가 나갑니다",
-  소음: "시끄러웠다는 리뷰에 조용한 자리를 안내합니다",
-  접근성: "찾기 어려웠다는 리뷰에 길 안내가 나갑니다",
-  영업시간: "헛걸음하셨다는 리뷰에 정확한 시간을 알려 드립니다",
-  예약: "예약 관련 리뷰에 방법을 안내합니다",
-  포장: "포장 관련 리뷰에 픽업 방법을 안내합니다",
+  주차: "주차 불만 리뷰에 그대로 안내돼요",
+  대기시간: "웨이팅 불만 리뷰에 예약 방법을 알려 드려요",
+  좌석: "자리가 좁다는 리뷰에 단체 안내가 나가요",
+  소음: "시끄러웠다는 리뷰에 조용한 자리를 안내해요",
+  접근성: "찾기 어려웠다는 리뷰에 길 안내가 나가요",
+  영업시간: "헛걸음하셨다는 리뷰에 정확한 시간을 알려 드려요",
+  예약: "예약 관련 리뷰에 방법을 안내해요",
+  포장: "포장 관련 리뷰에 픽업 방법을 안내해요",
 };
 
 export function StoreFactsSection({ storeId }: { storeId: string }) {
@@ -63,7 +63,7 @@ export function StoreFactsSection({ storeId }: { storeId: string }) {
         for (const f of res.facts) next[f.key] = f.text;
         setValues(next);
       })
-      .catch((e) => alive && setError(e instanceof ApiError ? e.message : "매장 정보를 불러오지 못했습니다."));
+      .catch((e) => alive && setError(e instanceof ApiError ? e.message : "매장 정보를 불러오지 못했어요."));
     return () => {
       alive = false;
     };
@@ -83,11 +83,11 @@ export function StoreFactsSection({ storeId }: { storeId: string }) {
       setValues(next);
       setMessage(
         facts.length === 0
-          ? "저장했습니다. 지금은 답글에서 매장 정보를 안내하지 않습니다."
-          : `저장했습니다. ${facts.length}개 항목이 관련 리뷰 답글에 안내됩니다.`,
+          ? "저장했어요. 지금은 답글에서 매장 정보를 안내하지 않아요."
+          : `저장했어요. ${facts.length}개 항목이 관련 리뷰 답글에 안내돼요.`,
       );
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "저장하지 못했습니다.");
+      setError(e instanceof ApiError ? e.message : "저장하지 못했어요.");
     } finally {
       setSaving(false);
     }
@@ -97,11 +97,11 @@ export function StoreFactsSection({ storeId }: { storeId: string }) {
     <Card className="persona-page__section">
       <h2>매장 정보</h2>
       <p className="field__hint">
-        여기 적어 두시면 관련된 리뷰에 <strong>실제 안내</strong>가 나갑니다. 비워 두시면 답글이
-        “확인해 보겠습니다”로만 끝납니다. 전부 선택 입력이고, 나중에 채우셔도 됩니다.
+        여기 적어 두시면 관련된 리뷰에 <strong>실제 안내</strong>가 나가요. 비워 두시면 답글이
+        “확인해 보겠습니다”로만 끝나요. 전부 선택 입력이고, 나중에 채우셔도 돼요.
       </p>
       <p className="field__hint">
-        ※ 여기 적은 내용은 손님에게 그대로 읽힙니다. <strong>확실한 것만</strong> 적어 주세요.
+        ※ 여기 적은 내용은 손님에게 그대로 읽혀요. <strong>확실한 것만</strong> 적어 주세요.
       </p>
 
       {allowedKeys === null ? <Skeleton height={220} /> : null}

@@ -12,19 +12,19 @@ const RULES = [
     tone: "engaged",
     verdict: "자동 게시",
     example: "“사장님 덕분에 오늘도 맛있게 먹었어요”",
-    note: "칭찬·단순 긍정은 매장 말투로 답글을 달고 바로 올립니다.",
+    note: "칭찬·단순 긍정은 매장 말투로 답글을 달고 바로 올려요.",
   },
   {
     tone: "caution",
     verdict: "검사 후 게시",
     example: "“면이 조금 불어서 왔어요”",
-    note: "개선 요청도 답글을 답니다. 보상·환불 약속 같은 표현은 걸러냅니다.",
+    note: "개선 요청도 답글을 달아요. 보상·환불 약속 같은 표현은 걸러내요.",
   },
   {
     tone: "stopped",
     verdict: "멈춤",
     example: "“머리카락이 나왔어요”",
-    note: "위생·이물질·법적 분쟁은 자동으로 올리지 않고 사람에게 넘깁니다.",
+    note: "위생·이물질·법적 분쟁은 자동으로 올리지 않고 사람에게 넘겨요.",
   },
 ] as const;
 
@@ -38,8 +38,8 @@ export function AuthAside() {
         위험한 리뷰는 멈춤.
       </h2>
       <p className="auth-aside__lede">
-        배민·요기요·쿠팡이츠 리뷰를 한곳에서 운영합니다. 무엇을 자동으로 올리고 무엇을 멈출지는
-        이렇게 갈립니다.
+        배민·요기요·쿠팡이츠 리뷰를 한곳에서 운영해요. 무엇을 자동으로 올리고 무엇을 멈출지는
+        이렇게 갈려요.
       </p>
 
       <ul className="auth-aside__rules">
@@ -54,7 +54,7 @@ export function AuthAside() {
       </ul>
 
       <p className="auth-aside__foot">
-        고객 리뷰는 만들지도 고치지도 않습니다. 사장님 답글만 다룹니다.
+        고객 리뷰는 만들지도 고치지도 않아요. 사장님 답글만 다뤄요.
       </p>
     </aside>
   );

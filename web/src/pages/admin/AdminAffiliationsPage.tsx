@@ -35,7 +35,7 @@ export function AdminAffiliationsPage() {
     adminApi
       .affiliations(status)
       .then(setItems)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "소속 신청 목록을 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "소속 신청 목록을 불러오지 못했어요."));
 
   useEffect(() => {
     setItems(null);
@@ -55,10 +55,10 @@ export function AdminAffiliationsPage() {
     else await adminApi.decide(item.id, kind, reason);
     setDone(
       kind === "APPROVE"
-        ? `${item.storeName} 을(를) ${item.brandName} 본부에 연결했습니다.`
+        ? `${item.storeName} 을(를) ${item.brandName} 본부에 연결했어요.`
         : kind === "REJECT"
-        ? `${item.storeName} 의 ${item.brandName} 소속 신청을 거절했습니다.`
-        : `${item.storeName} 의 ${item.brandName} 소속을 해제했습니다.`,
+        ? `${item.storeName} 의 ${item.brandName} 소속 신청을 거절했어요.`
+        : `${item.storeName} 의 ${item.brandName} 소속을 해제했어요.`,
     );
     setAction(null);
     await load();
@@ -69,7 +69,7 @@ export function AdminAffiliationsPage() {
       <div className="stores-page__header">
         <div>
           <h1>가맹점 소속 관리</h1>
-          <p>가맹코드를 입력한 매장의 소속 신청을 승인·거절하고, 승인된 매장의 소속을 해제합니다.</p>
+          <p>가맹코드를 입력한 매장의 소속 신청을 승인·거절하고, 승인된 매장의 소속을 해제해요.</p>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export function AdminAffiliationsPage() {
       {done ? <p className="admin-page__done" role="status">{done}</p> : null}
 
       {items === null && !error ? <Skeleton height={140} /> : null}
-      {items?.length === 0 ? <EmptyState title="해당 상태의 신청이 없습니다" /> : null}
+      {items?.length === 0 ? <EmptyState title="해당 상태의 신청이 없어요" /> : null}
 
       <ul className="admin-request-list">
         {items?.map((item) => (
@@ -151,7 +151,7 @@ export function AdminAffiliationsPage() {
 
       <h2>가맹본부 소속 해제 요청 (레거시)</h2>
       {withdrawals.length === 0 ? (
-        <p>접수된 요청이 없습니다.</p>
+        <p>접수된 요청이 없어요.</p>
       ) : (
         <ul>
           {withdrawals.map((item) => (
@@ -169,8 +169,8 @@ export function AdminAffiliationsPage() {
           action?.kind === "APPROVE"
             ? `승인하면 ${action.item.brandName} 본부가 ${action.item.storeName} 의 리뷰·분석을 조회하게 됩니다.`
             : action?.kind === "REJECT"
-            ? `${action.item.storeName} 의 소속 신청을 거절합니다.`
-            : `${action?.item.storeName} 의 ${action?.item.brandName} 소속을 해제합니다. 해제 즉시 본부 집계·개별 리뷰 조회에서 제외됩니다.`
+            ? `${action.item.storeName} 의 소속 신청을 거절해요.`
+            : `${action?.item.storeName} 의 ${action?.item.brandName} 소속을 해제해요. 해제 즉시 본부 집계·개별 리뷰 조회에서 제외돼요.`
         }
         confirmLabel={action?.kind === "APPROVE" ? "승인" : action?.kind === "REJECT" ? "거절" : "해제"}
         danger={action?.kind !== "APPROVE"}

@@ -16,7 +16,7 @@ export function HqLoginPage() {
       <Card className="auth-card">
         <OtpLoginForm
           title="가맹본부 로그인"
-          description="본부 담당자로 등록된 이메일로 인증번호를 보내드립니다."
+          description="본부 담당자로 등록된 이메일로 인증번호를 보내드려요."
           ttlSeconds={HQ_OTP_TTL_SECONDS}
           onRequest={(email) => hqAuthApi.request(email)}
           onVerify={(email, code) => hqAuthApi.verify(email, code)}

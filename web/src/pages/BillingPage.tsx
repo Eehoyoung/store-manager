@@ -77,7 +77,7 @@ export function BillingPage() {
     try {
       const next = await billingApi.setAutoRenew(storeId, on);
       setBilling(next);
-      setMessage(on ? "자동결제를 다시 켰습니다." : "자동결제를 중단했습니다. 현재 이용 기간까지는 계속 사용할 수 있습니다.");
+      setMessage(on ? "자동결제를 다시 켰어요." : "자동결제를 중단했어요. 현재 이용 기간까지는 계속 사용할 수 있어요.");
     } catch (e) {
       setMessage(billingErrorMessage(e));
     } finally {
@@ -92,7 +92,7 @@ export function BillingPage() {
     try {
       const { resumed, view } = await billingApi.resumeHeldReplies(storeId);
       setBilling(view);
-      setResumeMessage(resumed > 0 ? `${resumed}건을 게시 예약했습니다.` : "게시할 보류 답글이 없습니다.");
+      setResumeMessage(resumed > 0 ? `${resumed}건을 게시 예약했어요.` : "게시할 보류 답글이 없어요.");
     } catch (e) {
       setResumeMessage(billingErrorMessage(e));
     } finally {
@@ -106,7 +106,7 @@ export function BillingPage() {
   if (error) {
     return (
       <EmptyState
-        title="결제 정보를 불러오지 못했습니다"
+        title="결제 정보를 불러오지 못했어요"
         description={error}
         action={
           <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -347,7 +347,7 @@ export function BillingPage() {
           </>
         }
       >
-        <p>예전 리뷰에 지금 답글이 달립니다. 내용을 확인하셨나요?</p>
+        <p>예전 리뷰에 지금 답글이 달려요. 내용을 확인하셨나요?</p>
       </Modal>
     </div>
   );

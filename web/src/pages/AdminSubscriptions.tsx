@@ -34,7 +34,7 @@ export function AdminSubscriptions() {
     adminApi
       .stores()
       .then(setRows)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했어요."));
 
   useEffect(() => {
     void load();
@@ -43,7 +43,7 @@ export function AdminSubscriptions() {
   const act = async (row: StoreServiceRow, action: "activate" | "suspend") => {
     const note = (notes[row.storeId] ?? "").trim();
     if (!note) {
-      setError("판단 근거를 입력해 주세요. 입금자명·입금일처럼 나중에 확인할 수 있는 내용이면 됩니다.");
+      setError("판단 근거를 입력해 주세요. 입금자명·입금일처럼 나중에 확인할 수 있는 내용이면 돼요.");
       return;
     }
     setError(null);
@@ -52,13 +52,13 @@ export function AdminSubscriptions() {
       await (action === "activate" ? adminApi.activate : adminApi.suspend)(row.storeId, note);
       setDone(
         action === "activate"
-          ? `${row.storeName} 서비스를 시작했습니다. 이제 리뷰 수집과 답글 생성에 비용이 발생합니다.`
-          : `${row.storeName} 서비스를 정지했습니다. 수집·생성·게시가 모두 멈춥니다.`,
+          ? `${row.storeName} 서비스를 시작했어요. 이제 리뷰 수집과 답글 생성에 비용이 발생해요.`
+          : `${row.storeName} 서비스를 정지했어요. 수집·생성·게시가 모두 멈춰요.`,
       );
       setNotes((c) => ({ ...c, [row.storeId]: "" }));
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "처리하지 못했습니다.");
+      setError(e instanceof ApiError ? e.message : "처리하지 못했어요.");
     } finally {
       setBusyId(null);
     }
@@ -70,7 +70,7 @@ export function AdminSubscriptions() {
         <div>
           <h1>매장 서비스 상태</h1>
           <p>
-            입금을 확인한 뒤 활성화합니다. 가입이나 동의만으로는 서비스가 시작되지 않습니다.
+            입금을 확인한 뒤 활성화해요. 가입이나 동의만으로는 서비스가 시작되지 않아요.
           </p>
         </div>
       </div>
@@ -128,13 +128,13 @@ export function AdminSubscriptions() {
 
                 <p className="admin-request__consequence">
                   {row.serviceActive
-                    ? "이 매장은 지금 리뷰를 수집하고 답글을 생성합니다. 정지하면 즉시 멈춥니다."
-                    : "활성화하면 이 매장의 리뷰 수집(호출당 과금)과 답글 생성(LLM 토큰)이 시작됩니다."}
+                    ? "이 매장은 지금 리뷰를 수집하고 답글을 생성해요. 정지하면 즉시 멈춰요."
+                    : "활성화하면 이 매장의 리뷰 수집(호출당 과금)과 답글 생성(LLM 토큰)이 시작돼요."}
                 </p>
 
                 <Field
                   label="판단 근거"
-                  hint="입금자명·입금일처럼 나중에 확인할 수 있는 내용을 적어 주세요. 요금 문의가 오면 이 기록으로 답합니다."
+                  hint="입금자명·입금일처럼 나중에 확인할 수 있는 내용을 적어 주세요. 요금 문의가 오면 이 기록으로 답해요."
                   value={notes[row.storeId] ?? ""}
                   maxLength={200}
                   onChange={(e) => setNotes((c) => ({ ...c, [row.storeId]: e.target.value }))}
@@ -161,7 +161,7 @@ export function AdminSubscriptions() {
                     </Button>
                   )}
                   {!row.credentialConsentCompleted ? (
-                    <span className="admin-request__blocked">배달앱 로그인 정보 처리 위탁 동의가 필요합니다.</span>
+                    <span className="admin-request__blocked">배달앱 로그인 정보 처리 위탁 동의가 필요해요.</span>
                   ) : null}
                 </div>
               </Card>

@@ -98,7 +98,7 @@ export function ReviewsPage() {
           setPaymentRequired(true);
           return;
         }
-        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했습니다.");
+        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했어요.");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, cursor, retryTick]);
@@ -110,7 +110,7 @@ export function ReviewsPage() {
   if (paymentRequired) {
     return (
       <EmptyState
-        title="결제가 필요합니다"
+        title="결제가 필요해요"
         description="결제수단을 등록하면 리뷰 목록을 다시 볼 수 있어요."
         action={
           <Link to={`/stores/${storeId}/billing`} className="btn btn--primary">
@@ -183,7 +183,7 @@ export function ReviewsPage() {
 
       {loadError ? (
         <EmptyState
-          title="리뷰 목록을 불러오지 못했습니다"
+          title="리뷰 목록을 불러오지 못했어요"
           description={loadError}
           action={
             <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -194,7 +194,7 @@ export function ReviewsPage() {
       ) : null}
 
       {items && items.length === 0 ? (
-        <EmptyState title="표시할 리뷰가 없습니다" description="선택한 조건에 해당하는 리뷰가 없습니다." />
+        <EmptyState title="표시할 리뷰가 없어요" description="선택한 조건에 해당하는 리뷰가 없어요." />
       ) : null}
 
       {items && items.length > 0 ? (
@@ -289,7 +289,7 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
         ) : null}
       </div>
 
-      <p className="review-card__body">{review.body ?? "(본문 없는 리뷰입니다 — 사진만 등록되었을 수 있습니다)"}</p>
+      <p className="review-card__body">{review.body ?? "(본문 없는 리뷰예요 — 사진만 등록됐을 수 있어요)"}</p>
 
       {review.orderedMenus.length > 0 ? (
         <p className="review-card__menus">주문 메뉴: {review.orderedMenus.join(", ")}</p>
@@ -308,7 +308,7 @@ function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => v
 
       {highRisk && analysis ? (
         <div className="queue-item__blocked-notice" role="alert">
-          <strong>⚠ 사람이 직접 확인해야 하는 리뷰입니다.</strong>
+          <strong>⚠ 사람이 직접 확인해야 하는 리뷰예요.</strong>
           {analysis.riskReasons.length > 0 ? (
             <ul>
               {analysis.riskReasons.map((r) => (
@@ -344,7 +344,7 @@ function ReviewDetailModal({
     reviewsApi
       .get(reviewId)
       .then(setDetail)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했어요."));
   };
 
   useEffect(() => {
@@ -375,7 +375,7 @@ function ReviewDetailModal({
             <span className="review-card__platform">{describePlatform(detail.platform)}</span>
             <span className="review-card__author">{detail.authorMasked}</span>
           </div>
-          <p className="review-detail__body">{detail.body ?? "(본문 없는 리뷰입니다)"}</p>
+          <p className="review-detail__body">{detail.body ?? "(본문 없는 리뷰예요)"}</p>
           {detail.orderedMenus.length > 0 ? <p>주문 메뉴: {detail.orderedMenus.join(", ")}</p> : null}
 
           {detail.analysis ? (
@@ -398,7 +398,7 @@ function ReviewDetailModal({
 
           <h2>초안 이력</h2>
           {detail.drafts.length === 0 ? (
-            <EmptyState title="아직 생성된 답글이 없습니다" />
+            <EmptyState title="아직 생성된 답글이 없어요" />
           ) : (
             <ul className="review-detail__drafts">
               {detail.drafts.map((d, idx) => {
@@ -478,13 +478,13 @@ function HeldReplyPanel({ storeId, draftId, onDone }: { storeId: string; draftId
     setNeedsPayment(false);
     try {
       await billingApi.resumeHeldReplies(storeId, [draftId]);
-      toast.show("게시를 예약했습니다.", "success");
+      toast.show("게시를 예약했어요.", "success");
       onDone();
     } catch (e) {
       if (isPaymentRequiredError(e)) {
         setNeedsPayment(true);
       } else {
-        setError(e instanceof ApiError ? e.message : "게시 예약 중 오류가 발생했습니다.");
+        setError(e instanceof ApiError ? e.message : "게시 예약 중 오류가 났어요.");
       }
     } finally {
       setBusy(false);
@@ -493,11 +493,11 @@ function HeldReplyPanel({ storeId, draftId, onDone }: { storeId: string; draftId
 
   return (
     <div className="queue-item__scheduled-notice" role="group" aria-label="이용 중지로 보류된 답글">
-      <p>이용 중지로 게시되지 않은 답글입니다. 지금 게시할 수 있어요.</p>
-      <p>예전 리뷰에 지금 답글이 달립니다. 게시한 답글은 되돌릴 수 없으니 내용을 확인한 뒤 눌러 주세요.</p>
+      <p>이용 중지로 게시되지 않은 답글이에요. 지금 게시할 수 있어요.</p>
+      <p>예전 리뷰에 지금 답글이 달려요. 게시한 답글은 되돌릴 수 없으니 내용을 확인한 뒤 눌러 주세요.</p>
       {needsPayment ? (
         <p className="field__error" role="alert">
-          결제가 필요합니다. <Link to={`/stores/${storeId}/billing`}>결제 화면으로 이동</Link>
+          결제가 필요해요. <Link to={`/stores/${storeId}/billing`}>결제 화면으로 이동</Link>
         </p>
       ) : null}
       {error ? (
@@ -539,10 +539,10 @@ function CancelScheduledPanel({
     setError(null);
     try {
       await draftsApi.cancel(draftId);
-      toast.show("게시하지 않기로 했습니다.", "info");
+      toast.show("게시하지 않기로 했어요.", "info");
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "취소 처리 중 오류가 발생했습니다.");
+      setError(e instanceof ApiError ? e.message : "취소 처리 중 오류가 났어요.");
     } finally {
       setBusy(false);
     }
@@ -552,9 +552,9 @@ function CancelScheduledPanel({
     <div className="queue-item__scheduled-notice" role="group" aria-label="예약된 답글">
       <p>
         {scheduledAt
-          ? `${new Date(scheduledAt).toLocaleString("ko-KR")}에 게시될 예정입니다.`
-          : "게시 예정입니다."}{" "}
-        그 전까지는 멈추실 수 있습니다.
+          ? `${new Date(scheduledAt).toLocaleString("ko-KR")}에 게시될 예정이에요.`
+          : "게시 예정이에요."}{" "}
+        그 전까지는 멈추실 수 있어요.
       </p>
       {error ? <p className="field__error" role="alert">{error}</p> : null}
       <Button type="button" variant="secondary" loading={busy} onClick={() => void handleCancel()}>
@@ -600,18 +600,18 @@ function RiskApprovalPanel({
       // 수정하지 않았으면 content 를 보내지 않는다 — AI 초안이 그대로 게시된다.
       const edited = content.trim() === originalContent.trim() ? undefined : content.trim();
       await draftsApi.approve(draftId, { riskAcknowledged: acknowledged, content: edited });
-      toast.show("승인했습니다. 예정된 시간에 게시됩니다.", "success");
+      toast.show("승인했어요. 예정된 시간에 게시돼요.", "success");
       onDone();
     } catch (e) {
       if (e instanceof ApiError && e.code === "GUARDRAIL_BLOCKED") {
         const flags = Array.isArray(e.details?.flags) ? (e.details?.flags as string[]) : [];
         setActionError(
-          `이 답글은 다른 안전규칙도 위반해 승인할 수 없습니다.${
+          `이 답글은 다른 안전규칙도 위반해 승인할 수 없어요.${
             flags.length > 0 ? " (" + flags.map(describeGuardrailFlag).join(", ") + ")" : ""
           }`,
         );
       } else {
-        setActionError(e instanceof ApiError ? e.message : "승인 처리 중 오류가 발생했습니다.");
+        setActionError(e instanceof ApiError ? e.message : "승인 처리 중 오류가 났어요.");
       }
     } finally {
       setBusy(false);
@@ -623,10 +623,10 @@ function RiskApprovalPanel({
     setActionError(null);
     try {
       await draftsApi.reject(draftId);
-      toast.show("게시하지 않기로 했습니다.", "info");
+      toast.show("게시하지 않기로 했어요.", "info");
       onDone();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "거절 처리 중 오류가 발생했습니다.");
+      setActionError(e instanceof ApiError ? e.message : "거절 처리 중 오류가 났어요.");
     } finally {
       setBusy(false);
     }
@@ -634,7 +634,7 @@ function RiskApprovalPanel({
 
   return (
     <div className="queue-item__blocked-notice" role="group" aria-label="위험 리뷰 승인">
-      <strong>⚠ 이 답글은 위험 리뷰로 자동 게시가 멈췄습니다.</strong>
+      <strong>⚠ 이 답글은 위험 리뷰로 자동 게시가 멈췄어요.</strong>
       <p>
         {riskReasons.length > 0
           ? `차단 사유: ${riskReasons.map(describeRiskReason).join(", ")} (위 분석 결과 참고)`
@@ -642,7 +642,7 @@ function RiskApprovalPanel({
       </p>
 
       <label className="queue-item__reply-label" htmlFor={`risk-approval-content-${draftId}`}>
-        권장 답글 (필요하면 고쳐서 게시할 수 있습니다)
+        권장 답글 (필요하면 고쳐서 게시할 수 있어요)
       </label>
       <textarea
         id={`risk-approval-content-${draftId}`}
@@ -653,7 +653,7 @@ function RiskApprovalPanel({
         disabled={busy}
       />
       <p className={`queue-item__counter ${overLimit ? "queue-item__counter--over" : ""}`}>
-        {content.length} / {DRAFT_CONTENT_MAX_LENGTH}자{overLimit ? " — 글자 수를 줄여야 승인할 수 있습니다" : ""}
+        {content.length} / {DRAFT_CONTENT_MAX_LENGTH}자{overLimit ? " — 글자 수를 줄여야 승인할 수 있어요" : ""}
       </p>
 
       <label className="persona-page__checkbox">
@@ -667,8 +667,8 @@ function RiskApprovalPanel({
       </label>
 
       <p>
-        <strong>게시하면 되돌릴 수 없습니다.</strong> 배달 플랫폼이 답글 수정·삭제 기능을 제공하지 않아
-        회사도 이후에 고치거나 지울 수 없습니다.
+        <strong>게시하면 되돌릴 수 없어요.</strong> 배달 플랫폼이 답글 수정·삭제 기능을 제공하지 않아
+        회사도 이후에 고치거나 지울 수 없어요.
       </p>
 
       {!judgement.ok && !actionError ? <p className="field__hint">{judgement.reason}</p> : null}

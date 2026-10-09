@@ -111,7 +111,7 @@ export function AdminFailures() {
     adminApi
       .failures()
       .then(setData)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "실패 목록을 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "실패 목록을 불러오지 못했어요."));
   }, []);
 
   return (
@@ -120,8 +120,8 @@ export function AdminFailures() {
         <div>
           <h1>실패 건</h1>
           <p>
-            재시도 2회를 모두 소진한 건입니다. 자동으로 다시 시도하지 않으므로 사람이 원인을
-            확인해야 합니다. 원인을 고치면 다음 수집 주기에 정상 경로로 처리됩니다.
+            재시도 2회를 모두 소진한 건이에요. 자동으로 다시 시도하지 않으므로 사람이 원인을
+            확인해야 해요. 원인을 고치면 다음 수집 주기에 정상 경로로 처리돼요.
           </p>
         </div>
       </div>
@@ -137,9 +137,9 @@ export function AdminFailures() {
       {data ? (
         <>
           <h2>알림톡 실패·정체 ({data.alimtalkFailures.length})</h2>
-          <p>자동 재발송하지 않습니다. 중복 발송을 막기 위해 원인과 SOLAPI 내역만 확인합니다.</p>
+          <p>자동 재발송하지 않아요. 중복 발송을 막기 위해 원인과 SOLAPI 내역만 확인해요.</p>
           {data.alimtalkFailures.length === 0 ? (
-            <EmptyState title="알림톡 실패가 없습니다" description="실패하거나 2시간 넘게 멈춘 알림이 없습니다." />
+            <EmptyState title="알림톡 실패가 없어요" description="실패하거나 2시간 넘게 멈춘 알림이 없어요." />
           ) : (
             <ul className="admin-request-list">
               {data.alimtalkFailures.map((r, i) => (
@@ -149,9 +149,9 @@ export function AdminFailures() {
           )}
 
           <h2>답글이 나가지 않은 건 ({data.publishFailures.length})</h2>
-          <p>사장님이 기다리는 답글입니다. 리뷰에는 아직 아무 답글도 달리지 않았습니다.</p>
+          <p>사장님이 기다리는 답글이에요. 리뷰에는 아직 아무 답글도 달리지 않았어요.</p>
           {data.publishFailures.length === 0 ? (
-            <EmptyState title="게시 실패가 없습니다" description="모든 답글이 정상 등록됐습니다." />
+            <EmptyState title="게시 실패가 없어요" description="모든 답글이 정상 등록됐어요." />
           ) : (
             <ul className="admin-request-list">
               {data.publishFailures.map((r) => (
@@ -161,9 +161,9 @@ export function AdminFailures() {
           )}
 
           <h2>리뷰가 들어오지 않은 건 ({data.collectFailures.length})</h2>
-          <p>화면이 조용히 비어 보이는 것이 가장 위험합니다 — 사장님은 리뷰가 없는 줄 압니다.</p>
+          <p>화면이 조용히 비어 보이는 것이 가장 위험해요 — 사장님은 리뷰가 없는 줄 알아요.</p>
           {data.collectFailures.length === 0 ? (
-            <EmptyState title="수집 실패가 없습니다" description="모든 계정에서 정상 조회됐습니다." />
+            <EmptyState title="수집 실패가 없어요" description="모든 계정에서 정상 조회됐어요." />
           ) : (
             <ul className="admin-request-list">
               {data.collectFailures.map((r, i) => (

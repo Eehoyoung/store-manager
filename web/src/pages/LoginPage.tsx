@@ -26,7 +26,7 @@ export function LoginPage() {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      setError(err instanceof ApiError ? err.message : "로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }

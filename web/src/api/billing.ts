@@ -73,26 +73,26 @@ export function billingErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     switch (e.code) {
       case "SUBSCRIPTION_PAYMENT_REQUIRED":
-        return "결제가 필요합니다. 결제수단을 등록해 주세요.";
+        return "결제가 필요해요. 결제수단을 등록해 주세요.";
       case "PAYMENT_DECLINED": {
         const reason = e.details?.reason;
-        return `카드 결제가 거절됐습니다.${typeof reason === "string" ? ` (${reason})` : ""} 다른 카드로 다시 시도해 주세요.`;
+        return `카드 결제가 거절됐어요.${typeof reason === "string" ? ` (${reason})` : ""} 다른 카드로 다시 시도해 주세요.`;
       }
       case "PAYMENT_PENDING":
-        return "결제 확인이 진행 중입니다. 잠시 후 다시 확인해 주세요.";
+        return "결제 확인이 진행 중이에요. 잠시 후 다시 확인해 주세요.";
       case "BILLING_BUSY":
-        return "처리 중인 결제가 있습니다. 잠시 후 다시 시도해 주세요.";
+        return "처리 중인 결제가 있어요. 잠시 후 다시 시도해 주세요.";
       case "BILLING_KEY_INVALID":
-        return "카드 등록에 실패했습니다. 처음부터 다시 시도해 주세요.";
+        return "카드 등록에 실패했어요. 처음부터 다시 시도해 주세요.";
       case "BILLING_CONSENT_REQUIRED":
-        return "자동결제 동의가 필요합니다.";
+        return "자동결제 동의가 필요해요.";
       case "CONSENT_VERSION_MISMATCH":
-        return "약관이 갱신되었습니다. 새로고침한 뒤 다시 시도해 주세요.";
+        return "약관이 갱신됐어요. 새로고침한 뒤 다시 시도해 주세요.";
       case "SERVICE_UNAVAILABLE":
-        return "지금은 결제를 받을 수 없습니다. 잠시 후 다시 시도해 주세요.";
+        return "지금은 결제를 받을 수 없어요. 잠시 후 다시 시도해 주세요.";
       default:
         return e.message;
     }
   }
-  return e instanceof Error ? e.message : "결제 처리 중 오류가 발생했습니다.";
+  return e instanceof Error ? e.message : "결제 처리 중 오류가 생겼어요.";
 }

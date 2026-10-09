@@ -7,10 +7,10 @@ const allowed = new Set(["terms", "privacy", "hq-data-sharing", "platform-creden
 
 export function LegalDocumentPage() {
   const { slug = "" } = useParams();
-  const [content, setContent] = useState("불러오는 중입니다.");
+  const [content, setContent] = useState("불러오는 중이에요.");
   useEffect(() => {
-    if (!allowed.has(slug)) return setContent("문서를 찾을 수 없습니다.");
-    agreementsApi.document(slug).then((d) => setContent(d.content)).catch(() => setContent("문서를 불러오지 못했습니다."));
+    if (!allowed.has(slug)) return setContent("문서를 찾을 수 없어요.");
+    agreementsApi.document(slug).then((d) => setContent(d.content)).catch(() => setContent("문서를 불러오지 못했어요."));
   }, [slug]);
   return <main className="legal-page"><Card><pre>{content}</pre><Link to="/signup">회원가입으로 돌아가기</Link></Card></main>;
 }

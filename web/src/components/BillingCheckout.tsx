@@ -78,7 +78,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       .checkout(storeId, { billingKey, billingConsentAgreed: true, billingConsentVersion: consentVersion })
       .then((next) => {
         onSuccess(next);
-        setMessage("결제수단이 등록되었습니다.");
+        setMessage("결제수단이 등록됐어요.");
       })
       .catch((e) => setMessage(billingErrorMessage(e)))
       .finally(() => setBusy(false));
@@ -126,7 +126,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         billingConsentVersion: billing.consentVersion,
       });
       onSuccess(next);
-      setMessage("결제수단이 등록되었습니다.");
+      setMessage("결제수단이 등록됐어요.");
     } catch (e) {
       setMessage(billingErrorMessage(e));
     } finally {

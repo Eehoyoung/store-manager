@@ -64,17 +64,17 @@ export function canApproveBlockedDraft(params: {
   if (guardrailFlags != null) {
     const onlyRisk = guardrailFlags.length === 1 && guardrailFlags[0] === APPROVABLE_RISK_FLAG;
     if (!onlyRisk) {
-      return { ok: false, reason: "이 답글은 다른 안전규칙도 위반해 승인할 수 없습니다." };
+      return { ok: false, reason: "이 답글은 다른 안전규칙도 위반해 승인할 수 없어요." };
     }
   }
   if (content.trim().length === 0) {
-    return { ok: false, reason: "답글 내용이 비어 있습니다." };
+    return { ok: false, reason: "답글 내용이 비어 있어요." };
   }
   if (content.length > DRAFT_CONTENT_MAX_LENGTH) {
-    return { ok: false, reason: `답글은 ${DRAFT_CONTENT_MAX_LENGTH}자를 넘을 수 없습니다.` };
+    return { ok: false, reason: `답글은 ${DRAFT_CONTENT_MAX_LENGTH}자를 넘을 수 없어요.` };
   }
   if (!riskAcknowledged) {
-    return { ok: false, reason: "차단 사유를 확인했다는 체크가 필요합니다." };
+    return { ok: false, reason: "차단 사유를 확인했다는 체크가 필요해요." };
   }
   return { ok: true };
 }

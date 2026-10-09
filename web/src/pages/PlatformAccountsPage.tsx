@@ -41,7 +41,7 @@ export function PlatformAccountsPage() {
         setAccounts(nextAccounts);
         setStores(nextStores);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "배달앱 계정 정보를 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "배달앱 계정 정보를 불러오지 못했어요."));
   };
 
   useEffect(load, []);
@@ -53,7 +53,7 @@ export function PlatformAccountsPage() {
       await platformAccountsApi.revoke(account.id);
       setAccounts((current) => (current ?? []).filter((item) => item.id !== account.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "연동 해제에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "연동 해제에 실패했어요.");
     }
   };
 
@@ -62,19 +62,19 @@ export function PlatformAccountsPage() {
       <div className="stores-page__header">
         <div>
           <h1>배달앱 계정 연동</h1>
-          <p>배민·요기요·쿠팡이츠 계정과 내 매장을 등록합니다. 비밀번호는 봉투암호화로만 저장합니다.</p>
+          <p>배민·요기요·쿠팡이츠 계정과 내 매장을 등록해요. 비밀번호는 봉투암호화로만 저장해요.</p>
         </div>
       </div>
       <Card className="platform-accounts-page__notice">
         <Badge tone="warning" icon="⚠">매장 조회 대기</Badge>
-        <p>등록 1건당 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 자동 발견합니다.</p>
-        <p>조회는 등록 직후가 아니라 <strong>수집 작업이 처음 도는 시점</strong>에 이뤄집니다. 그전까지 등록 결과는 <strong>매장 조회 대기(PENDING)</strong>로 표시됩니다.</p>
+        <p>등록 1건당 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 자동으로 찾아요.</p>
+        <p>조회는 등록 직후가 아니라 <strong>수집 작업이 처음 도는 시점</strong>에 이뤄져요. 그전까지 등록 결과는 <strong>매장 조회 대기(PENDING)</strong>로 표시돼요.</p>
       </Card>
       {stores.length > 0 ? <PlatformAccountForm stores={stores} onRegistered={onRegistered} /> : null}
       {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
       {accounts === null && !error ? <Skeleton height={100} /> : null}
       {accounts && accounts.length === 0 ? (
-        <EmptyState title="등록된 배달앱 계정이 없습니다" description="계정을 등록하면 선택한 매장과 매핑됩니다." />
+        <EmptyState title="등록된 배달앱 계정이 없어요" description="계정을 등록하면 선택한 매장과 매핑돼요." />
       ) : null}
       {accounts && accounts.length > 0 ? (
         <ul className="platform-account-list">
@@ -119,7 +119,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
   // 페이지가 새로고침되면 입력값과 함께 사라지므로, 그때는 자동 재시도 대신 안내만 한다.
   const [payment, setPayment] = useState<{ storeId: string; billing: BillingResponse | null; autoRetry: boolean } | null>(null);
 
-  useEffect(() => { agreementsApi.catalog().then((c) => setForm((f) => ({ ...f, docVersion: c.currentVersion }))).catch(() => setError("동의 문서를 불러오지 못했습니다.")); }, []);
+  useEffect(() => { agreementsApi.catalog().then((c) => setForm((f) => ({ ...f, docVersion: c.currentVersion }))).catch(() => setError("동의 문서를 불러오지 못했어요.")); }, []);
 
   // 모바일 결제창에서 돌아온 경우를 새로고침 직후에 감지한다.
   useEffect(() => {
@@ -137,7 +137,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
     billingApi
       .get(storeId)
       .then((billing) => setPayment((current) => (current ? { ...current, billing } : current)))
-      .catch(() => setError("결제 정보를 불러오지 못했습니다."));
+      .catch(() => setError("결제 정보를 불러오지 못했어요."));
   };
 
   const closePaymentModal = () => {
@@ -163,7 +163,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
         openPaymentModal(payload.storeId, true);
         return false;
       }
-      setError(e instanceof ApiError ? e.message : "계정 등록에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "계정 등록에 실패했어요.");
       return false;
     } finally {
       setLoading(false);
@@ -215,7 +215,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
           <div className="field"><label className="field__label" htmlFor="storeId">매장</label><select id="storeId" className="field__input field__select" value={form.storeId} onChange={update("storeId")}>{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></div>
         </div>
         <Field label="배달앱 아이디" required value={form.loginId} onChange={update("loginId")} autoComplete="username" />
-        <Field label="배달앱 비밀번호" required type="password" value={form.password} onChange={update("password")} autoComplete="current-password" hint="화면에 다시 표시하지 않으며 서버에서 봉투암호화합니다." />
+        <Field label="배달앱 비밀번호" required type="password" value={form.password} onChange={update("password")} autoComplete="current-password" hint="화면에 다시 표시하지 않으며 서버에서 봉투암호화해요." />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
         {notice ? <p role="status" className="field__hint">{notice}</p> : null}
         <Button type="submit" loading={loading} disabled={!form.docVersion}>암호화 저장 및 플랫폼 매장 조회 대기</Button>

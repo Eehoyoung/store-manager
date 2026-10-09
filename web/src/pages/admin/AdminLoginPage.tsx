@@ -16,7 +16,7 @@ export function AdminLoginPage() {
       <Card className="auth-card">
         <OtpLoginForm
           title="시스템 콘솔 로그인"
-          description="등록된 관리자 이메일로 인증번호를 보내드립니다."
+          description="등록된 관리자 이메일로 인증번호를 보내드려요."
           ttlSeconds={ADMIN_OTP_TTL_SECONDS}
           onRequest={(email) => adminAuthApi.request(email)}
           onVerify={(email, code) => adminAuthApi.verify(email, code)}

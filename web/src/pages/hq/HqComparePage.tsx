@@ -52,7 +52,7 @@ export function HqComparePage() {
       .then(setData)
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "매장 비교 정보를 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "매장 비교 정보를 불러오지 못했어요.");
       });
   }, [brand, rangeDays, retryTick]);
 
@@ -74,7 +74,7 @@ export function HqComparePage() {
       <div className="hq-radar__title-row">
         <div>
           <h1>매장 비교</h1>
-          <p className="hq-page__note">같은 기간 동안 매장마다 어떻게 다른지 나란히 봅니다.</p>
+          <p className="hq-page__note">같은 기간 동안 매장마다 어떻게 다른지 나란히 봐요.</p>
         </div>
         <div className="hq-range" aria-label="비교 기간">
           {([7, 30, 90] as const).map((days) => (
@@ -88,7 +88,7 @@ export function HqComparePage() {
       {data === null && !error ? <Skeleton height={260} /> : null}
       {error ? (
         <EmptyState
-          title="매장 비교 정보를 불러오지 못했습니다"
+          title="매장 비교 정보를 불러오지 못했어요"
           description={error}
           action={
             <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -110,7 +110,7 @@ export function HqComparePage() {
             </select>
           </div>
           {sortedStores.length === 0 ? (
-            <EmptyState title="비교할 매장이 없습니다" />
+            <EmptyState title="비교할 매장이 없어요" />
           ) : (
             <div className="hq-table-wrap">
               <table className="hq-store-table">

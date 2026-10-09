@@ -59,7 +59,7 @@ export function HqAnalyticsPage() {
     setNotFound(false);
     hqApi.analytics(brand, selected.from, selected.to).then(setData).catch((e) => {
       if (e instanceof ApiError && e.status === 404) setNotFound(true);
-      else setError(e instanceof ApiError ? e.message : "이상징후를 불러오지 못했습니다.");
+      else setError(e instanceof ApiError ? e.message : "이상징후를 불러오지 못했어요.");
     });
   }, [brand, rangeDays, retryTick]);
 
@@ -77,11 +77,11 @@ export function HqAnalyticsPage() {
   return <div className="hq-page">
     <HqNav brand={brand} />
     <div className="hq-radar__title-row">
-      <div><h1>브랜드 이상징후 레이더</h1><p className="hq-page__note">여러 매장에 번지는 문제를 직전 동일 기간과 비교합니다.</p></div>
+      <div><h1>브랜드 이상징후 레이더</h1><p className="hq-page__note">여러 매장에 번지는 문제를 직전 동일 기간과 비교해요.</p></div>
       <div className="hq-range" aria-label="분석 기간">{([7, 30, 90] as const).map((days) => <Button key={days} type="button" variant={rangeDays === days ? "primary" : "secondary"} onClick={() => setRangeDays(days)}>{days}일</Button>)}</div>
     </div>
     {data === null && !error ? <div className="hq-page__list"><Skeleton height={120} /><Skeleton height={260} /></div> : null}
-    {error ? <EmptyState title="이상징후를 불러오지 못했습니다" description={error} action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>} /> : null}
+    {error ? <EmptyState title="이상징후를 불러오지 못했어요" description={error} action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>} /> : null}
     {data ? <RadarContent data={data} sortedStores={sortedStores} sortKey={sortKey} setSortKey={setSortKey} /> : null}
   </div>;
 }
@@ -93,11 +93,11 @@ function RadarContent({ data, sortedStores, sortKey, setSortKey }: { data: HqAna
     + data.menuIssuesBelowThreshold + data.dailyRiskBelowThreshold;
   return <>
     <p className="hq-page__note">현재 {data.from} ~ {data.to} · 비교 {data.previousFrom} ~ {data.previousTo}{data.dataAsOf ? ` · 최근 수집 ${new Date(data.dataAsOf).toLocaleString("ko-KR")}` : " · 수집 데이터 없음"}</p>
-    {coverageLow ? <div className="hq-radar__coverage-warning" role="alert">⚠ 분석 커버리지 {pct(data.analysisCoverageRate)} — 미분석 리뷰가 있어 발생률이 실제와 다를 수 있습니다.</div> : null}
+    {coverageLow ? <div className="hq-radar__coverage-warning" role="alert">⚠ 분석 커버리지 {pct(data.analysisCoverageRate)} — 미분석 리뷰가 있어 발생률이 실제와 다를 수 있어요.</div> : null}
     {belowThresholdTotal > 0 ? (
       <div className="hq-radar__coverage-warning" role="status">
         ℹ {BELOW_THRESHOLD_LABEL} {belowThresholdTotal}건 — 건수가 적으면 특정 리뷰(작성자)를 다시 알아볼 수 있어
-        정확한 수치를 가렸습니다. 아래 표에 항목은 남아 있고 "{BELOW_THRESHOLD_LABEL}"로 표시됩니다.
+        정확한 수치를 가렸어요. 아래 표에 항목은 남아 있고 "{BELOW_THRESHOLD_LABEL}"로 표시돼요.
       </div>
     ) : null}
 
@@ -109,7 +109,7 @@ function RadarContent({ data, sortedStores, sortKey, setSortKey }: { data: HqAna
     </div>
 
     <Card className="hq-radar__alerts"><h2>지금 확인할 항목</h2>
-      {data.riskClusters.length === 0 && rising.length === 0 ? <p className="hq-radar__clear">✓ 현재 기간에 고위험 군집이나 기준을 넘은 급증 이슈가 없습니다.</p> : <ul className="hq-alert-list">
+      {data.riskClusters.length === 0 && rising.length === 0 ? <p className="hq-radar__clear">✓ 현재 기간에 고위험 군집이나 기준을 넘은 급증 이슈가 없어요.</p> : <ul className="hq-alert-list">
         {data.riskClusters.map((risk) => <li key={risk.reason} className="hq-alert hq-alert--danger">
           <Badge tone="danger" icon="⚠">긴급</Badge>
           <span>
@@ -124,17 +124,17 @@ function RadarContent({ data, sortedStores, sortKey, setSortKey }: { data: HqAna
       </ul>}
     </Card>
 
-    <Card><h2>이슈 발생률 추이</h2><p className="hq-section__hint">분석 리뷰 100건당 발생률입니다. 단순 건수 증가와 리뷰량 증가를 구분합니다.</p>
-      {data.issueTagRanking.length === 0 ? <EmptyState title="집계된 이슈가 없습니다" description="분석된 리뷰에 이슈 태그가 생기면 표시됩니다." /> : <div className="hq-table-wrap"><table className="hq-store-table hq-issue-table"><thead><tr><th>신호</th><th>이슈</th><th>현재</th><th>직전</th><th>증감</th><th>영향 매장</th><th>평균 별점</th></tr></thead><tbody>{data.issueTagRanking.map((item) => <IssueRow key={item.tag} item={item} />)}</tbody></table></div>}
+    <Card><h2>이슈 발생률 추이</h2><p className="hq-section__hint">분석 리뷰 100건당 발생률이에요. 단순 건수 증가와 리뷰량 증가를 구분해요.</p>
+      {data.issueTagRanking.length === 0 ? <EmptyState title="집계된 이슈가 없어요" description="분석된 리뷰에 이슈 태그가 생기면 표시돼요." /> : <div className="hq-table-wrap"><table className="hq-store-table hq-issue-table"><thead><tr><th>신호</th><th>이슈</th><th>현재</th><th>직전</th><th>증감</th><th>영향 매장</th><th>평균 별점</th></tr></thead><tbody>{data.issueTagRanking.map((item) => <IssueRow key={item.tag} item={item} />)}</tbody></table></div>}
     </Card>
 
     <div className="hq-two-col">
-      <Card><h2>일별 위험 흐름</h2><p className="hq-section__hint">이슈 리뷰 비율과 고위험 발생일을 함께 봅니다.</p><DailyTrendChart items={data.dailyRiskTrend} /></Card>
-      <Card><h2>메뉴 × 이슈</h2><p className="hq-section__hint">주문 메뉴가 제공된 리뷰에서 반복되는 조합입니다.</p>{data.menuIssues.length === 0 ? <EmptyState title="메뉴 근거가 없습니다" /> : <ul className="hq-menu-issues">{data.menuIssues.map((item) => <li key={`${item.menu}-${item.tag}`}><span><strong>{item.menu}</strong><small>{item.tag}</small></span><span>{item.belowThreshold ? BELOW_THRESHOLD_LABEL : `${item.count}건 · ${item.affectedStoreCount}개 매장 · ${item.avgRating != null ? `${item.avgRating.toFixed(1)}점` : "별점 없음"}`}</span></li>)}</ul>}</Card>
+      <Card><h2>일별 위험 흐름</h2><p className="hq-section__hint">이슈 리뷰 비율과 고위험 발생일을 함께 봐요.</p><DailyTrendChart items={data.dailyRiskTrend} /></Card>
+      <Card><h2>메뉴 × 이슈</h2><p className="hq-section__hint">주문 메뉴가 제공된 리뷰에서 반복되는 조합이에요.</p>{data.menuIssues.length === 0 ? <EmptyState title="메뉴 근거가 없어요" /> : <ul className="hq-menu-issues">{data.menuIssues.map((item) => <li key={`${item.menu}-${item.tag}`}><span><strong>{item.menu}</strong><small>{item.tag}</small></span><span>{item.belowThreshold ? BELOW_THRESHOLD_LABEL : `${item.count}건 · ${item.affectedStoreCount}개 매장 · ${item.avgRating != null ? `${item.avgRating.toFixed(1)}점` : "별점 없음"}`}</span></li>)}</ul>}</Card>
     </div>
 
     <DistributionCards data={data} />
-    <Card><h2>매장별 비교</h2><div className="hq-sort"><label htmlFor="hq-sort-select">정렬</label><select id="hq-sort-select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}><option value="unprocessed">미처리 많은 순</option><option value="rating">평점 낮은 순</option><option value="completion">답글 완료율 낮은 순</option><option value="reviews">리뷰 많은 순</option></select></div>{sortedStores.length === 0 ? <EmptyState title="비교할 매장이 없습니다" /> : <div className="hq-table-wrap"><table className="hq-store-table"><thead><tr><th>매장</th><th>리뷰</th><th>평균 별점</th><th>답글 완료율</th><th>미처리</th></tr></thead><tbody>{sortedStores.map((s) => <StoreCompareRow key={s.storeId} store={s} />)}</tbody></table></div>}</Card>
+    <Card><h2>매장별 비교</h2><div className="hq-sort"><label htmlFor="hq-sort-select">정렬</label><select id="hq-sort-select" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}><option value="unprocessed">미처리 많은 순</option><option value="rating">평점 낮은 순</option><option value="completion">답글 완료율 낮은 순</option><option value="reviews">리뷰 많은 순</option></select></div>{sortedStores.length === 0 ? <EmptyState title="비교할 매장이 없어요" /> : <div className="hq-table-wrap"><table className="hq-store-table"><thead><tr><th>매장</th><th>리뷰</th><th>평균 별점</th><th>답글 완료율</th><th>미처리</th></tr></thead><tbody>{sortedStores.map((s) => <StoreCompareRow key={s.storeId} store={s} />)}</tbody></table></div>}</Card>
   </>;
 }
 
@@ -170,7 +170,7 @@ function deltaLabel(item: HqIssueTagItem): string {
 }
 
 function DailyTrendChart({ items }: { items: HqDailyRiskItem[] }) {
-  if (items.length === 0) return <EmptyState title="분석된 리뷰가 없습니다" />;
+  if (items.length === 0) return <EmptyState title="분석된 리뷰가 없어요" />;
   // ponytail: 표시 기준 미달(1~4건)인 날은 실제 이슈 비율 대신 0으로 그린다 — 작은 값을 그대로
   // 그리면 선 위치 자체가 건수를 노출한다. 추이 곡선의 정밀도보다 재식별 방지가 우선이다.
   const rates = items.map((item) => item.analyzedCount === 0 || item.issueReviewCount == null
@@ -189,7 +189,7 @@ function DailyTrendChart({ items }: { items: HqDailyRiskItem[] }) {
 }
 
 function DistributionCards({ data }: { data: HqAnalyticsResponse }) {
-  return <div className="hq-two-col"><Card><h2>별점 분포</h2>{data.ratingDistribution.length === 0 ? <EmptyState title="데이터가 없습니다" /> : <ul className="hq-bars">{[5, 4, 3, 2, 1].map((rating) => { const count = data.ratingDistribution.find((x) => x.rating === rating)?.count ?? 0; const max = Math.max(...data.ratingDistribution.map((x) => x.count), 1); return <li key={rating} className="hq-bar"><span className="hq-bar__label">{rating}점</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${count / max * 100}%` }} /></span><span className="hq-bar__value">{count}건</span></li>; })}</ul>}</Card><Card><h2>카테고리 분포</h2>{data.categoryDistribution.length === 0 ? <EmptyState title="데이터가 없습니다" /> : <ul className="hq-bars">{data.categoryDistribution.map((item) => { const max = Math.max(...data.categoryDistribution.map((x) => x.count), 1); return <li key={item.category} className="hq-bar"><span className="hq-bar__label">{describeCategory(item.category)}</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${item.count / max * 100}%` }} /></span><span className="hq-bar__value">{item.count}건</span></li>; })}</ul>}</Card></div>;
+  return <div className="hq-two-col"><Card><h2>별점 분포</h2>{data.ratingDistribution.length === 0 ? <EmptyState title="데이터가 없어요" /> : <ul className="hq-bars">{[5, 4, 3, 2, 1].map((rating) => { const count = data.ratingDistribution.find((x) => x.rating === rating)?.count ?? 0; const max = Math.max(...data.ratingDistribution.map((x) => x.count), 1); return <li key={rating} className="hq-bar"><span className="hq-bar__label">{rating}점</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${count / max * 100}%` }} /></span><span className="hq-bar__value">{count}건</span></li>; })}</ul>}</Card><Card><h2>카테고리 분포</h2>{data.categoryDistribution.length === 0 ? <EmptyState title="데이터가 없어요" /> : <ul className="hq-bars">{data.categoryDistribution.map((item) => { const max = Math.max(...data.categoryDistribution.map((x) => x.count), 1); return <li key={item.category} className="hq-bar"><span className="hq-bar__label">{describeCategory(item.category)}</span><span className="hq-bar__track"><span className="hq-bar__fill" style={{ width: `${item.count / max * 100}%` }} /></span><span className="hq-bar__value">{item.count}건</span></li>; })}</ul>}</Card></div>;
 }
 
 // 가려진 값은 "데이터 없음"으로 쓰지 않는다 — 없는 것과 가린 것은 다르다.
