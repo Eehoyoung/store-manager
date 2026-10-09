@@ -54,7 +54,7 @@ export function AuthAside() {
       </ul>
 
       <p className="auth-aside__foot">
-        고객 리뷰는 만들지도 고치지도 않아요. 사장님 답글만 다뤄요.
+        손님 리뷰는 만들지도 고치지도 않아요. 사장님 답글만 다뤄요.
       </p>
     </aside>
   );

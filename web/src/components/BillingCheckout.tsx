@@ -63,7 +63,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
     if (!billingKey && !code) return;
     window.history.replaceState(null, "", window.location.pathname);
     if (code) {
-      setMessage(params.get("message") || "결제수단을 등록하지 못했어요.");
+      setMessage(params.get("message") || "결제수단을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
     const raw = sessionStorage.getItem(consentKey(storeId));
@@ -117,7 +117,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       if (!result) return; // 모바일: 페이지를 떠났다가 위 useEffect로 돌아온다.
       sessionStorage.removeItem(consentKey(storeId));
       if (result.code !== undefined) {
-        setMessage(result.message || "결제수단을 등록하지 못했어요.");
+        setMessage(result.message || "결제수단을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
       const next = await billingApi.checkout(storeId, {
@@ -142,7 +142,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         월 {krw(billing.amountKrw)} <small>(VAT 포함)</small>
       </p>
       <p className="field__hint">
-        카드번호·유효기간·CVC는 결제대행사 화면에서만 입력합니다. 소담리뷰는 이를 받거나 저장하지 않습니다.
+        카드번호·유효기간·CVC는 결제대행사 화면에서만 입력해요. 소담리뷰는 이 정보를 받거나 저장하지 않아요.
       </p>
       <div className="consent-table-wrap">
         <table>

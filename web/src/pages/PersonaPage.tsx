@@ -204,7 +204,7 @@ export function PersonaPage() {
         ))}
       </div>
       <div className="persona-page__actions">
-        <span>말투·내용·시간 변경은 저장이 필요합니다. 자동 게시 설정은 바꾸는 즉시 적용돼요.</span>
+        <span>말투·내용·시간은 저장해야 반영돼요. 자동 게시 설정은 바꾸는 즉시 적용돼요.</span>
         <Button type="button" onClick={handleSave} loading={saving}>변경 사항 저장</Button>
       </div>
 

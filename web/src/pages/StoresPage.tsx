@@ -25,7 +25,7 @@ export function StoresPage() {
     storesApi
       .list()
       .then(setStores)
-      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했어요."));
+      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."));
   };
 
   useEffect(load, []);
@@ -132,7 +132,7 @@ function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void 
       });
       onCreated(created);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "매장 등록에 실패했어요.");
+      setError(err instanceof ApiError ? err.message : "매장 등록에 실패했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }

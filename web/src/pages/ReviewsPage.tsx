@@ -98,7 +98,7 @@ export function ReviewsPage() {
           setPaymentRequired(true);
           return;
         }
-        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했어요.");
+        setLoadError(e instanceof ApiError ? e.message : "리뷰 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, category, minRating, maxRating, riskLevel, hasReply, from, to, cursor, retryTick]);
@@ -344,7 +344,7 @@ function ReviewDetailModal({
     reviewsApi
       .get(reviewId)
       .then(setDetail)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했어요."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."));
   };
 
   useEffect(() => {
@@ -398,7 +398,7 @@ function ReviewDetailModal({
 
           <h2>초안 이력</h2>
           {detail.drafts.length === 0 ? (
-            <EmptyState title="아직 생성된 답글이 없어요" />
+            <EmptyState title="아직 답글 초안이 없어요" />
           ) : (
             <ul className="review-detail__drafts">
               {detail.drafts.map((d, idx) => {
@@ -484,7 +484,7 @@ function HeldReplyPanel({ storeId, draftId, onDone }: { storeId: string; draftId
       if (isPaymentRequiredError(e)) {
         setNeedsPayment(true);
       } else {
-        setError(e instanceof ApiError ? e.message : "게시 예약 중 오류가 났어요.");
+        setError(e instanceof ApiError ? e.message : "게시 예약 중 오류가 났어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
       setBusy(false);
@@ -542,7 +542,7 @@ function CancelScheduledPanel({
       toast.show("게시하지 않기로 했어요.", "info");
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "취소 처리 중 오류가 났어요.");
+      setError(e instanceof ApiError ? e.message : "취소 처리 중 오류가 났어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
@@ -611,7 +611,7 @@ function RiskApprovalPanel({
           }`,
         );
       } else {
-        setActionError(e instanceof ApiError ? e.message : "승인 처리 중 오류가 났어요.");
+        setActionError(e instanceof ApiError ? e.message : "승인 처리 중 오류가 났어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
       setBusy(false);
@@ -626,7 +626,7 @@ function RiskApprovalPanel({
       toast.show("게시하지 않기로 했어요.", "info");
       onDone();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "거절 처리 중 오류가 났어요.");
+      setActionError(e instanceof ApiError ? e.message : "거절 처리 중 오류가 났어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }

@@ -68,7 +68,7 @@ export function SignupPage() {
   const stepTitles = ["계정 정보", "매장 정보", "약관 동의"];
 
   useEffect(() => {
-    agreementsApi.catalog().then((catalog) => setDocVersion(catalog.currentVersion)).catch(() => setError("동의 문서를 불러오지 못했어요."));
+    agreementsApi.catalog().then((catalog) => setDocVersion(catalog.currentVersion)).catch(() => setError("동의 문서를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."));
   }, []);
 
   const update = (key: keyof FormState) => (e: ChangeEvent<HTMLInputElement>) =>
