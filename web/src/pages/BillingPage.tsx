@@ -262,7 +262,7 @@ export function BillingPage() {
       ) : (
         <Card>
           <h2>등록 카드</h2>
-          <p>카드가 등록되어 있습니다. 결제일마다 자동으로 결제됩니다.</p>
+          <p>카드가 등록돼 있어요. 결제일마다 자동으로 결제돼요.</p>
           <div className="billing-page__actions">
             <Button type="button" variant="secondary" disabled={busy} onClick={() => setShowCardForm(true)}>
               카드 변경

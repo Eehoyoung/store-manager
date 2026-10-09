@@ -41,7 +41,7 @@ export function PlatformAccountsPage() {
         setAccounts(nextAccounts);
         setStores(nextStores);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "배달앱 계정 정보를 불러오지 못했어요."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "배달앱 계정 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."));
   };
 
   useEffect(load, []);
@@ -53,7 +53,7 @@ export function PlatformAccountsPage() {
       await platformAccountsApi.revoke(account.id);
       setAccounts((current) => (current ?? []).filter((item) => item.id !== account.id));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "연동 해제에 실패했어요.");
+      setError(e instanceof ApiError ? e.message : "연동 해제에 실패했어요. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -119,7 +119,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
   // 페이지가 새로고침되면 입력값과 함께 사라지므로, 그때는 자동 재시도 대신 안내만 한다.
   const [payment, setPayment] = useState<{ storeId: string; billing: BillingResponse | null; autoRetry: boolean } | null>(null);
 
-  useEffect(() => { agreementsApi.catalog().then((c) => setForm((f) => ({ ...f, docVersion: c.currentVersion }))).catch(() => setError("동의 문서를 불러오지 못했어요.")); }, []);
+  useEffect(() => { agreementsApi.catalog().then((c) => setForm((f) => ({ ...f, docVersion: c.currentVersion }))).catch(() => setError("동의 문서를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.")); }, []);
 
   // 모바일 결제창에서 돌아온 경우를 새로고침 직후에 감지한다.
   useEffect(() => {
@@ -137,7 +137,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
     billingApi
       .get(storeId)
       .then((billing) => setPayment((current) => (current ? { ...current, billing } : current)))
-      .catch(() => setError("결제 정보를 불러오지 못했어요."));
+      .catch(() => setError("결제 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."));
   };
 
   const closePaymentModal = () => {
@@ -163,7 +163,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
         openPaymentModal(payload.storeId, true);
         return false;
       }
-      setError(e instanceof ApiError ? e.message : "계정 등록에 실패했어요.");
+      setError(e instanceof ApiError ? e.message : "계정 등록에 실패했어요. 잠시 후 다시 시도해 주세요.");
       return false;
     } finally {
       setLoading(false);

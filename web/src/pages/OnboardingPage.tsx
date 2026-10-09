@@ -61,12 +61,12 @@ function steps(billingStepEntry: Step, serviceable: boolean): Step[] {
       title: "4. 배달앱 계정 등록",
       description:
         "배민·요기요·쿠팡이츠 아이디와 비밀번호를 봉투암호화로 저장하고 매장을 매핑해요. 리뷰는 매일 오전 10시에 가져와요." +
-        (serviceable ? "" : " 결제 후 리뷰 수집이 시작돼요."),
+        (serviceable ? "" : " 카드를 등록하면 리뷰 수집이 시작돼요."),
       state: "available",
       action: { label: "배달앱 계정 등록", to: "/platform-accounts" },
     },
     { title: "5. 리뷰 백필", description: "최근 90일 리뷰를 가져와요. 준비 중이에요.", state: "soon" },
-    { title: "6. 자동 운영", description: "안전 검사를 통과한 답글은 자동으로 게시돼요.", state: "done" },
+    { title: "6. 자동 운영", description: "안전 검사를 통과한 답글 초안은 예약했다가 자동으로 게시돼요. 페르소나 화면에서 끌 수 있어요.", state: "done" },
   ];
 }
 
@@ -97,12 +97,12 @@ export function OnboardingPage() {
       <p>아래 순서대로 진행하면 리뷰 답글 자동화를 시작할 수 있어요.</p>
       {signupState?.affiliationRequested ? (
         <p role="status">
-          <strong>가맹본부 소속 신청이 접수되었습니다.</strong> 저희가 확인한 뒤 승인되면 본부에서 매장 리뷰를 볼 수 있게 됩니다.{" "}
-          <strong>승인 전까지는 본부에 아무 정보도 제공되지 않습니다.</strong>
+          <strong>가맹본부 소속 신청을 받았어요.</strong> 저희가 확인한 뒤 승인되면 본부에서 매장 리뷰를 볼 수 있어요.{" "}
+          <strong>승인 전까지는 본부에 아무 정보도 넘어가지 않아요.</strong>
         </p>
       ) : null}
       {signupState?.franchiseCodeEntered && !signupState.affiliationRequested ? (
-        <p role="status">제3자 제공에 동의하지 않아 가맹코드가 적용되지 않았습니다. 서비스는 그대로 이용할 수 있어요.</p>
+        <p role="status">제3자 제공에 동의하지 않아 가맹코드를 적용하지 않았어요. 서비스는 그대로 이용할 수 있어요.</p>
       ) : null}
       <ol className="onboarding-page__steps">
         {steps(billingStepEntry, serviceable).map((step) => (
