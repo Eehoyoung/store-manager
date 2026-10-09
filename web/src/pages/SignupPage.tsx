@@ -212,7 +212,7 @@ export function SignupPage() {
           />
           <Field
             label="쿠폰번호 (선택)"
-            hint="안내받은 쿠폰번호를 입력하시면 30일 무료체험이 시작돼요."
+            hint="안내받은 쿠폰번호를 입력하면, 가입 후 카드를 등록한 날부터 30일 무료체험이 시작돼요."
             autoCapitalize="characters"
             value={form.promoCode}
             onChange={(e) => setForm((c) => ({ ...c, promoCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32) }))}
