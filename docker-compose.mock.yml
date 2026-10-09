@@ -1,0 +1,32 @@
+# 개발 전용 — DataAPI 를 목으로 바꿔 끼운다. 운영(deploy/docker-compose.prod.yml)에는 쓰지 않는다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d postgres redis api-spring worker mock-dataapi
+#   docker compose -f docker-compose.yml -f docker-compose.mock.yml logs -f mock-dataapi   # worker 가 목을 부르는지 확인
+#
+# ★ .env 에 실제 DATAAPI_* 값이 있어도 여기 적은 값이 이긴다 — 목 주소·가짜 토큰·가짜 암호화 키.
+#   실서버로 새지 않게 DATAAPI_BASE_URL 을 변수 없이 고정한다. 바꾸지 말 것.
+services:
+  mock-dataapi:
+    image: python:3.12-slim
+    command: ["python", "/app/server.py"]
+    volumes:
+      - ./dev/mock-dataapi:/app:ro
+      - ./worker/tests/fixtures:/fixtures:ro
+    environment:
+      MOCK_FIXTURES: /fixtures
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 5s
+      retries: 10
+
+  worker:
+    depends_on:
+      mock-dataapi: {condition: service_healthy}
+    environment:
+      DATAAPI_BASE_URL: http://mock-dataapi:9000
+      DATAAPI_TOKEN: mock-token
+      DATAAPI_ENC_SPEC: AES/CBC/PKCS5Padding
+      DATAAPI_ENC_KEY: mock-key-0123456789abcdef-012345
+      DATAAPI_ENC_IV: mock-iv-01234567
+      DATAAPI_WRITE_ENABLED: "false"
+      DATAAPI_CALL_BUDGET: "0"
