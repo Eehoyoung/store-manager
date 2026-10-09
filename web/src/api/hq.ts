@@ -3,6 +3,7 @@ import { getAccessToken } from "../auth/tokenStore";
 import type {
   HqAnalyticsResponse,
   HqBrand,
+  HqBrandPricing,
   HqFeatures,
   HqOverviewResponse,
   HqReportResponse,
@@ -42,6 +43,8 @@ export const hqApi = {
   brands: () => apiRequest<HqBrand[]>("/hq/brands"),
 
   overview: (brandName: string) => apiRequest<HqOverviewResponse>(`/hq/brands/${enc(brandName)}/overview`),
+
+  pricing: (brandName: string) => apiRequest<HqBrandPricing>(`/hq/brands/${enc(brandName)}/pricing`),
 
   stores: (brandName: string) => apiRequest<HqStore[]>(`/hq/brands/${enc(brandName)}/stores`),
 

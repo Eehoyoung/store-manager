@@ -3,6 +3,9 @@ package com.storemanager.api.hq;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.billing.BrandPricingService;
+import com.storemanager.api.billing.PricingDtos.AdminBrandPricingRow;
+import com.storemanager.api.billing.PricingDtos.HqBrandPricingResponse;
 import com.storemanager.api.agreement.UserAgreement;
 import com.storemanager.api.agreement.UserAgreementRepository;
 import com.storemanager.api.audit.AuditLog;
@@ -81,11 +84,13 @@ public class HqService {
     private final HqReviewAccessProperties reviewAccessProperties;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final BrandPricingService brandPricingService;
 
     public HqService(HqAccessGuard hqAccessGuard, FranchiseHqMemberRepository hqMemberRepository,
             HqQueryRepository hqQueryRepository, ReviewQueryRepository reviewQueryRepository,
             UserAgreementRepository userAgreementRepository, HqReviewAccessProperties reviewAccessProperties,
-            AuditLogRepository auditLogRepository, ObjectMapper objectMapper) {
+            AuditLogRepository auditLogRepository, ObjectMapper objectMapper,
+            BrandPricingService brandPricingService) {
         this.hqAccessGuard = hqAccessGuard;
         this.hqMemberRepository = hqMemberRepository;
         this.hqQueryRepository = hqQueryRepository;
@@ -94,6 +99,20 @@ public class HqService {
         this.reviewAccessProperties = reviewAccessProperties;
         this.auditLogRepository = auditLogRepository;
         this.objectMapper = objectMapper;
+        this.brandPricingService = brandPricingService;
+    }
+
+    /**
+     * 가맹 브랜드 구간 단가(V49) — 브랜드 단위 집계만 돌려준다. 매장별 결제 상태·금액,
+     * 약정 매장 수(committedStoreCount)는 관리자 전용이라 여기서 뺀다(CLAUDE.md 본부 비노출 목록).
+     */
+    @Transactional
+    public HqBrandPricingResponse pricing(java.util.UUID userPublicId, String brandName) {
+        AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
+        audit(user, "HQ_PRICING_VIEW", "BRAND", null, brandName);
+        AdminBrandPricingRow row = brandPricingService.summary(brandName, Instant.now());
+        return new HqBrandPricingResponse(row.brandName(), row.paidStoreCount(), row.lastMonth(), row.thisMonth(),
+                row.nextMonth());
     }
 
     /** FR-801 — 본부 권한이 없으면 빈 배열(403 아님). 조회 대상이 곧 "내 권한 목록"이라 감사로그는 남기지 않는다. */

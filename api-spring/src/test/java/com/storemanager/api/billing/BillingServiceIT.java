@@ -14,6 +14,8 @@ import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.crypto.CredentialService;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.franchise.FranchiseBrand;
+import com.storemanager.api.franchise.FranchiseBrandRepository;
 import com.storemanager.api.review.StorePlatformLink;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.review.UnifiedReview;
@@ -153,6 +155,7 @@ class BillingServiceIT {
     @Autowired StorePlatformLinkRepository storePlatformLinkRepository;
     @Autowired CredentialService credentialService;
     @Autowired AuditLogRepository auditLogRepository;
+    @Autowired FranchiseBrandRepository franchiseBrandRepository;
 
     private record 매장픽스처(UUID ownerPublicId, UUID storePublicId, Long storeId, Long ownerId) {}
 
@@ -575,6 +578,64 @@ class BillingServiceIT {
                 .satisfies(e -> assertThat(((ApiException) e).getErrorCode())
                         .isEqualTo(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED));
         assertThat(replyDraftRepository.findById(d.getId()).orElseThrow().getStatus()).isEqualTo("BLOCKED");
+    }
+
+    // ── 가맹 브랜드 구간 단가(V49) ─────────────────────────────────────────
+
+    /** 약정 매장 수만 설정한다(스냅샷 없이) — unitPriceFor 가 committedOrDefault 로 떨어지는 경로. */
+    private void 브랜드_약정을_만든다(Long storeId, String brand, int committedStoreCount) {
+        franchiseBrandRepository.save(FranchiseBrand.builder().brandName(brand)
+                .committedStoreCount(committedStoreCount).build());
+        Store store = storeRepository.findById(storeId).orElseThrow();
+        store.assignBrand(brand);
+        storeRepository.save(store);
+    }
+
+    @Test
+    void 약정_매장수가_50곳인_브랜드는_31900원을_청구한다() {
+        매장픽스처 f = 매장을_만든다("brand-50@example.com");
+        브랜드_약정을_만든다(f.storeId(), "리뷰브랜드50", 50);
+
+        BillingView view = billingService.checkout(f.ownerPublicId(), f.storePublicId(), checkout(issue(f.storeId())),
+                "127.0.0.1", "junit");
+
+        assertThat(view.unitPriceKrw()).isEqualTo(29000);
+        assertThat(PAID_BODIES.get(PAID_BODIES.size() - 1)).contains("\"total\":31900");
+    }
+
+    @Test
+    void 브랜드가_없는_매장은_기본단가_33000원을_청구한다() {
+        매장픽스처 f = 매장을_만든다("brand-none@example.com");
+
+        BillingView view = billingService.checkout(f.ownerPublicId(), f.storePublicId(), checkout(issue(f.storeId())),
+                "127.0.0.1", "junit");
+
+        assertThat(view.unitPriceKrw()).isEqualTo(30000);
+        assertThat(PAID_BODIES.get(PAID_BODIES.size() - 1)).contains("\"total\":33000");
+    }
+
+    /** UNKNOWN 재시도 사이 브랜드 단가가 바뀌어도, 이미 만든 Payment 행의 금액을 그대로 청구한다. */
+    @Test
+    void 재시도는_처음_확정된_금액을_그대로_청구한다() {
+        매장픽스처 f = 매장을_만든다("retry-price@example.com");
+        브랜드_약정을_만든다(f.storeId(), "리트라이브랜드", 50); // tier(50) = 29000
+        String key = issue(f.storeId());
+        구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)), key);
+
+        upstream5xx = true;
+        confirmStatus = "PENDING"; // 결과를 모른다 — Payment 행(29000+2900)만 만들고 아무것도 확정하지 않는다
+        billingService.renew(f.storeId());
+
+        // 재시도 사이 약정을 5곳으로 낮춘다 — 새로 계산하면 tier(5)=30000 이지만, 이미 만든 행이 있으므로 무시돼야 한다.
+        FranchiseBrand brand = franchiseBrandRepository.findByBrandName("리트라이브랜드").orElseThrow();
+        brand.changeCommittedStoreCount(5);
+        franchiseBrandRepository.save(brand);
+
+        upstream5xx = false; // 이번엔 정상 응답 — 실제로 전송한 금액이 PAID_BODIES 에 남는다
+        billingService.renew(f.storeId());
+
+        assertThat(row(f.storeId()).getStatus()).isEqualTo("ACTIVE");
+        assertThat(PAID_BODIES.get(PAID_BODIES.size() - 1)).contains("\"total\":31900"); // 처음 금액 그대로
     }
 
     @Test

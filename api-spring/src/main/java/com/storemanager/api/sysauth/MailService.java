@@ -60,6 +60,15 @@ public class MailService {
         return send(toEmail, subject, body);
     }
 
+    /** 가맹 브랜드 구간 단가 변경 안내(V49). 성공 여부를 돌려준다 — 실패하면 다음 실행에서 재시도한다. */
+    public boolean sendBrandPriceNotice(String toEmail, String subject, String body) {
+        if (!canSend()) {
+            log.warn("메일 계정이 설정되지 않아 브랜드 단가 변경 안내 발송을 건너뜁니다(다음 실행에서 다시 시도).");
+            return false;
+        }
+        return send(toEmail, subject, body);
+    }
+
     private boolean canSend() {
         return !props.getUsername().isBlank() && !props.getPassword().isBlank();
     }

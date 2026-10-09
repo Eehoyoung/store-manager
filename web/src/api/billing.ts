@@ -34,6 +34,10 @@ export interface BillingResponse {
   renewalFailures: number;
   amountKrw: number;
   chargeNowKrw: number;
+  /** 가맹 브랜드 구간 단가 적용 시 매장 1곳의 월 단가. 비가맹은 amountKrw 와 같다. */
+  unitPriceKrw: number;
+  /** 가맹 브랜드 유료 이용 매장 수 — 이 단가의 근거. 비가맹 매장은 null. */
+  brandPaidStoreCount: number | null;
   consentVersion: string;
   payments: BillingPayment[];
   /** 이용 중지로 게시되지 않은 채 BLOCKED(STORE_INACTIVE) 로 남은 예약 답글 수. */
