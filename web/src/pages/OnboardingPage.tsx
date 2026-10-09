@@ -60,7 +60,7 @@ function steps(billingStepEntry: Step, serviceable: boolean): Step[] {
     {
       title: "4. 배달앱 계정 등록",
       description:
-        "배민·요기요·쿠팡이츠 아이디와 비밀번호를 봉투암호화로 저장하고 매장을 매핑해요. DataAPI 검증은 보류 중이에요." +
+        "배민·요기요·쿠팡이츠 아이디와 비밀번호를 봉투암호화로 저장하고 매장을 매핑해요. 리뷰는 매일 오전 10시에 가져와요." +
         (serviceable ? "" : " 결제 후 리뷰 수집이 시작돼요."),
       state: "available",
       action: { label: "배달앱 계정 등록", to: "/platform-accounts" },
