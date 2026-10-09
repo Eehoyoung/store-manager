@@ -64,6 +64,16 @@ else
   else
     fail "DATAAPI_WRITE_ENABLED 가 false 가 아니다 — 실매장 리뷰에 답글이 달릴 수 있다"
   fi
+
+  # 3-1) 테스트 매장 절차에 필요한 값 — 값은 보지 않고 비었는지만 본다.
+  #  포트원 키가 비면 결제 화면이 닫혀 카드 등록(=체험 시작)을 할 수 없다.
+  #  쿠폰이 비면 카드 등록 즉시 33,000원 청구다(체험 없음).
+  empty=""
+  for k in PORTONE_API_SECRET PORTONE_STORE_ID PORTONE_INICIS_CHANNEL_KEY; do [ -n "$(env_val "$k")" ] || empty="$empty $k"; done
+  if [ -z "$empty" ]; then pass "포트원 키 3종 값 있음 — 테스트 채널인지 실채널인지는 포트원 콘솔에서 확인"
+  else fail "포트원 키가 비었다:$empty — 카드 등록·체험 시작 불가"; fi
+  if [ -n "$(env_val PROMOTION_CODE)" ]; then pass "PROMOTION_CODE 값 있음 — 쿠폰 체험 열림"
+  else info "PROMOTION_CODE 가 비었다 — 쿠폰 체험이 열리지 않아 카드 등록 즉시 청구된다"; fi
 fi
 
 # 4) auto-deploy cron

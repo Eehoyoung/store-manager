@@ -39,6 +39,12 @@ check "다른 키 누락 → 키 이름만 출력" 1 "서버 env 에 없는 키:
 { base; echo 'DATAAPI_BASE_URL="https://datahub-dev.scraping.co.kr"'; echo DATAAPI_WRITE_ENABLED=true; echo DATAAPI_WRITE_ENABLED=false; } >"$T/env"
 check "따옴표·중복 키(마지막이 이김) → 통과" 0 "PASS  DATAAPI_BASE_URL = 개발계"
 
+{ base | sed 's/^PORTONE_STORE_ID=.*/PORTONE_STORE_ID=/'; echo DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr; echo DATAAPI_WRITE_ENABLED=false; } >"$T/env"
+check "포트원 키 빈 값 → 실패(키 이름만)" 1 "포트원 키가 비었다: PORTONE_STORE_ID"
+
+{ base | sed 's/^PROMOTION_CODE=.*/PROMOTION_CODE=/'; echo DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr; echo DATAAPI_WRITE_ENABLED=false; } >"$T/env"
+check "쿠폰 빈 값 → 안내만(통과)" 0 "INFO  PROMOTION_CODE 가 비었다"
+
 : >"$T/cron"; { base; echo DATAAPI_BASE_URL=https://datahub-dev.scraping.co.kr; echo DATAAPI_WRITE_ENABLED=false; } >"$T/env"
 check "cron 없음 → 실패" 1 "FAIL  auto-deploy cron 이 없다"
 
