@@ -48,7 +48,8 @@ const faqs = [
   },
   {
     question: "무료 이용 후 가격은 얼마인가요?",
-    answer: "첫 30일은 0원이고, 그 뒤부터 매장당 월 33,000원(VAT 포함)이에요.",
+    answer:
+      "카드를 등록한 날부터 30일은 0원이고, 그 뒤부터 매장당 월 33,000원(VAT 포함)이에요. 가맹 브랜드 매장은 브랜드에서 이용 중인 매장 수에 따라 단가가 낮아질 수 있어요(이용약관 9.1의2).",
   },
   {
     question: "리뷰 내용도 만들어 주나요?",
@@ -215,7 +216,7 @@ export function IntroPage() {
 
         <section className="intro-offer" id="offer" aria-labelledby="offer-title">
           <div className="intro-offer__main">
-            <p className="intro-section-label">정식 오픈 기념 · 선착순 30개 매장</p>
+            <p className="intro-section-label">파일럿 매장 모집 · 선착순 30개 매장</p>
             <h2 id="offer-title">비용을 내기 전에<br />한 달 동안 확인하세요.</h2>
             <p>실제 매장 리뷰에 어떤 답글이 작성되는지 확인한 뒤 계속 사용할지 결정하세요.</p>
           </div>
