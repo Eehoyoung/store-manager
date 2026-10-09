@@ -41,6 +41,9 @@ export function LegalFooter() {
       <p className="legal-footer__copy" suppressHydrationWarning>
         © {new Date().getFullYear()} {info?.name ?? "소담랩스"} · {info?.serviceName ?? "소담리뷰"}
       </p>
+      <p className="legal-footer__copy">
+        <a href="https://sodamlabs.kr" target="_blank" rel="noopener noreferrer">SODAM LABS가 만듭니다</a>
+      </p>
     </footer>
   );
 }

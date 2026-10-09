@@ -132,7 +132,7 @@ services:
       BUSINESS_NAME: 소담랩스
       BUSINESS_SERVICE_NAME: 소담리뷰
       BUSINESS_REPRESENTATIVE: 이호영
-      BUSINESS_ADDRESS: 경기도 고양시 덕양구 화정로 53-1, 709-가1호
+      BUSINESS_ADDRESS: 경기도 고양시 덕양구 화정로 53-1, 709호 가1호
       BUSINESS_PHONE: 010-9352-3827
       BUSINESS_EMAIL: sodamlabs@gmail.com
       BUSINESS_REGISTRATION_NUMBER: 358-23-02207

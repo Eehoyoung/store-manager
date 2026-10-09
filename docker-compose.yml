@@ -77,7 +77,7 @@ services:
       # 가맹본부 개별 리뷰 조회. 법무 검토 전까지 false 유지.
       HQ_REVIEW_ACCESS_ENABLED: ${HQ_REVIEW_ACCESS_ENABLED:-false}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.
-      BUSINESS_NAME: ${BUSINESS_NAME:-소담}
+      BUSINESS_NAME: ${BUSINESS_NAME:-소담랩스}
       BUSINESS_SERVICE_NAME: ${BUSINESS_SERVICE_NAME:-소담리뷰}
       BUSINESS_REPRESENTATIVE: ${BUSINESS_REPRESENTATIVE:-}
       BUSINESS_ADDRESS: ${BUSINESS_ADDRESS:-}
