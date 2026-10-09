@@ -244,7 +244,7 @@ public class HqService {
         requireReviewFeature();
         AppUser user = hqAccessGuard.requireBrandAccess(userPublicId, brandName);
         if (size < 1 || size > 100) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 합니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 해요."));
         }
         List<Store> brandStores = storeIdFilter == null ? hqQueryRepository.findStoresByBrandName(brandName)
                 : List.of(hqAccessGuard.requireStoreInBrand(storeIdFilter, brandName));
@@ -264,7 +264,7 @@ public class HqService {
         long rangeDays = ChronoUnit.DAYS.between(fromDate, toDate) + 1;
         if (rangeDays <= 0 || rangeDays > REVIEW_MAX_LOOKBACK_DAYS) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    Map.of("range", "조회 기간은 최근 " + REVIEW_MAX_LOOKBACK_DAYS + "일 이내여야 합니다."));
+                    Map.of("range", "조회 기간은 최근 " + REVIEW_MAX_LOOKBACK_DAYS + "일 이내여야 해요."));
         }
         Instant from = fromDate.atStartOfDay(KST).toInstant();
         Instant to = toDate.plusDays(1).atStartOfDay(KST).toInstant();

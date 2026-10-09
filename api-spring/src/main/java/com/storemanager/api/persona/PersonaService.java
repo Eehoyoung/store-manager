@@ -266,17 +266,17 @@ public class PersonaService {
     private void validateCrossFields(PersonaRequest req) {
         Map<String, String> fields = new LinkedHashMap<>();
         if (req.lengthMin() != null && req.lengthMax() != null && req.lengthMin() > req.lengthMax()) {
-            fields.put("lengthMin", "lengthMin은 lengthMax 이하여야 합니다.");
+            fields.put("lengthMin", "lengthMin은 lengthMax 이하여야 해요.");
         }
         if (req.publishWindows() != null) {
             for (int i = 0; i < req.publishWindows().size(); i++) {
                 WindowDto w = req.publishWindows().get(i);
                 try {
                     if (!LocalTime.parse(w.start()).isBefore(LocalTime.parse(w.end()))) {
-                        fields.put("publishWindows[" + i + "]", "start는 end보다 이전이어야 합니다.");
+                        fields.put("publishWindows[" + i + "]", "start는 end보다 이전이어야 해요.");
                     }
                 } catch (DateTimeParseException e) {
-                    fields.put("publishWindows[" + i + "]", "HH:mm 형식이어야 합니다.");
+                    fields.put("publishWindows[" + i + "]", "HH:mm 형식이어야 해요.");
                 }
             }
         }

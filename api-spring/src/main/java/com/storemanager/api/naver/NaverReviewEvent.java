@@ -138,7 +138,7 @@ public class NaverReviewEvent {
             String model) {
         if ("APPROVED".equals(status) || "POSTED".equals(status)) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("currentStatus", status, "reason", "이미 확정된 항목은 다시 생성할 수 없습니다."));
+                    Map.of("currentStatus", status, "reason", "이미 확정된 항목은 다시 생성할 수 없어요."));
         }
         this.rating = rating;
         this.category = category;

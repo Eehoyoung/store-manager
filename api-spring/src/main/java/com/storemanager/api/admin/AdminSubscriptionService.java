@@ -84,7 +84,7 @@ public class AdminSubscriptionService {
         if (store.getActivatedAt() == null) {
             // 자격증명 처리 위탁 동의가 없는 매장을 활성화하면 법적 근거 없이 데이터를 다루게 된다.
             throw new ApiException(ErrorCode.CONSENT_REQUIRED,
-                    Map.of("reason", "배달앱 로그인 정보 처리 위탁 동의가 필요한 매장입니다."));
+                    Map.of("reason", "배달앱 로그인 정보 처리 위탁 동의가 필요한 매장이에요."));
         }
         Instant now = Instant.now();
         Subscription sub = subscriptionRepository

@@ -99,12 +99,12 @@ public class RiskApprovalService {
 
         if (!"SCHEDULED".equals(draft.getStatus())) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("currentStatus", draft.getStatus(), "reason", "예약된 답글만 취소할 수 있습니다."));
+                    Map.of("currentStatus", draft.getStatus(), "reason", "예약된 답글만 취소할 수 있어요."));
         }
         if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(PublishScheduler.dispatchKey(draft.getId())))) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
                     Map.of("currentStatus", draft.getStatus(),
-                            "reason", "이미 게시 처리가 시작되어 취소할 수 없습니다."));
+                            "reason", "이미 게시 처리가 시작돼서 취소할 수 없어요."));
         }
 
         draft.cancelByOwner(owner.getId());
@@ -141,7 +141,7 @@ public class RiskApprovalService {
         // ★ 서버에서 막는다. 화면만 믿으면 API 직접 호출로 우회된다.
         if (!riskAcknowledged) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    Map.of("riskAcknowledged", "차단 사유를 확인해야 게시할 수 있습니다."));
+                    Map.of("riskAcknowledged", "차단 사유를 확인해야 게시할 수 있어요."));
         }
 
         UnifiedReview review = doApprove(store, draft, owner.getId(), editedContent);
@@ -171,7 +171,7 @@ public class RiskApprovalService {
         requireApprovable(draft);
         if (!riskAcknowledged) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    Map.of("riskAcknowledged", "차단 사유를 확인해야 게시할 수 있습니다."));
+                    Map.of("riskAcknowledged", "차단 사유를 확인해야 게시할 수 있어요."));
         }
         // ★ approved_by 는 매장 소유자로 남긴다 — 링크를 누른 사람이 누구인지는 모르지만,
         //   책임 주체는 그 매장의 사장님이다. 링크로 들어왔다는 사실은 감사로그의
@@ -196,7 +196,7 @@ public class RiskApprovalService {
         String content = editedContent == null || editedContent.isBlank() ? null : editedContent.trim();
         if (content != null && content.length() > 280) {
             // 플랫폼 300자, 이모지 여유 — CLAUDE.md 데이터처리 8번
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("content", "답글은 280자를 넘을 수 없습니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("content", "답글은 280자를 넘을 수 없어요."));
         }
 
         Instant scheduledAt = PublishScheduleCalculator.compute(review.getCollectedAt(), persona.getDelayHours(),
@@ -283,7 +283,7 @@ public class RiskApprovalService {
     private void requireApprovable(ReplyDraft draft) {
         if (!"BLOCKED".equals(draft.getStatus())) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("currentStatus", draft.getStatus(), "reason", "BLOCKED 초안만 승인할 수 있습니다."));
+                    Map.of("currentStatus", draft.getStatus(), "reason", "BLOCKED 초안만 승인할 수 있어요."));
         }
         String[] flags = draft.getGuardrailFlags() == null ? new String[0] : draft.getGuardrailFlags();
         boolean onlyRisk = flags.length == 1 && APPROVABLE_FLAG.equals(flags[0]);
@@ -291,17 +291,17 @@ public class RiskApprovalService {
             // 가드레일·모델 부재·생성 실패로 막힌 건은 사람이 승인해도 게시하지 않는다.
             throw new ApiException(ErrorCode.GUARDRAIL_BLOCKED,
                     Map.of("flags", List.of(flags),
-                            "reason", "위험도 외의 사유로 차단된 초안은 승인할 수 없습니다."));
+                            "reason", "위험도 외의 사유로 차단된 초안은 승인할 수 없어요."));
         }
         if (draft.getContent() == null || draft.getContent().isBlank()) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("reason", "내용이 없는 초안은 승인할 수 없습니다."));
+                    Map.of("reason", "내용이 없는 초안은 승인할 수 없어요."));
         }
         // 분석 기록이 없으면 위험도를 모른다는 뜻이다 — 모르는 것은 안전하다는 뜻이 아니다.
         ReviewAnalysis analysis = reviewAnalysisRepository.findById(draft.getReviewId()).orElse(null);
         if (analysis == null) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("reason", "분석 기록이 없어 승인할 수 없습니다."));
+                    Map.of("reason", "분석 기록이 없어 승인할 수 없어요."));
         }
     }
 

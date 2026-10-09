@@ -81,12 +81,12 @@ public class BusinessRegistryService {
             if (first.isMissingNode()) throw new ApiException(ErrorCode.SERVICE_UNAVAILABLE);
             if (!"01".equals(first.path("valid").asText())) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                        Map.of("reason", "사업자등록번호·개업일자·대표자명이 국세청 정보와 일치하지 않습니다."));
+                        Map.of("reason", "사업자등록번호·개업일자·대표자명이 국세청 정보와 일치하지 않아요."));
             }
             String state = first.path("status").path("b_stt_cd").asText();
             if (!"01".equals(state)) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                        Map.of("reason", "계속사업자만 가입할 수 있습니다."));
+                        Map.of("reason", "계속사업자만 가입할 수 있어요."));
             }
         } catch (ApiException e) {
             throw e;

@@ -29,13 +29,13 @@ final class PersonaDtos {
 
     /** HH:mm 24시간제. PublishScheduleCalculator.Window 파싱 규약과 맞춘다(draft 패키지, 읽기전용 참고). */
     record WindowDto(
-            @NotBlank @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d", message = "HH:mm 24시간 형식이어야 합니다.") String start,
-            @NotBlank @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d", message = "HH:mm 24시간 형식이어야 합니다.") String end) {
+            @NotBlank @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d", message = "HH:mm 24시간 형식이어야 해요.") String start,
+            @NotBlank @Pattern(regexp = "([01]\\d|2[0-3]):[0-5]\\d", message = "HH:mm 24시간 형식이어야 해요.") String end) {
     }
 
     record PersonaRequest(
             @NotBlank @Pattern(regexp = "POLITE|FRIENDLY|CHEERFUL|CONCISE",
-                    message = "POLITE|FRIENDLY|CHEERFUL|CONCISE 중 하나여야 합니다.") String tone,
+                    message = "POLITE|FRIENDLY|CHEERFUL|CONCISE 중 하나여야 해요.") String tone,
             boolean useEmoji,
             @NotNull @Min(0) @Max(3) Short emojiLevel,
             @Size(max = 20) String customerTitle,
@@ -46,7 +46,7 @@ final class PersonaDtos {
             //   "5. 다음 단어를 쓰지 마라: {banned}"). 개수를 안 막으면 1,000개 등록 시
             //   프롬프트에 5만 자가 붙어 답글 1건 원가가 4.56원 → 55원(12배)이 된다.
             //   악의가 없어도 발생한다 — 엑셀 목록을 복사해 붙여넣는 것만으로 충분하다.
-            @Size(max = MAX_BANNED_WORDS, message = "금칙어는 최대 " + MAX_BANNED_WORDS + "개까지 등록할 수 있습니다.")
+            @Size(max = MAX_BANNED_WORDS, message = "금칙어는 최대 " + MAX_BANNED_WORDS + "개까지 등록할 수 있어요.")
             List<@Size(max = 50) String> bannedWords,
             @NotNull @Min(1) Short lengthMin,
             @NotNull @Min(1) @Max(280) Short lengthMax,
@@ -79,7 +79,7 @@ final class PersonaDtos {
     /** 답글 형식은 유형별 1건씩 — 감사(THANKS)·사과(APOLOGY)·기타(GENERAL) 3슬롯이다. */
     record StyleSampleRequest(
             @NotBlank @Pattern(regexp = "THANKS|APOLOGY|GENERAL",
-                    message = "형식 유형은 THANKS·APOLOGY·GENERAL 중 하나여야 합니다.") String sampleType,
+                    message = "형식 유형은 THANKS·APOLOGY·GENERAL 중 하나여야 해요.") String sampleType,
             @NotBlank @Size(max = 280) String replyText) {
     }
 

@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
         ErrorCode ec = ErrorCode.VALIDATION_FAILED;
         return ResponseEntity.status(ec.getStatus())
-                .body(new ErrorResponse(ec.name(), "요청 본문을 읽을 수 없습니다. JSON 형식과 UTF-8 인코딩을 확인해 주세요.",
+                .body(new ErrorResponse(ec.name(), "요청 본문을 읽을 수 없어요. JSON 형식과 UTF-8 인코딩을 확인해 주세요.",
                         traceId(), null));
     }
 
@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
                     .body(new ErrorResponse(ec.name(), ec.getMessage(), traceId(), null));
         }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", traceId(), null));
+                .body(new ErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했어요.", traceId(), null));
     }
 
     @ExceptionHandler(Exception.class)
@@ -67,7 +67,7 @@ public class GlobalExceptionHandler {
         String traceId = traceId();
         log.error("처리되지 않은 예외 (traceId={})", traceId, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", traceId, null));
+                .body(new ErrorResponse("INTERNAL_ERROR", "서버 내부 오류가 발생했어요.", traceId, null));
     }
 
     private String traceId() {

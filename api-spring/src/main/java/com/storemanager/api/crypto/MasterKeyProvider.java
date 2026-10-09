@@ -101,8 +101,8 @@ public class MasterKeyProvider {
         SecretKeySpec key = keysById.get(keyId == null ? currentKeyId : keyId);
         if (key == null) {
             throw new ApiException(ErrorCode.SERVICE_UNAVAILABLE,
-                    Map.of("reason", "암호화 키를 찾을 수 없습니다: keyId=" + keyId
-                            + ". 키를 교체했다면 app.crypto.previous-keys 에 옛 키를 남겨야 합니다."));
+                    Map.of("reason", "암호화 키를 찾을 수 없어요: keyId=" + keyId
+                            + ". 키를 교체했다면 app.crypto.previous-keys 에 옛 키를 남겨야 해요."));
         }
         return key;
     }

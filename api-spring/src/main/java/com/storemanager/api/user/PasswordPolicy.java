@@ -44,21 +44,21 @@ final class PasswordPolicy {
         String lower = pw.toLowerCase(Locale.ROOT);
 
         if (pw.length() < MIN_LENGTH) {
-            reject("비밀번호는 " + MIN_LENGTH + "자 이상이어야 합니다.");
+            reject("비밀번호는 " + MIN_LENGTH + "자 이상이어야 해요.");
         }
         if (pw.chars().distinct().count() < 4) {
             // "aaaaaaaaaa", "abababab" 처럼 사실상 몇 글자로 이루어진 비밀번호.
-            reject("같은 글자를 반복한 비밀번호는 사용할 수 없습니다.");
+            reject("같은 글자를 반복한 비밀번호는 사용할 수 없어요.");
         }
         if (COMMON.contains(lower)) {
-            reject("너무 흔한 비밀번호입니다. 다른 비밀번호를 사용해 주세요.");
+            reject("너무 흔한 비밀번호예요. 다른 비밀번호를 사용해 주세요.");
         }
         if (hasRun(lower, 5)) {
             // 12345, abcde 처럼 연속된 문자. 키보드 순서(qwert)까지는 보지 않는다.
-            reject("연속된 숫자나 문자가 이어지는 비밀번호는 사용할 수 없습니다.");
+            reject("연속된 숫자나 문자가 이어지는 비밀번호는 사용할 수 없어요.");
         }
         if (containsPersonal(lower, email, name)) {
-            reject("이메일이나 이름이 들어간 비밀번호는 사용할 수 없습니다.");
+            reject("이메일이나 이름이 들어간 비밀번호는 사용할 수 없어요.");
         }
     }
 
