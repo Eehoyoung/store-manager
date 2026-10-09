@@ -61,7 +61,7 @@ public class ReviewService {
         Store store = loadOwnedStore(owner, storePublicId);
 
         if (size < 1 || size > 100) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 합니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("size", "size는 1 이상 100 이하여야 해요."));
         }
         UnifiedReview boundary = cursor == null ? null : reviewQueryRepository.findByPublicId(cursor)
                 .filter(r -> r.getStoreId().equals(store.getId()))

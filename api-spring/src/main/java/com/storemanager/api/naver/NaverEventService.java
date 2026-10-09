@@ -73,7 +73,7 @@ public class NaverEventService {
             case "INSERTED" -> event.markInserted();
             case "POSTED" -> event.markPosted();
             case "SKIPPED" -> event.markSkipped();
-            default -> throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("event", "알 수 없는 이벤트입니다."));
+            default -> throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("event", "알 수 없는 이벤트예요."));
         }
     }
 
@@ -92,7 +92,7 @@ public class NaverEventService {
         // ★ fail-closed — PIN 을 설정하지 않은 계정은 일괄승인 자체를 쓸 수 없다.
         // 공용 포스 PC 에서 직원이 대신 승인하는 경로를 막는 유일한 장치다(docs/naver/03).
         if (owner.getNaverBulkPinHash() == null || !passwordEncoder.matches(pin, owner.getNaverBulkPinHash())) {
-            throw new ApiException(ErrorCode.FORBIDDEN, Map.of("pin", "PIN이 설정되지 않았거나 일치하지 않습니다."));
+            throw new ApiException(ErrorCode.FORBIDDEN, Map.of("pin", "PIN이 설정되지 않았거나 일치하지 않아요."));
         }
 
         List<String> hashes = reviewHashes == null ? List.of() : reviewHashes;

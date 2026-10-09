@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlatformAccountService {
 
     private static final String VERIFY_DEFERRED = "DATAAPI_VERIFY_DEFERRED";
-    private static final String VERIFY_MESSAGE = "첫 수집 작업이 돌 때 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 찾습니다.";
+    private static final String VERIFY_MESSAGE = "첫 수집 작업이 돌 때 DataAPI 리뷰관리 조회 1회로 플랫폼 매장을 찾아요.";
 
     private final AppUserRepository appUserRepository;
     private final StoreRepository storeRepository;
@@ -130,12 +130,12 @@ public class PlatformAccountService {
         String message;
         if ("ERROR".equals(linkStatus)) {
             verificationStatus = "DATAAPI_VERIFY_FAILED";
-            message = "DataAPI 로그인에 실패했습니다. 아이디·비밀번호를 확인해 다시 연동해 주세요.";
+            message = "DataAPI 로그인에 실패했어요. 아이디·비밀번호를 확인해 다시 연동해 주세요.";
         } else if ("LINKED".equals(linkStatus)) {
             verificationStatus = "DATAAPI_VERIFIED";
             message = links.isEmpty()
-                    ? "연동됐습니다. 플랫폼 매장 매핑을 기다리는 중입니다."
-                    : "연동됐습니다. 리뷰를 자동으로 수집하고 있습니다.";
+                    ? "연동됐어요. 플랫폼 매장 매핑을 기다리는 중이에요."
+                    : "연동됐어요. 리뷰를 자동으로 수집하고 있어요.";
         } else {
             verificationStatus = "DATAAPI_VERIFY_DEFERRED";
             message = VERIFY_MESSAGE;

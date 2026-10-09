@@ -67,7 +67,7 @@ class MasterKeyRotationTest {
         try {
             after.decrypt(secret);
         } catch (ApiException e) {
-            assertThat(String.valueOf(e.getDetails())).contains("키를 찾을 수 없습니다").contains("key-2025");
+            assertThat(String.valueOf(e.getDetails())).contains("키를 찾을 수 없어요").contains("key-2025");
         }
     }
 

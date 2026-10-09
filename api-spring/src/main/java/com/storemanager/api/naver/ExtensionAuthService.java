@@ -77,7 +77,7 @@ public class ExtensionAuthService {
         String key = PAIR_CODE_PREFIX + normalized;
         String userPublicId = redisTemplate.opsForValue().get(key);
         if (userPublicId == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("code", "코드가 올바르지 않거나 만료되었습니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("code", "코드가 올바르지 않거나 만료됐어요."));
         }
         redisTemplate.delete(key); // 1회용
         String token = generateToken();
@@ -119,7 +119,7 @@ public class ExtensionAuthService {
     /** POST /api/v1/naver/extension/pin (JWT). 공용 포스 PC 대리승인을 막는 유일한 장치다. */
     public void setPin(UUID userPublicId, String pin) {
         if (pin == null || !PIN_PATTERN.matcher(pin).matches()) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("pin", "PIN은 숫자 4~8자리여야 합니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("pin", "PIN은 숫자 4~8자리여야 해요."));
         }
         AppUser user = appUserRepository.findByPublicId(userPublicId)
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));

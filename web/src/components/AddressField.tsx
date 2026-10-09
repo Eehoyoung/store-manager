@@ -79,7 +79,7 @@ export function AddressField({ label, value, onChange, required, error }: Props)
       await loadScript();
     } catch {
       // 스크립트를 못 받아도 주소 입력 자체는 막지 않는다 — 직접 칠 수 있어야 한다.
-      setLoadError("주소 검색을 열지 못했습니다. 아래 칸에 주소를 직접 입력해 주세요.");
+      setLoadError("주소 검색을 열지 못했어요. 아래 칸에 주소를 직접 입력해 주세요.");
       return;
     }
     setOpen(true);

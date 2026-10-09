@@ -45,7 +45,7 @@ export function HqReportPage() {
       .then(setData)
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "보고서를 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "보고서를 불러오지 못했어요.");
       });
   }, [brand, from, to, retryTick]);
 
@@ -61,7 +61,7 @@ export function HqReportPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setDownloadError("CSV 를 내려받지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setDownloadError("CSV 를 내려받지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setDownloading(false);
     }
@@ -76,7 +76,7 @@ export function HqReportPage() {
         <div className="hq-radar__title-row">
           <div>
             <h1>보고서</h1>
-            <p className="hq-page__note">화면 그대로 인쇄하거나 집계 CSV 를 내려받습니다. 개별 리뷰 원문은 포함하지 않습니다.</p>
+            <p className="hq-page__note">화면 그대로 인쇄하거나 집계 CSV 를 내려받아요. 개별 리뷰 원문은 포함하지 않아요.</p>
           </div>
           <div className="hq-report__controls">
             <Field label="시작일" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -93,7 +93,7 @@ export function HqReportPage() {
       {data === null && !error ? <Skeleton height={260} /> : null}
       {error ? (
         <EmptyState
-          title="보고서를 불러오지 못했습니다"
+          title="보고서를 불러오지 못했어요"
           description={error}
           action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>}
         />
@@ -141,7 +141,7 @@ function ReportBody({ brand, data }: { brand: string; data: HqReportResponse }) 
       <Card>
         <h2>매장별 집계</h2>
         {data.storeRows.length === 0 ? (
-          <EmptyState title="매장 집계가 없습니다" />
+          <EmptyState title="매장 집계가 없어요" />
         ) : (
           <div className="hq-table-wrap">
             <table className="hq-store-table">
@@ -173,7 +173,7 @@ function ReportBody({ brand, data }: { brand: string; data: HqReportResponse }) 
       <Card>
         <h2>이슈별 집계</h2>
         {data.issueRows.length === 0 ? (
-          <EmptyState title="이슈 집계가 없습니다" />
+          <EmptyState title="이슈 집계가 없어요" />
         ) : (
           <div className="hq-table-wrap">
             <table className="hq-store-table">

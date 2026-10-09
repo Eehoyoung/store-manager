@@ -39,7 +39,7 @@ export function HqProtectedRoute() {
   if (status === "checking") {
     return (
       <div className="page-loading" role="status">
-        불러오는 중입니다…
+        불러오는 중이에요…
       </div>
     );
   }

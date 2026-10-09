@@ -68,7 +68,7 @@ export function AppShell() {
     <div className="shell">
       <header className="shell__header">
         <span className="shell__brand">
-          <img src="/sodam-review-icon.png" alt="" aria-hidden="true" />
+          <img src="/icon-192.png" alt="" aria-hidden="true" />
           소담리뷰
         </span>
         {user ? (

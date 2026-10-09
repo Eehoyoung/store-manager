@@ -44,14 +44,14 @@ export function AdminFranchisesPage() {
     adminApi
       .franchises(q || undefined)
       .then(setItems)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "가맹본부 목록을 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "가맹본부 목록을 불러오지 못했어요."));
   }, [q, retryTick]);
 
   useEffect(() => {
     adminApi
       .pricing()
       .then(setPricing)
-      .catch((e) => setPricingError(e instanceof ApiError ? e.message : "브랜드별 단가를 불러오지 못했습니다."));
+      .catch((e) => setPricingError(e instanceof ApiError ? e.message : "브랜드별 단가를 불러오지 못했어요."));
   }, [retryTick]);
 
   return (
@@ -59,7 +59,7 @@ export function AdminFranchisesPage() {
       <div className="stores-page__header">
         <div>
           <h1>가맹본부 관리</h1>
-          <p>가맹본부 생성·담당자·가맹코드를 관리합니다.</p>
+          <p>가맹본부 생성·담당자·가맹코드를 관리해요.</p>
         </div>
         <Button type="button" onClick={() => setCreateOpen(true)}>본부 생성</Button>
       </div>
@@ -68,14 +68,14 @@ export function AdminFranchisesPage() {
 
       {error ? (
         <EmptyState
-          title="가맹본부 목록을 불러오지 못했습니다"
+          title="가맹본부 목록을 불러오지 못했어요"
           description={error}
           action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>}
         />
       ) : null}
 
       {items === null && !error ? <Skeleton height={200} /> : null}
-      {items && items.length === 0 ? <EmptyState title="등록된 가맹본부가 없습니다" /> : null}
+      {items && items.length === 0 ? <EmptyState title="등록된 가맹본부가 없어요" /> : null}
 
       {items && items.length > 0 ? (
         <div className="hq-table-wrap">
@@ -116,10 +116,10 @@ export function AdminFranchisesPage() {
 
       <Card>
         <h2>브랜드별 단가</h2>
-        <p className="field__hint">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 확정됩니다.</p>
-        {pricingError ? <EmptyState title="브랜드별 단가를 불러오지 못했습니다" description={pricingError} /> : null}
+        <p className="field__hint">매월 25일 기준 유료 이용 매장 수로 다음 달 단가가 확정돼요.</p>
+        {pricingError ? <EmptyState title="브랜드별 단가를 불러오지 못했어요" description={pricingError} /> : null}
         {pricing === null && !pricingError ? <Skeleton height={120} /> : null}
-        {pricing && pricing.length === 0 ? <EmptyState title="등록된 가맹본부가 없습니다" /> : null}
+        {pricing && pricing.length === 0 ? <EmptyState title="등록된 가맹본부가 없어요" /> : null}
         {pricing && pricing.length > 0 ? (
           <div className="hq-table-wrap">
             <table className="hq-store-table">
@@ -162,7 +162,7 @@ export function AdminFranchisesPage() {
 
       {revealCode ? (
         <Modal open title="가맹코드 발급 완료" onClose={() => setRevealCode(null)} footer={<Button type="button" onClick={() => setRevealCode(null)}>닫기</Button>}>
-          <p>{revealCode.brandName} 의 가맹코드입니다. <strong>원문은 지금만 표시됩니다</strong> — 반드시 지금 복사해 전달하세요.</p>
+          <p>{revealCode.brandName} 의 가맹코드예요. <strong>원문은 지금만 표시돼요</strong> — 반드시 지금 복사해 전달하세요.</p>
           <Card className="admin-request__mono" style={{ fontSize: "1.2em", textAlign: "center" }}>{revealCode.joinCode}</Card>
           <Button
             type="button"
@@ -225,7 +225,7 @@ function CreateFranchiseModal({
       reset();
       onCreated(res.brandName, res.joinCode);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "본부를 생성하지 못했습니다.");
+      setError(err instanceof ApiError ? err.message : "본부를 생성하지 못했어요.");
     } finally {
       setLoading(false);
     }

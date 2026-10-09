@@ -29,7 +29,7 @@ export class ApiError extends Error {
   readonly details: Record<string, unknown> | null;
 
   constructor(status: number, body: ApiErrorEnvelope) {
-    super(body.message || "요청 처리 중 오류가 발생했습니다.");
+    super(body.message || "요청 처리 중 오류가 생겼어요.");
     this.code = body.code || "UNKNOWN";
     this.status = status;
     this.traceId = body.traceId;
@@ -93,7 +93,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new NetworkError("서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.");
+    throw new NetworkError("서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.");
   }
 
   // 로그인·발급·refresh 자체의 401 은 재시도 대상이 아니다(무한 루프 방지).
@@ -118,7 +118,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}, 
     const envelope: ApiErrorEnvelope =
       data && typeof data === "object"
         ? (data as ApiErrorEnvelope)
-        : { code: `HTTP_${res.status}`, message: `요청이 실패했습니다. (HTTP ${res.status})` };
+        : { code: `HTTP_${res.status}`, message: `요청이 실패했어요. (HTTP ${res.status})` };
     if (res.status === 401) triggerForceLogout();
     throw new ApiError(res.status, envelope);
   }

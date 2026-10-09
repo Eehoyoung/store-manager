@@ -43,8 +43,8 @@ public class MailService {
             log.warn("MAIL_REQUIRED=false 이고 메일 계정이 설정되지 않아 담당자 안내 메일 발송을 건너뜁니다.");
             return;
         }
-        send(toEmail, "[소담리뷰] 가맹본부 담당자로 등록되었습니다",
-                brandName + " 브랜드의 가맹본부 담당자로 등록되었습니다.\n"
+        send(toEmail, "[소담리뷰] 가맹본부 담당자로 등록됐어요",
+                brandName + " 브랜드의 가맹본부 담당자로 등록됐어요.\n"
                         + "로그인 화면에서 이 이메일 주소로 인증번호를 요청해 로그인해 주세요.");
     }
 

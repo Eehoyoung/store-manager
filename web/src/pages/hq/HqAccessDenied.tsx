@@ -6,8 +6,8 @@ import { EmptyState } from "../../components/EmptyState";
 export function HqAccessDenied() {
   return (
     <EmptyState
-      title="접근 권한이 없는 브랜드입니다"
-      description="본부 권한이 있는 브랜드가 아니거나 존재하지 않는 브랜드입니다."
+      title="접근 권한이 없는 브랜드예요"
+      description="본부 권한이 있는 브랜드가 아니거나 존재하지 않는 브랜드예요."
       action={
         <Link to="/hq/brands" className="btn btn--secondary">
           브랜드 선택으로 돌아가기

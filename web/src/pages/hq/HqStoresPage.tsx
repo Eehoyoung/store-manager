@@ -43,7 +43,7 @@ export function HqStoresPage() {
       .then(setStores)
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "가맹점 목록을 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "가맹점 목록을 불러오지 못했어요.");
       });
   }, [brand, retryTick]);
 
@@ -63,7 +63,7 @@ export function HqStoresPage() {
 
       {error ? (
         <EmptyState
-          title="가맹점 목록을 불러오지 못했습니다"
+          title="가맹점 목록을 불러오지 못했어요"
           description={error}
           action={
             <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -73,7 +73,7 @@ export function HqStoresPage() {
         />
       ) : null}
 
-      {stores && stores.length === 0 ? <EmptyState title="소속 가맹점이 없습니다" /> : null}
+      {stores && stores.length === 0 ? <EmptyState title="소속 가맹점이 없어요" /> : null}
 
       {stores && stores.length > 0 ? (
         <div className="hq-table-wrap">

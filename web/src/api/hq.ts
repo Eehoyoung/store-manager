@@ -90,6 +90,6 @@ export async function downloadHqReportCsv(brandName: string, from: string, to: s
       credentials: "include",
     },
   );
-  if (!res.ok) throw new Error("보고서를 내려받지 못했습니다.");
+  if (!res.ok) throw new Error("보고서를 내려받지 못했어요.");
   return res.blob();
 }

@@ -25,7 +25,7 @@ export function StoresPage() {
     storesApi
       .list()
       .then(setStores)
-      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했습니다."));
+      .catch((e) => setLoadError(e instanceof ApiError ? e.message : "매장 목록을 불러오지 못했어요."));
   };
 
   useEffect(load, []);
@@ -44,7 +44,7 @@ export function StoresPage() {
           onCreated={(s) => {
             setStores((prev) => (prev ? [...prev, s] : [s]));
             setShowForm(false);
-            toast.show("매장이 등록되었습니다.", "success");
+            toast.show("매장이 등록됐어요.", "success");
           }}
         />
       ) : null}
@@ -58,7 +58,7 @@ export function StoresPage() {
 
       {loadError ? (
         <EmptyState
-          title="매장 목록을 불러오지 못했습니다"
+          title="매장 목록을 불러오지 못했어요"
           description={loadError}
           action={
             <Button type="button" onClick={load}>
@@ -69,7 +69,7 @@ export function StoresPage() {
       ) : null}
 
       {stores && stores.length === 0 ? (
-        <EmptyState title="등록된 매장이 없습니다" description="매장을 등록하면 리뷰 답글 자동화를 시작할 수 있습니다." />
+        <EmptyState title="등록된 매장이 없어요" description="매장을 등록하면 리뷰 답글 자동화를 시작할 수 있어요." />
       ) : null}
 
       {stores && stores.length > 0 ? (
@@ -82,7 +82,7 @@ export function StoresPage() {
                   {s.brandName ? <p className="store-card__brand">{s.brandName}</p> : null}
                   {!s.activatedAt ? (
                     <Badge tone="warning" icon="⚠">
-                      배달앱 연동 전 — 수집·게시가 동작하지 않습니다
+                      배달앱 연동 전 — 수집·게시가 동작하지 않아요
                     </Badge>
                   ) : (
                     <Badge tone="success" icon="✓">
@@ -132,7 +132,7 @@ function StoreCreateForm({ onCreated }: { onCreated: (s: StoreResponse) => void 
       });
       onCreated(created);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "매장 등록에 실패했습니다.");
+      setError(err instanceof ApiError ? err.message : "매장 등록에 실패했어요.");
     } finally {
       setLoading(false);
     }

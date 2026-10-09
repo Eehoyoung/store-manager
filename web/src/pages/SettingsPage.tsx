@@ -20,16 +20,16 @@ export function SettingsPage() {
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"account" | "connections" | "agreements">("account");
-  const load = () => accountApi.get().then(setProfile).catch((e) => setError(e instanceof ApiError ? e.message : "계정 정보를 불러오지 못했습니다."));
+  const load = () => accountApi.get().then(setProfile).catch((e) => setError(e instanceof ApiError ? e.message : "계정 정보를 불러오지 못했어요."));
   useEffect(() => { void load(); }, []);
 
   if (!profile && !error) return <div className="settings-page"><Skeleton height={180} /><Skeleton height={220} /></div>;
-  if (error || !profile) return <div className="settings-page"><p className="auth-card__error" role="alert">{error ?? "계정 정보를 불러오지 못했습니다."}</p><Button type="button" onClick={() => { setError(null); void load(); }}>다시 시도</Button></div>;
+  if (error || !profile) return <div className="settings-page"><p className="auth-card__error" role="alert">{error ?? "계정 정보를 불러오지 못했어요."}</p><Button type="button" onClick={() => { setError(null); void load(); }}>다시 시도</Button></div>;
 
   return (
     <div className="settings-page">
       <h1>설정</h1>
-      <p className="settings-page__intro">계정과 연결, 동의 기록을 필요한 항목별로 관리합니다.</p>
+      <p className="settings-page__intro">계정과 연결, 동의 기록을 필요한 항목별로 관리해요.</p>
       <div className="settings-page__tabs" role="tablist" aria-label="설정 항목">
         {([["account", "계정·보안"], ["connections", "서비스 연결"], ["agreements", "동의 기록"]] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} aria-controls={`settings-panel-${id}`}
@@ -46,15 +46,15 @@ export function SettingsPage() {
       <section id="settings-panel-connections" role="tabpanel" hidden={tab !== "connections"}>
         <Card className="settings-page__card">
           <h2>배달앱 계정 연결</h2>
-          <p>배민·요기요·쿠팡이츠 계정과 매장별 연결 상태를 관리합니다.</p>
+          <p>배민·요기요·쿠팡이츠 계정과 매장별 연결 상태를 관리해요.</p>
           <Link to="/platform-accounts" className="btn btn--secondary">배달앱 계정 관리</Link>
         </Card>
         <NaverPairingCard />
         <NaverPinCard />
         <Card className="settings-page__security-note">
           <h2>서비스 보안</h2>
-          <p>배달앱 비밀번호는 별도 봉투암호화로 저장되며 이 화면에 표시하지 않습니다.</p>
-          <p>DataAPI 토큰과 LOGINPWD 공식 규격 확인 전에는 외부 계정 검증을 수행하지 않습니다.</p>
+          <p>배달앱 비밀번호는 별도 봉투암호화로 저장되며 이 화면에 표시하지 않아요.</p>
+          <p>DataAPI 토큰과 LOGINPWD 공식 규격 확인 전에는 외부 계정 검증을 수행하지 않아요.</p>
         </Card>
       </section>
       <section id="settings-panel-agreements" role="tabpanel" hidden={tab !== "agreements"}>
@@ -71,8 +71,8 @@ function AgreementHistoryCard() {
   const [withdrawal, setWithdrawal] = useState<HqWithdrawalStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
-    agreementsApi.history().then(setRows).catch(() => setMessage("동의 내역을 불러오지 못했습니다."));
-    agreementsApi.hqWithdrawalStatus().then(setWithdrawal).catch(() => setMessage("소속 해제 요청 상태를 확인하지 못했습니다."));
+    agreementsApi.history().then(setRows).catch(() => setMessage("동의 내역을 불러오지 못했어요."));
+    agreementsApi.hqWithdrawalStatus().then(setWithdrawal).catch(() => setMessage("소속 해제 요청 상태를 확인하지 못했어요."));
   }, []);
   const withdraw = async () => {
     if (!withdrawal?.canRequest || withdrawal.requested || submitting) return;
@@ -80,32 +80,32 @@ function AgreementHistoryCard() {
     try {
       await agreementsApi.requestHqWithdrawal();
       setWithdrawal({ ...withdrawal, canRequest: false, requested: true });
-      setMessage("가맹본부 소속 해제 요청이 접수되었습니다. 실제 해제는 운영자가 처리합니다.");
+      setMessage("가맹본부 소속 해제 요청이 접수됐어요. 실제 해제는 운영자가 처리해요.");
       const [historyResult, statusResult] = await Promise.allSettled([agreementsApi.history(), agreementsApi.hqWithdrawalStatus()]);
       if (historyResult.status === "fulfilled") setRows(historyResult.value);
       if (statusResult.status === "fulfilled") setWithdrawal(statusResult.value);
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "해제 요청을 접수하지 못했습니다. 다시 확인해 주세요.");
+      setMessage(e instanceof ApiError ? e.message : "해제 요청을 접수하지 못했어요. 다시 확인해 주세요.");
       agreementsApi.hqWithdrawalStatus().then(setWithdrawal).catch(() => undefined);
     } finally {
       setSubmitting(false);
     }
   };
   return <Card className="settings-page__card"><h2>동의 내역</h2>
-    <p className="field__hint">동의 여부, 적용한 문서 버전과 시각을 확인할 수 있습니다.</p>
+    <p className="field__hint">동의 여부, 적용한 문서 버전과 시각을 확인할 수 있어요.</p>
     {message ? <p role="status">{message}</p> : null}
     {rows.length ? <ul className="settings-page__agreement-list">{rows.map((row, index) => <li key={`${row.code}-${row.agreedAt}-${index}`}>
       <strong>{describeAgreement(row.code)}</strong><span>{row.agreed ? "동의" : "철회/거부"}</span>
       <time dateTime={row.agreedAt}>{new Date(row.agreedAt).toLocaleString("ko-KR")}</time>
       <span>문서 {row.docVersion}</span><Link to={row.documentUrl}>전문 보기</Link>
-    </li>)}</ul> : <p>표시할 동의 내역이 없습니다.</p>}
-    <p>필수 동의는 이 화면에서 철회할 수 없으며 회원 탈퇴로만 철회할 수 있습니다.</p>
+    </li>)}</ul> : <p>표시할 동의 내역이 없어요.</p>}
+    <p>필수 동의는 이 화면에서 철회할 수 없고 회원 탈퇴로만 철회할 수 있어요.</p>
     {withdrawal?.canRequest && !withdrawal.requested ? <div className="settings-page__withdraw">
-      <p>{withdrawal.brandName ? `${withdrawal.brandName} 소속 해제 요청을 접수할 수 있습니다. 실제 해제는 운영자가 처리합니다.` : "가맹본부 소속 해제 요청을 접수할 수 있습니다."}</p>
+      <p>{withdrawal.brandName ? `${withdrawal.brandName} 소속 해제 요청을 접수할 수 있어요. 실제 해제는 운영자가 처리합니다.` : "가맹본부 소속 해제 요청을 접수할 수 있어요."}</p>
       <Button type="button" variant="secondary" loading={submitting} disabled={submitting} onClick={() => void withdraw()}>소속 해제 요청</Button>
     </div> : null}
-    {withdrawal?.requested ? <p role="status">가맹본부 소속 해제 요청이 접수되어 처리 중입니다.</p> : null}
-    {withdrawal && !withdrawal.canRequest && !withdrawal.requested && !withdrawal.brandName ? <p>현재 가맹본부 소속 매장이 없어 해제 요청을 할 수 없습니다.</p> : null}
+    {withdrawal?.requested ? <p role="status">가맹본부 소속 해제 요청이 접수돼 처리 중이에요.</p> : null}
+    {withdrawal && !withdrawal.canRequest && !withdrawal.requested && !withdrawal.brandName ? <p>현재 가맹본부 소속 매장이 없어 해제 요청을 할 수 없어요.</p> : null}
   </Card>;
 }
 
@@ -134,7 +134,7 @@ function HqReviewSharingCard() {
       setStatus({ ...status, reviewSharingAgreed: true });
       setMessage("개별 리뷰 제공에 동의했습니다.");
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "동의를 저장하지 못했습니다.");
+      setMessage(e instanceof ApiError ? e.message : "동의를 저장하지 못했어요.");
     } finally {
       setSubmitting(false);
     }
@@ -148,7 +148,7 @@ function HqReviewSharingCard() {
       setStatus({ ...status, reviewSharingAgreed: false });
       setMessage("개별 리뷰 제공 동의를 철회했습니다. 이후 본부는 개별 리뷰를 조회할 수 없습니다.");
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "철회를 저장하지 못했습니다.");
+      setMessage(e instanceof ApiError ? e.message : "철회를 저장하지 못했어요.");
     } finally {
       setSubmitting(false);
       setConfirmOpen(false);
@@ -207,9 +207,9 @@ function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdate
       const updated = await accountApi.update({ name: name.trim(), phone: phone.trim() || undefined });
       onUpdated(updated);
       updateUser({ id: updated.id, name: updated.name, email: updated.email });
-      toast.show("계정 정보를 저장했습니다.", "success");
+      toast.show("계정 정보를 저장했어요.", "success");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "계정 정보 저장에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "계정 정보 저장에 실패했어요.");
     } finally {
       setLoading(false);
     }
@@ -218,10 +218,10 @@ function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdate
     <Card className="settings-page__card">
       <div className="settings-page__card-head"><h2>계정 정보</h2><Badge tone={profile.status === "ACTIVE" ? "success" : "warning"} icon={profile.status === "ACTIVE" ? "✓" : "•"}>{profile.status === "ACTIVE" ? "사용 중" : profile.status}</Badge></div>
       <form onSubmit={submit} noValidate>
-        <Field label="이메일" type="email" value={profile.email} readOnly hint="로그인 이메일은 설정 화면에서 변경할 수 없습니다." />
+        <Field label="이메일" type="email" value={profile.email} readOnly hint="로그인 이메일은 설정 화면에서 변경할 수 없어요." />
         <Field label="이름" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
         <Field label="휴대폰 번호 (선택)" value={phone} type="tel" inputMode="numeric" autoComplete="tel"
-               hint="숫자만 입력하세요. 하이픈은 자동으로 들어갑니다."
+               hint="숫자만 입력하세요. 하이픈은 자동으로 들어가요."
                onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(formatPhone(e.target.value))} />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
         <Button type="submit" loading={loading}>저장</Button>
@@ -240,15 +240,15 @@ function PasswordCard() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (newPassword.length < 8) return setError("새 비밀번호는 8자 이상이어야 합니다.");
-    if (newPassword !== confirm) return setError("새 비밀번호가 일치하지 않습니다.");
+    if (newPassword.length < 8) return setError("새 비밀번호는 8자 이상이어야 해요.");
+    if (newPassword !== confirm) return setError("새 비밀번호가 일치하지 않아요.");
     setLoading(true);
     try {
       await accountApi.changePassword({ currentPassword, newPassword });
       setCurrentPassword(""); setNewPassword(""); setConfirm("");
-      toast.show("비밀번호를 변경했습니다.", "success");
+      toast.show("비밀번호를 변경했어요.", "success");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "비밀번호 변경에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "비밀번호 변경에 실패했어요.");
     } finally {
       setLoading(false);
     }
@@ -298,7 +298,7 @@ function NaverPairingCard() {
       setPairing({ code: res.code, expiresAt: Date.now() + res.expiresInSeconds * 1000 });
     } catch (e) {
       setPairing(null);
-      setError(e instanceof ApiError ? e.message : "페어링 코드 발급에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "페어링 코드 발급에 실패했어요.");
     } finally {
       setLoading(false);
     }
@@ -308,9 +308,9 @@ function NaverPairingCard() {
     if (!pairing) return;
     try {
       await navigator.clipboard.writeText(pairing.code);
-      setCopyMessage("코드를 복사했습니다.");
+      setCopyMessage("코드를 복사했어요.");
     } catch {
-      setCopyMessage("복사에 실패했습니다. 코드를 직접 선택해 복사해 주세요.");
+      setCopyMessage("복사에 실패했어요. 코드를 직접 선택해 복사해 주세요.");
     }
   };
 
@@ -320,16 +320,16 @@ function NaverPairingCard() {
     <Card className="settings-page__card">
       <h2>네이버 확장 연동</h2>
       <p className="settings-page__naver-honesty">
-        네이버 리뷰는 자동으로 게시되지 않습니다. 확장이 답글을 입력창에 채워 드리면 등록 버튼은 사장님이 직접 누르셔야 합니다.
+        네이버 리뷰는 자동으로 게시되지 않아요. 확장이 답글을 입력창에 채워 드리면 등록 버튼은 사장님이 직접 누르셔야 해요.
       </p>
       <ol className="settings-page__naver-steps">
-        <li>크롬에 확장 프로그램을 설치합니다.</li>
-        <li>확장의 사이드패널을 엽니다.</li>
-        <li>아래 코드를 사이드패널에 입력합니다.</li>
+        <li>크롬에 확장 프로그램을 설치해요.</li>
+        <li>확장의 사이드패널을 열어요.</li>
+        <li>아래 코드를 사이드패널에 입력해요.</li>
       </ol>
       {!pairing || expired ? (
         <>
-          {expired ? <p role="status">코드가 만료되었습니다. 다시 발급해 주세요.</p> : null}
+          {expired ? <p role="status">코드가 만료됐어요. 다시 발급해 주세요.</p> : null}
           <Button type="button" loading={loading} onClick={() => void issue()}>
             {expired ? "다시 발급" : "확장 연결하기"}
           </Button>
@@ -360,15 +360,15 @@ function NaverPinCard() {
     e.preventDefault();
     setError(null);
     if (!/^\d{4,8}$/.test(pin)) return setError("PIN 은 4~8자리 숫자로 입력해 주세요.");
-    if (pin !== confirmPin) return setError("PIN 이 일치하지 않습니다.");
+    if (pin !== confirmPin) return setError("PIN 이 일치하지 않아요.");
     setLoading(true);
     try {
       await naverExtensionApi.setPin(pin);
       setPin("");
       setConfirmPin("");
-      toast.show("PIN 설정을 완료했습니다.", "success");
+      toast.show("PIN 설정을 완료했어요.", "success");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "PIN 설정에 실패했습니다.");
+      setError(e instanceof ApiError ? e.message : "PIN 설정에 실패했어요.");
     } finally {
       setLoading(false);
     }
@@ -378,8 +378,8 @@ function NaverPinCard() {
     <Card className="settings-page__card">
       <h2>일괄 승인 PIN</h2>
       <p>
-        PIN 을 설정해야 일괄 승인을 쓸 수 있습니다. 공용 포스 PC 에서 직원이 대신 승인하는 것을
-        막기 위한 장치입니다. 미설정 상태에서는 일괄 승인이 동작하지 않습니다.
+        PIN 을 설정해야 일괄 승인을 쓸 수 있어요. 공용 포스 PC 에서 직원이 대신 승인하는 것을
+        막기 위한 장치예요. 미설정 상태에서는 일괄 승인이 동작하지 않아요.
       </p>
       <form onSubmit={submit} noValidate>
         <Field
@@ -414,5 +414,5 @@ function SessionCard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const submit = async () => { setLoading(true); await logout(); navigate("/login", { replace: true }); };
-  return <Card className="settings-page__session"><h2>세션</h2><p>현재 브라우저의 로그인 세션을 종료합니다.</p><Button type="button" variant="danger" loading={loading} onClick={() => void submit()}>로그아웃</Button></Card>;
+  return <Card className="settings-page__session"><h2>세션</h2><p>현재 브라우저의 로그인 세션을 종료해요.</p><Button type="button" variant="danger" loading={loading} onClick={() => void submit()}>로그아웃</Button></Card>;
 }

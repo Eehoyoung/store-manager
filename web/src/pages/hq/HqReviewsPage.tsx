@@ -94,7 +94,7 @@ export function HqReviewsPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "개별 리뷰를 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "개별 리뷰를 불러오지 못했어요.");
       })
       .finally(() => setLoadingMore(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -112,7 +112,7 @@ export function HqReviewsPage() {
     hqApi
       .review(brand, reviewId)
       .then(setSelected)
-      .catch((e) => setDetailError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했습니다."));
+      .catch((e) => setDetailError(e instanceof ApiError ? e.message : "리뷰 상세를 불러오지 못했어요."));
   };
 
   if (notFound) return <HqAccessDenied />;
@@ -121,7 +121,7 @@ export function HqReviewsPage() {
     return (
       <div className="hq-page">
         <HqNav brand={brand} />
-        <EmptyState title="개별 리뷰 조회를 사용할 수 없습니다" description="이 브랜드는 개별 리뷰 제공 동의 범위가 열려 있지 않습니다." />
+        <EmptyState title="개별 리뷰 조회를 사용할 수 없어요" description="이 브랜드는 개별 리뷰 제공 동의 범위가 열려 있지 않아요." />
       </div>
     );
   }
@@ -130,7 +130,7 @@ export function HqReviewsPage() {
     <div className="hq-page">
       <HqNav brand={brand} />
       <h1>개별 리뷰</h1>
-      <p className="hq-page__note">읽기 전용입니다. 답글 처리·승인·게시 버튼은 없습니다.</p>
+      <p className="hq-page__note">읽기 전용이에요. 답글 처리·승인·게시 버튼은 없어요.</p>
 
       <Card className="hq-filters">
         <Field label="시작일" type="date" value={filters.from} onChange={(e) => applyFilter({ from: e.target.value })} />
@@ -166,13 +166,13 @@ export function HqReviewsPage() {
 
       {error ? (
         <EmptyState
-          title="개별 리뷰를 불러오지 못했습니다"
+          title="개별 리뷰를 불러오지 못했어요"
           description={error}
           action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>}
         />
       ) : null}
 
-      {items && items.length === 0 ? <EmptyState title="조건에 해당하는 리뷰가 없습니다" /> : null}
+      {items && items.length === 0 ? <EmptyState title="조건에 해당하는 리뷰가 없어요" /> : null}
 
       {items && items.length > 0 ? (
         <div className="hq-two-col">
@@ -187,7 +187,7 @@ export function HqReviewsPage() {
           </ul>
           <Card>
             {detailError ? <p className="auth-card__error" role="alert">{detailError}</p> : null}
-            {!detailError && !selected ? <EmptyState title="목록에서 리뷰를 선택하면 전체 내용을 볼 수 있습니다" /> : null}
+            {!detailError && !selected ? <EmptyState title="목록에서 리뷰를 선택하면 전체 내용을 볼 수 있어요" /> : null}
             {selected ? <ReviewDetailPanel review={selected} /> : null}
           </Card>
         </div>

@@ -68,7 +68,7 @@ export function SignupPage() {
   const stepTitles = ["계정 정보", "매장 정보", "약관 동의"];
 
   useEffect(() => {
-    agreementsApi.catalog().then((catalog) => setDocVersion(catalog.currentVersion)).catch(() => setError("동의 문서를 불러오지 못했습니다."));
+    agreementsApi.catalog().then((catalog) => setDocVersion(catalog.currentVersion)).catch(() => setError("동의 문서를 불러오지 못했어요."));
   }, []);
 
   const update = (key: keyof FormState) => (e: ChangeEvent<HTMLInputElement>) =>
@@ -83,10 +83,10 @@ export function SignupPage() {
     if (!/^\d{10}$/.test(form.businessNumber)) errs.businessNumber = "사업자등록번호 숫자 10자리를 입력해 주세요.";
     if (!/^\d{8}$/.test(form.openingDate)) errs.openingDate = "개업일자를 8자리로 입력해 주세요.";
     if (!form.representativeName.trim()) errs.representativeName = "대표자명을 입력해 주세요.";
-    if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
-    if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
-    if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요합니다.";
-    if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요합니다.";
+    if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 해요.";
+    if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않아요.";
+    if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요해요.";
+    if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요해요.";
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -96,8 +96,8 @@ export function SignupPage() {
     if (current === 0) {
       if (!form.name.trim()) errs.name = "이름을 입력해 주세요.";
       if (!form.email.trim()) errs.email = "이메일을 입력해 주세요.";
-      if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 합니다.";
-      if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않습니다.";
+      if (form.password.length < 8) errs.password = "비밀번호는 8자 이상이어야 해요.";
+      if (form.password !== form.passwordConfirm) errs.passwordConfirm = "비밀번호가 일치하지 않아요.";
     } else if (current === 1) {
       if (!form.storeName.trim()) errs.storeName = "매장명을 입력해 주세요.";
       if (!form.storeAddress.trim()) errs.storeAddress = "주소를 검색해 선택해 주세요.";
@@ -105,8 +105,8 @@ export function SignupPage() {
       if (!/^\d{8}$/.test(form.openingDate)) errs.openingDate = "개업일자를 8자리로 입력해 주세요.";
       if (!form.representativeName.trim()) errs.representativeName = "대표자명을 입력해 주세요.";
     } else {
-      if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요합니다.";
-      if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요합니다.";
+      if (!agreedTerms) errs.agreedTerms = "이용약관 동의가 필요해요.";
+      if (!agreedPrivacy) errs.agreedPrivacy = "개인정보 수집·이용 동의가 필요해요.";
     }
     const stepFields = current === 0
       ? ["name", "email", "password", "passwordConfirm", "promoCode"]
@@ -154,7 +154,7 @@ export function SignupPage() {
         setStep(Object.keys(fields).some((key) => ["storeName", "storeAddress", "businessNumber", "openingDate", "representativeName", "franchiseCode"].includes(key)) ? 1
           : Object.keys(fields).some((key) => key.startsWith("agreed")) ? 2 : 0);
       } else if (err instanceof ApiError && err.code === "DUPLICATE_RESOURCE") {
-        setError("이미 가입된 이메일입니다.");
+        setError("이미 가입된 이메일이에요.");
       } else if (err instanceof ApiError && err.code === "INVALID_FRANCHISE_CODE") {
         setStep(1);
         setFieldErrors((current) => ({ ...current, franchiseCode: "가맹코드를 다시 확인해 주세요." }));
@@ -163,9 +163,9 @@ export function SignupPage() {
         setFieldErrors((current) => ({ ...current, promoCode: "쿠폰번호를 다시 확인해 주세요." }));
       } else if (err instanceof ApiError && err.code === "VALIDATION_FAILED" && err.details?.reason === "PROMOTION_SOLD_OUT") {
         setStep(0);
-        setFieldErrors((current) => ({ ...current, promoCode: "이 쿠폰의 무료체험 신청이 마감되었습니다." }));
+        setFieldErrors((current) => ({ ...current, promoCode: "이 쿠폰의 무료체험 신청이 마감됐어요." }));
       } else {
-        setError(err instanceof ApiError ? err.message : "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        setError(err instanceof ApiError ? err.message : "회원가입에 실패했어요. 잠시 후 다시 시도해 주세요.");
       }
     } finally {
       setLoading(false);
@@ -205,14 +205,14 @@ export function SignupPage() {
             type="tel"
             inputMode="numeric"
             autoComplete="tel"
-            hint="숫자만 입력하세요. 하이픈은 자동으로 들어갑니다."
+            hint="숫자만 입력하세요. 하이픈은 자동으로 들어가요."
             value={form.phone}
             onChange={(e) => setForm((c) => ({ ...c, phone: formatPhone(e.target.value) }))}
             error={fieldErrors.phone}
           />
           <Field
             label="쿠폰번호 (선택)"
-            hint="안내받은 쿠폰번호를 입력하시면 30일 무료체험이 시작됩니다."
+            hint="안내받은 쿠폰번호를 입력하시면 30일 무료체험이 시작돼요."
             autoCapitalize="characters"
             value={form.promoCode}
             onChange={(e) => setForm((c) => ({ ...c, promoCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32) }))}
@@ -241,7 +241,7 @@ export function SignupPage() {
           {step === 1 ? <div role="tabpanel" aria-labelledby="signup-step-1">
           <Field
             label="가맹코드 (선택)"
-            hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요. 대소문자는 구분하지 않습니다."
+            hint="프랜차이즈 가맹점인 경우 본부에서 받은 코드를 입력해 주세요. 대소문자는 구분하지 않아요."
             autoCapitalize="characters"
             value={form.franchiseCode}
             onChange={(e) =>
@@ -287,7 +287,7 @@ export function SignupPage() {
             required
             inputMode="numeric"
             maxLength={10}
-            hint="하이픈 없이 숫자 10자리를 입력해 주세요. 국세청 진위확인에 사용합니다."
+            hint="하이픈 없이 숫자 10자리를 입력해 주세요. 국세청 진위확인에 사용해요."
             value={form.businessNumber}
             onChange={(e) => setForm((current) => ({ ...current, businessNumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
             error={fieldErrors.businessNumber}
@@ -306,7 +306,7 @@ export function SignupPage() {
           <Field
             label="대표자명"
             required
-            hint="사업자등록증에 적힌 대표자명과 같아야 합니다."
+            hint="사업자등록증에 적힌 대표자명과 같아야 해요."
             value={form.representativeName}
             onChange={update("representativeName")}
             error={fieldErrors.representativeName}

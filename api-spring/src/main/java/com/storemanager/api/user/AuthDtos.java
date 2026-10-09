@@ -15,9 +15,9 @@ record SignupRequest(
         @NotBlank @Email @Size(max = 255) String email,
         @NotBlank @Size(min = 10, max = 100) String password,
         @NotBlank @Size(max = 50) String name,
-        @Pattern(regexp = AuthPatterns.PHONE, message = "휴대폰 번호 형식이 올바르지 않습니다.")
+        @Pattern(regexp = AuthPatterns.PHONE, message = "휴대폰 번호 형식이 올바르지 않아요.")
         @Size(max = 20) String phone,
-        @Pattern(regexp = AuthPatterns.FRANCHISE_CODE, message = "가맹코드 형식이 올바르지 않습니다.")
+        @Pattern(regexp = AuthPatterns.FRANCHISE_CODE, message = "가맹코드 형식이 올바르지 않아요.")
         @Size(max = 32) String franchiseCode,
         @NotBlank @Size(max = 100) String storeName,
         @NotBlank @Size(max = 300) String storeAddress,
@@ -25,7 +25,7 @@ record SignupRequest(
         boolean agreedPrivacy,
         Boolean agreedHqDataSharing,
         @NotBlank @Size(max = 20) String docVersion,
-        @Pattern(regexp = "^$|^[A-Za-z0-9]{4,32}$", message = "프로모션 코드 형식이 올바르지 않습니다.")
+        @Pattern(regexp = "^$|^[A-Za-z0-9]{4,32}$", message = "프로모션 코드 형식이 올바르지 않아요.")
         @Size(max = 32) String promoCode,
         String businessNumber,
         String openingDate,
@@ -51,7 +51,7 @@ record AuthResponse(String accessToken, long expiresIn, UserSummary user, boolea
 
 record UpdateProfileRequest(
         @NotBlank @Size(max = 50) String name,
-        @Pattern(regexp = AuthPatterns.PHONE, message = "휴대폰 번호 형식이 올바르지 않습니다.")
+        @Pattern(regexp = AuthPatterns.PHONE, message = "휴대폰 번호 형식이 올바르지 않아요.")
         @Size(max = 20) String phone) {
 }
 

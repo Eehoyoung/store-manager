@@ -62,7 +62,7 @@ const head = [
   `<meta property="og:image" content="${OG_IMAGE}" />`,
   `<meta property="og:image:width" content="1200" />`,
   `<meta property="og:image:height" content="630" />`,
-  `<meta property="og:image:alt" content="소담리뷰 - 배달 리뷰 AI 답글 관리" />`,
+  `<meta property="og:image:alt" content="소담리뷰 - 매장 말투로 답글 초안을 만들고 민감한 리뷰는 자동 게시를 멈춰요" />`,
   `<meta name="twitter:card" content="summary_large_image" />`,
   `<meta name="twitter:title" content="${esc(INTRO_TITLE)}" />`,
   `<meta name="twitter:description" content="${esc(ogDescription)}" />`,

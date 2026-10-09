@@ -278,7 +278,7 @@ public class BillingService {
                 ReplyDraft d = byPublicId.get(id);
                 if (d == null) {
                     throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                            Map.of("draftId", id, "reason", "이 매장의 보류 답글이 아닙니다."));
+                            Map.of("draftId", id, "reason", "이 매장의 보류 답글이 아니에요."));
                 }
                 targets.add(d);
             }

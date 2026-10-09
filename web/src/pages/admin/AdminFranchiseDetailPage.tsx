@@ -69,7 +69,7 @@ export function AdminFranchiseDetailPage() {
       })
       .catch((e) => {
         if (e instanceof ApiError && e.status === 404) setNotFound(true);
-        else setError(e instanceof ApiError ? e.message : "본부 정보를 불러오지 못했습니다.");
+        else setError(e instanceof ApiError ? e.message : "본부 정보를 불러오지 못했어요.");
       });
 
   useEffect(() => {
@@ -85,29 +85,29 @@ export function AdminFranchiseDetailPage() {
     switch (reasonAction.type) {
       case "franchiseStatus":
         await adminApi.setFranchiseStatus(brand, reasonAction.next, reason);
-        setDone(`본부 상태를 ${reasonAction.next === "ACTIVE" ? "활성" : "중지"}로 변경했습니다.`);
+        setDone(`본부 상태를 ${reasonAction.next === "ACTIVE" ? "활성" : "중지"}로 변경했어요.`);
         break;
       case "joinCodeStatus":
         await adminApi.setJoinCodeStatus(brand, reasonAction.next, reason);
-        setDone(`가맹코드를 ${reasonAction.next ? "재활성화" : "중지"}했습니다.`);
+        setDone(`가맹코드를 ${reasonAction.next ? "재활성화" : "중지"}했어요.`);
         break;
       case "joinCodeRotate": {
         const res = await adminApi.rotateJoinCode(brand, reason);
         setRevealCode(res.joinCode);
-        setDone("가맹코드를 교체했습니다. 기존 승인 매장에는 영향이 없습니다.");
+        setDone("가맹코드를 교체했어요. 기존 승인 매장에는 영향이 없어요.");
         break;
       }
       case "memberStatus":
         await adminApi.updateMember(brand, reasonAction.member.memberId, { status: reasonAction.next, reason });
-        setDone(`${reasonAction.member.name} 담당자를 ${reasonAction.next === "ACTIVE" ? "재활성화" : "중지"}했습니다.`);
+        setDone(`${reasonAction.member.name} 담당자를 ${reasonAction.next === "ACTIVE" ? "재활성화" : "중지"}했어요.`);
         break;
       case "memberRevokeSessions":
         await adminApi.revokeMemberSessions(brand, reasonAction.member.memberId, reason);
-        setDone(`${reasonAction.member.name} 담당자의 로그인 세션을 모두 종료했습니다.`);
+        setDone(`${reasonAction.member.name} 담당자의 로그인 세션을 모두 종료했어요.`);
         break;
       case "committedStoreCount":
         await adminApi.setCommittedStoreCount(brand, reasonAction.value, reason);
-        setDone(reasonAction.value != null ? `약정 매장 수를 ${reasonAction.value}곳으로 저장했습니다.` : "약정 매장 수를 해제했습니다.");
+        setDone(reasonAction.value != null ? `약정 매장 수를 ${reasonAction.value}곳으로 저장했어요.` : "약정 매장 수를 해제했어요.");
         break;
     }
     setReasonAction(null);
@@ -115,13 +115,13 @@ export function AdminFranchiseDetailPage() {
   };
 
   if (notFound) {
-    return <EmptyState title="존재하지 않는 가맹본부입니다" />;
+    return <EmptyState title="존재하지 않는 가맹본부예요" />;
   }
 
   return (
     <div className="admin-page">
       {error ? (
-        <EmptyState title="본부 정보를 불러오지 못했습니다" description={error} action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>} />
+        <EmptyState title="본부 정보를 불러오지 못했어요" description={error} action={<Button type="button" onClick={() => setRetryTick((t) => t + 1)}>다시 시도</Button>} />
       ) : null}
       {detail === null && !error ? <Skeleton height={300} /> : null}
       {done ? <p className="admin-page__done" role="status">{done}</p> : null}
@@ -182,13 +182,13 @@ export function AdminFranchiseDetailPage() {
               </>
             ) : (
               <>
-                <p>아직 발급되지 않았습니다.</p>
+                <p>아직 발급되지 않았어요.</p>
                 <Button type="button" small onClick={() => setReasonAction({ type: "joinCodeRotate" })}>최초 발급</Button>
               </>
             )}
             {revealCode ? (
               <p className="admin-page__done" role="status">
-                새 가맹코드: <strong className="admin-request__mono">{revealCode}</strong> — 원문은 지금만 표시됩니다.
+                새 가맹코드: <strong className="admin-request__mono">{revealCode}</strong> — 원문은 지금만 표시돼요.
               </p>
             ) : null}
           </Card>
@@ -198,7 +198,7 @@ export function AdminFranchiseDetailPage() {
               <h2>담당자</h2>
               <Button type="button" small onClick={() => setAddMemberOpen(true)}>담당자 추가</Button>
             </div>
-            {detail.members.length === 0 ? <EmptyState title="등록된 담당자가 없습니다" /> : (
+            {detail.members.length === 0 ? <EmptyState title="등록된 담당자가 없어요" /> : (
               <div className="hq-table-wrap">
                 <table className="hq-store-table">
                   <thead>
@@ -234,7 +234,7 @@ export function AdminFranchiseDetailPage() {
 
           <Card>
             <h2>승인된 매장 ({detail.approvedStores.length}개)</h2>
-            {detail.approvedStores.length === 0 ? <EmptyState title="승인된 매장이 없습니다" /> : (
+            {detail.approvedStores.length === 0 ? <EmptyState title="승인된 매장이 없어요" /> : (
               <div className="hq-table-wrap">
                 <table className="hq-store-table">
                   <thead><tr><th>매장</th><th>주소</th><th>승인일</th></tr></thead>
@@ -250,7 +250,7 @@ export function AdminFranchiseDetailPage() {
 
           <Card>
             <h2>감사기록</h2>
-            {logs.length === 0 ? <EmptyState title="기록이 없습니다" /> : (
+            {logs.length === 0 ? <EmptyState title="기록이 없어요" /> : (
               <ul className="admin-request-list">
                 {logs.map((log, i) => (
                   <li key={i}>
@@ -276,13 +276,13 @@ export function AdminFranchiseDetailPage() {
       <AddMemberModal
         open={addMemberOpen}
         onClose={() => setAddMemberOpen(false)}
-        onAdded={async () => { setAddMemberOpen(false); setDone("담당자를 추가했습니다."); await load(); }}
+        onAdded={async () => { setAddMemberOpen(false); setDone("담당자를 추가했어요."); await load(); }}
         brand={brand}
       />
       <EditMemberModal
         member={editMember}
         onClose={() => setEditMember(null)}
-        onSaved={async () => { setEditMember(null); setDone("담당자 정보를 수정했습니다."); await load(); }}
+        onSaved={async () => { setEditMember(null); setDone("담당자 정보를 수정했어요."); await load(); }}
         brand={brand}
       />
     </div>
@@ -318,22 +318,22 @@ function reasonDescription(action: ReasonAction | null): string {
   switch (action.type) {
     case "franchiseStatus":
       return action.next === "SUSPENDED"
-        ? "중지하면 이 본부의 모든 담당자 세션이 즉시 무효화되고, 다음 요청부터 거절됩니다."
-        : "재활성화하면 담당자가 다시 로그인할 수 있습니다.";
+        ? "중지하면 이 본부의 모든 담당자 세션이 즉시 무효화되고, 다음 요청부터 거절돼요."
+        : "재활성화하면 담당자가 다시 로그인할 수 있어요.";
     case "joinCodeStatus":
-      return action.next ? "가맹코드를 다시 사용할 수 있게 합니다." : "가맹코드를 더 이상 사용할 수 없게 합니다. 기존 승인 매장에는 영향이 없습니다.";
+      return action.next ? "가맹코드를 다시 사용할 수 있게 해요." : "가맹코드를 더 이상 사용할 수 없게 해요. 기존 승인 매장에는 영향이 없어요.";
     case "joinCodeRotate":
-      return "기존 코드는 즉시 무효가 되고 새 코드가 발급됩니다. 기존 승인 매장에는 영향이 없습니다.";
+      return "기존 코드는 즉시 무효가 되고 새 코드가 발급돼요. 기존 승인 매장에는 영향이 없어요.";
     case "memberStatus":
       return action.next === "REVOKED"
-        ? `${action.member.name} 담당자를 중지하면 즉시 모든 세션이 종료되고 로그인할 수 없습니다.`
-        : `${action.member.name} 담당자를 다시 로그인할 수 있게 합니다.`;
+        ? `${action.member.name} 담당자를 중지하면 즉시 모든 세션이 종료되고 로그인할 수 없어요.`
+        : `${action.member.name} 담당자를 다시 로그인할 수 있게 해요.`;
     case "memberRevokeSessions":
-      return `${action.member.name} 담당자의 모든 로그인 세션을 즉시 종료합니다. 다음 요청부터 거절됩니다.`;
+      return `${action.member.name} 담당자의 모든 로그인 세션을 즉시 종료해요. 다음 요청부터 거절돼요.`;
     case "committedStoreCount":
       return action.value != null
-        ? `약정 매장 수를 ${action.value}곳으로 저장합니다. 다음 달 단가 계산에 반영됩니다.`
-        : "약정 매장 수를 해제합니다. 다음 달부터 실제 유료 이용 매장 수로 단가가 계산됩니다.";
+        ? `약정 매장 수를 ${action.value}곳으로 저장해요. 다음 달 단가 계산에 반영돼요.`
+        : "약정 매장 수를 해제해요. 다음 달부터 실제 유료 이용 매장 수로 단가가 계산돼요.";
   }
 }
 
@@ -382,12 +382,12 @@ function PricingSection({
         min={1}
         value={committedInput}
         onChange={(e) => onChangeCommittedInput(e.target.value)}
-        hint="비우면 약정을 해제하고, 실제 유료 이용 매장 수로 다음 달 단가를 계산합니다."
+        hint="비우면 약정을 해제하고, 실제 유료 이용 매장 수로 다음 달 단가를 계산해요."
         error={!valid ? "1 이상의 정수를 입력해 주세요." : undefined}
       />
       <p className="field__hint">
         미리보기: {previewCount}곳 기준 적용 단가{" "}
-        <strong>{previewTierPrice(previewCount).toLocaleString("ko-KR")}원(VAT 별도)</strong> — 표시용이며 실제 확정은 매월 25일 기준입니다.
+        <strong>{previewTierPrice(previewCount).toLocaleString("ko-KR")}원(VAT 별도)</strong> — 표시용이며 실제 확정은 매월 25일 기준이에요.
       </p>
       <Button type="button" small disabled={!valid} onClick={() => onSave(parsed)}>저장</Button>
     </>
@@ -414,7 +414,7 @@ function AddMemberModal({ open, onClose, onAdded, brand }: { open: boolean; onCl
       reset();
       await onAdded();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "담당자를 추가하지 못했습니다.");
+      setError(err instanceof ApiError ? err.message : "담당자를 추가하지 못했어요.");
     } finally {
       setLoading(false);
     }
@@ -466,7 +466,7 @@ function EditMemberModal({ member, onClose, onSaved, brand }: { member: AdminFra
       await adminApi.updateMember(brand, member.memberId, { name: name.trim(), title: title.trim() || undefined, reason: reason.trim() });
       await onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "담당자 정보를 수정하지 못했습니다.");
+      setError(err instanceof ApiError ? err.message : "담당자 정보를 수정하지 못했어요.");
     } finally {
       setLoading(false);
     }

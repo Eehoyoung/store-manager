@@ -176,7 +176,7 @@ public class ReplyDraft {
         if (userId == null || ackAt == null) {
             // 방어적 — 서비스에서 이미 막지만, 엔티티가 스스로도 거부해야 한다.
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    Map.of("reason", "승인자와 사유 확인 시각이 모두 있어야 게시할 수 있습니다."));
+                    Map.of("reason", "승인자와 사유 확인 시각이 모두 있어야 게시할 수 있어요."));
         }
         if (editedContent != null && !editedContent.equals(this.content)) {
             this.originalContent = this.content;
@@ -258,13 +258,13 @@ public class ReplyDraft {
      */
     public void resumeAfterReactivation(Long userId) {
         if (userId == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "재개한 사용자가 있어야 합니다."));
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "재개한 사용자가 있어야 해요."));
         }
         requireStatus("BLOCKED");
         String[] flags = this.guardrailFlags == null ? new String[0] : this.guardrailFlags;
         if (flags.length != 1 || !"STORE_INACTIVE".equals(flags[0])) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
-                    Map.of("reason", "이용 제한으로 보류된 답글만 재개할 수 있습니다.", "currentFlags", List.of(flags)));
+                    Map.of("reason", "이용 제한으로 보류된 답글만 재개할 수 있어요.", "currentFlags", List.of(flags)));
         }
         this.status = "SCHEDULED";
         this.scheduledAt = Instant.now();

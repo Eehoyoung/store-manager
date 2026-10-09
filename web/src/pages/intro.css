@@ -61,7 +61,7 @@
 
 .intro-header__code strong {
   margin-left: 5px;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   color: var(--intro-teal);
 }
 
@@ -194,7 +194,7 @@
 }
 
 .reply-console__id {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
@@ -240,7 +240,7 @@
 
 .intro-problem__list { display: grid; gap: 14px; margin-top: 28px; }
 .intro-problem__list p { display: grid; grid-template-columns: 42px 1fr; gap: 12px; margin: 0; font-weight: 600; }
-.intro-problem__list span { font-family: var(--font-mono); color: var(--intro-teal); }
+.intro-problem__list span { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--intro-teal); }
 
 .intro-section { padding: 100px 0; }
 .intro-section__heading { max-width: 720px; margin-bottom: 40px; }
@@ -279,7 +279,7 @@
 
 .intro-process ol { list-style: none; display: grid; gap: 16px; margin: 0; padding: 0; }
 .intro-process li { display: grid; grid-template-columns: 52px 1fr; gap: 16px; padding: 22px; border-top: 1px solid #c5d7d2; background: rgba(255,255,255,.7); }
-.intro-process li > span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--intro-orange); font-family: var(--font-mono); font-weight: 700; }
+.intro-process li > span { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--intro-orange); font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 700; }
 .intro-process strong { display: block; margin-bottom: 6px; font-size: 21px; }
 .intro-process li p { margin: 0; color: var(--color-text-muted); }
 
@@ -295,7 +295,7 @@
 .intro-offer__main > p:last-child { max-width: 620px; color: var(--color-text-muted); }
 .intro-offer__price { padding: clamp(28px, 6vw, 52px); background: var(--intro-teal); color: #fff; }
 .intro-offer__price > p { margin-bottom: 0; }
-.intro-offer__price > strong { display: block; margin: 0 0 20px; font-family: var(--font-mono); font-size: clamp(60px, 12vw, 96px); line-height: 1.1; }
+.intro-offer__price > strong { display: block; margin: 0 0 20px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: clamp(60px, 12vw, 96px); line-height: 1.1; }
 .intro-offer__price dl { margin: 0 0 24px; }
 .intro-offer__price dl div { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.3); }
 .intro-offer__price dt { color: #fff; }
@@ -308,7 +308,7 @@
 .intro-faq details { border-bottom: 1px solid #bdd0cb; }
 .intro-faq summary { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; cursor: pointer; font-weight: 700; list-style: none; }
 .intro-faq summary::-webkit-details-marker { display: none; }
-.intro-faq summary::after { content: "+"; flex: 0 0 auto; font-family: var(--font-mono); font-size: 28px; color: var(--intro-teal); }
+.intro-faq summary::after { content: "+"; flex: 0 0 auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 28px; color: var(--intro-teal); }
 .intro-faq details[open] summary::after { content: "−"; }
 .intro-faq details p { max-width: 800px; padding: 0 0 22px; color: var(--color-text-muted); }
 

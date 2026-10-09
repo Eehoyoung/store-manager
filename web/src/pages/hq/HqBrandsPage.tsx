@@ -20,13 +20,13 @@ export function HqBrandsPage() {
     hqApi
       .brands()
       .then(setBrands)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "브랜드 목록을 불러오지 못했습니다."));
+      .catch((e) => setError(e instanceof ApiError ? e.message : "브랜드 목록을 불러오지 못했어요."));
   }, [retryTick]);
 
   if (error) {
     return (
       <EmptyState
-        title="브랜드 목록을 불러오지 못했습니다"
+        title="브랜드 목록을 불러오지 못했어요"
         description={error}
         action={
           <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -48,7 +48,7 @@ export function HqBrandsPage() {
 
   if (brands.length === 0) {
     return (
-      <EmptyState title="본부 권한이 있는 브랜드가 없습니다" description="가맹본부 계정으로 등록된 브랜드가 없습니다." />
+      <EmptyState title="본부 권한이 있는 브랜드가 없어요" description="가맹본부 계정으로 등록된 브랜드가 없어요." />
     );
   }
 

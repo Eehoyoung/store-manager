@@ -312,6 +312,7 @@
 
 .legal-footer__business dt {
   color: var(--color-text-muted);
+  white-space: nowrap; /* 375px 에서 '사업장 주 / 소' 로 쪼개지던 것 */
 }
 
 .legal-footer__business dt::after {

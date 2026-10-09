@@ -60,9 +60,9 @@ export function OtpLoginForm({ title, description, ttlSeconds, onRequest, onVeri
       setCode("");
       setCodeExpiresAt(Date.now() + ttlSeconds * 1000);
       setResendAt(Date.now() + RESEND_COOLDOWN_SECONDS * 1000);
-      setNotice("등록된 이메일이면 인증번호가 발송됩니다. 받은 편지함을 확인해 주세요.");
+      setNotice("등록된 이메일이면 인증번호가 발송돼요. 받은 편지함을 확인해 주세요.");
     } catch (e) {
-      setError(e instanceof ApiError || e instanceof NetworkError ? e.message : "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setError(e instanceof ApiError || e instanceof NetworkError ? e.message : "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export function OtpLoginForm({ title, description, ttlSeconds, onRequest, onVeri
       const res = await onVerify(email.trim(), code.trim());
       onSuccess(res, email.trim());
     } catch (err) {
-      setError(err instanceof ApiError || err instanceof NetworkError ? err.message : "인증번호가 올바르지 않거나 만료되었습니다.");
+      setError(err instanceof ApiError || err instanceof NetworkError ? err.message : "인증번호가 올바르지 않거나 만료됐어요.");
     } finally {
       setLoading(false);
     }
@@ -119,7 +119,7 @@ export function OtpLoginForm({ title, description, ttlSeconds, onRequest, onVeri
     <>
       <h1 className="auth-card__title">{title}</h1>
       <p className="otp-form__desc" role="status">
-        {notice ?? `${email} 로 인증번호를 보냈습니다.`}
+        {notice ?? `${email} 로 인증번호를 보냈어요.`}
       </p>
       <form onSubmit={(e) => void submitCode(e)} noValidate>
         <Field
@@ -130,7 +130,7 @@ export function OtpLoginForm({ title, description, ttlSeconds, onRequest, onVeri
           required
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-          hint={codeExpired ? "인증번호가 만료되었습니다. 다시 받아 주세요." : `남은 시간 ${mmss(remainingTtl)}`}
+          hint={codeExpired ? "인증번호가 만료됐어요. 다시 받아 주세요." : `남은 시간 ${mmss(remainingTtl)}`}
         />
         {error ? (
           <p className="auth-card__error" role="alert">

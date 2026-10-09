@@ -103,7 +103,7 @@ app:
     #   화면·약관에 사업자등록번호를 따로 적지 말 것.
     # ★ 사업자 등록이 나오면 아래 값을 채우고 BUSINESS_INFO_REQUIRED=true 로 켠다.
     #   켜 두면 값이 하나라도 비었을 때 기동하지 않는다(fail-closed).
-    name: ${BUSINESS_NAME:소담}
+    name: ${BUSINESS_NAME:소담랩스}
     service-name: ${BUSINESS_SERVICE_NAME:소담리뷰}
     representative: ${BUSINESS_REPRESENTATIVE:}
     address: ${BUSINESS_ADDRESS:}

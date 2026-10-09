@@ -26,7 +26,7 @@ function pct(rate: number): string {
 
 // avgResponseMinutes 는 분 단위 숫자 — 사람이 읽는 형태로 변환한다. null 이면 0 으로 그리지 않는다.
 function formatMinutes(minutes: number | null): string {
-  if (minutes == null) return "아직 데이터가 없습니다";
+  if (minutes == null) return "아직 데이터가 없어요";
   if (minutes < 60) return `${minutes.toFixed(1)}분`;
   return `${Math.floor(minutes / 60)}시간 ${Math.round(minutes % 60)}분`;
 }
@@ -80,7 +80,7 @@ export function DashboardPage() {
           setPaymentRequired(true);
           return;
         }
-        setError(e instanceof ApiError ? e.message : "대시보드 데이터를 불러오지 못했습니다.");
+        setError(e instanceof ApiError ? e.message : "대시보드 데이터를 불러오지 못했어요.");
       });
   }, [storeId, retryTick]);
 
@@ -102,7 +102,7 @@ export function DashboardPage() {
   if (paymentRequired) {
     return (
       <EmptyState
-        title="결제가 필요합니다"
+        title="결제가 필요해요"
         description="결제수단을 등록하면 대시보드를 다시 볼 수 있어요."
         action={
           <Link to={`/stores/${storeId}/billing`} className="btn btn--primary">
@@ -116,7 +116,7 @@ export function DashboardPage() {
   if (error) {
     return (
       <EmptyState
-        title="대시보드를 불러오지 못했습니다"
+        title="대시보드를 불러오지 못했어요"
         description={error}
         action={
           <Button type="button" onClick={() => setRetryTick((t) => t + 1)}>
@@ -177,7 +177,7 @@ export function DashboardPage() {
       <Card className="dashboard-section">
         <h2>별점 분포</h2>
         {summary.totalReviews === 0 ? (
-          <EmptyState title="아직 리뷰가 없습니다" />
+          <EmptyState title="아직 리뷰가 없어요" />
         ) : (
           <RatingBars summary={summary} />
         )}
@@ -186,7 +186,7 @@ export function DashboardPage() {
       <Card className="dashboard-section">
         <h2>카테고리 분포</h2>
         {summary.categoryDistribution.length === 0 ? (
-          <EmptyState title="아직 분류된 리뷰가 없습니다" />
+          <EmptyState title="아직 분류된 리뷰가 없어요" />
         ) : (
           <CategoryBars summary={summary} />
         )}
@@ -194,13 +194,13 @@ export function DashboardPage() {
 
       <Card className="dashboard-section">
         <h2>일자별 추이 (최근 30일)</h2>
-        {trend.items.length === 0 ? <EmptyState title="아직 데이터가 없습니다" /> : <TrendChart trend={trend} />}
+        {trend.items.length === 0 ? <EmptyState title="아직 데이터가 없어요" /> : <TrendChart trend={trend} />}
       </Card>
 
       <Card className="dashboard-section">
         <h2>이슈 태그 랭킹</h2>
         {issues.items.length === 0 ? (
-          <EmptyState title="아직 집계된 이슈 태그가 없습니다" />
+          <EmptyState title="아직 집계된 이슈 태그가 없어요" />
         ) : (
           <table className="dashboard-table">
             <thead>
@@ -230,7 +230,7 @@ export function DashboardPage() {
       <Card className="dashboard-section">
         <h2>메뉴별 만족도</h2>
         {menus.items.length === 0 ? (
-          <EmptyState title="아직 집계된 메뉴가 없습니다" />
+          <EmptyState title="아직 집계된 메뉴가 없어요" />
         ) : (
           <table className="dashboard-table">
             <thead>
@@ -256,7 +256,7 @@ export function DashboardPage() {
       <Card className="dashboard-section">
         <h2>응답 성과</h2>
         {response.totalReviews === 0 ? (
-          <EmptyState title="아직 데이터가 없습니다" />
+          <EmptyState title="아직 데이터가 없어요" />
         ) : (
           <ul className="dashboard-metric-list">
             <li>
@@ -304,8 +304,8 @@ function NaverSummary({ status }: { status: NaverStatusResponse | null }) {
   if (pending + posted + skipped === 0) {
     return (
       <EmptyState
-        title="확장을 연결하면 표시됩니다"
-        description="네이버 스마트플레이스 확장을 설치하고 매장을 연결하면 처리 현황이 여기에 나타납니다."
+        title="확장을 연결하면 표시돼요"
+        description="네이버 스마트플레이스 확장을 설치하고 매장을 연결하면 처리 현황이 여기에 나타나요."
       />
     );
   }
@@ -327,7 +327,7 @@ function NaverSummary({ status }: { status: NaverStatusResponse | null }) {
         </li>
       </ul>
       <p className="field__hint">
-        네이버 지표는 확장이 수집한 것만 집계합니다. 브라우저가 꺼져 있는 동안에는 쌓이지 않습니다.
+        네이버 지표는 확장이 수집한 것만 집계해요. 브라우저가 꺼져 있는 동안에는 쌓이지 않아요.
       </p>
     </>
   );

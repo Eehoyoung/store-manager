@@ -14,45 +14,45 @@ const benefits = [
   {
     label: "리뷰 핵심 반영",
     title: "고객이 적은 내용을 놓치지 않습니다",
-    body: "맛·양·배송·누락처럼 리뷰에 실제로 적힌 내용을 답글에 반영합니다.",
+    body: "맛·양·배송·누락처럼 리뷰에 실제로 적힌 내용을 답글에 반영해요.",
   },
   {
     label: "매장 말투 적용",
     title: "우리 매장답게 답합니다",
-    body: "호칭, 문장 길이, 피하고 싶은 표현을 정해 획일적인 답글을 줄입니다.",
+    body: "호칭, 문장 길이, 피하고 싶은 표현을 정해 획일적인 답글을 줄여요.",
   },
   {
     label: "민감 리뷰 정지",
     title: "사람이 봐야 할 리뷰에서는 멈춥니다",
-    body: "위생·이물질·식중독·법적 분쟁처럼 민감한 리뷰는 자동 게시하지 않습니다.",
+    body: "위생·이물질·식중독·법적 분쟁처럼 민감한 리뷰는 자동 게시하지 않아요.",
   },
 ];
 
 const operationSteps = [
-  { title: "리뷰를 한곳에 모읍니다", body: "연결한 배달앱의 새 리뷰를 매장별로 정리해 놓친 리뷰가 없도록 보여줍니다." },
-  { title: "내용과 위험 신호를 나눕니다", body: "맛·양·배송·누락 같은 핵심 내용과 위생·이물질·분쟁 같은 위험 신호를 구분합니다." },
-  { title: "매장 말투로 답글을 준비합니다", body: "호칭, 시작 문장, 이모지 사용 여부, 답글 길이와 금지 표현을 매장 설정에 맞춥니다." },
-  { title: "안전한 답글만 게시합니다", body: "안전 기준을 통과한 답글만 예약하고, 위험 리뷰는 멈춰 사장님 확인 대상으로 남깁니다." },
+  { title: "리뷰를 한곳에 모읍니다", body: "연결한 배달앱의 새 리뷰를 매장별로 정리해 놓친 리뷰가 없도록 보여줘요." },
+  { title: "내용과 위험 신호를 나눕니다", body: "맛·양·배송·누락 같은 핵심 내용과 위생·이물질·분쟁 같은 위험 신호를 구분해요." },
+  { title: "매장 말투로 답글을 준비합니다", body: "호칭, 시작 문장, 이모지 사용 여부, 답글 길이와 금지 표현을 매장 설정에 맞춰요." },
+  { title: "안전한 답글만 게시합니다", body: "안전 기준을 통과한 답글만 예약하고, 위험 리뷰는 멈춰 사장님 확인 대상으로 남겨요." },
 ];
 
 const faqs = [
   {
     question: "기존 자동답글과 무엇이 다른가요?",
     answer:
-      "같은 감사 문구를 반복하는 대신, 리뷰에 적힌 핵심 내용과 매장에서 정한 말투 기준을 답글에 반영하는 데 초점을 둡니다.",
+      "같은 감사 문구를 반복하는 대신, 리뷰에 적힌 핵심 내용과 매장에서 정한 말투 기준을 답글에 반영하는 데 초점을 둬요.",
   },
   {
     question: "모든 리뷰가 자동으로 게시되나요?",
     answer:
-      "아닙니다. 위생·이물질·식중독·법적 분쟁처럼 사람이 확인해야 하는 리뷰는 자동 게시하지 않고 확인 대상으로 분리합니다.",
+      "아니에요. 위생·이물질·식중독·법적 분쟁처럼 사람이 확인해야 하는 리뷰는 자동 게시하지 않고 확인 대상으로 분리해요.",
   },
   {
     question: "무료 이용 후 가격은 얼마인가요?",
-    answer: "첫 30일은 0원이며, 그 뒤부터 매장당 월 33,000원(VAT 포함)입니다.",
+    answer: "첫 30일은 0원이고, 그 뒤부터 매장당 월 33,000원(VAT 포함)이에요.",
   },
   {
     question: "리뷰 내용도 만들어 주나요?",
-    answer: "아닙니다. 고객이 작성하는 리뷰 본문은 생성하거나 수정하지 않습니다. 사장님 답글만 다룹니다.",
+    answer: "아니에요. 고객이 작성하는 리뷰 본문은 생성하거나 수정하지 않아요. 사장님 답글만 다뤄요.",
   },
 ];
 
@@ -99,8 +99,8 @@ export function IntroPage() {
           <div className="intro-hero__copy">
             <h1 id="intro-title"><span className="intro-hero__brand">소담리뷰</span>고객의 목소리는<br />놓치지 않고,<br /><em>위험한 답글은 멈춥니다.</em></h1>
             <p className="intro-hero__lede">
-              소담리뷰가 리뷰에 적힌 맛·양·배송 이야기를 읽고, 매장에서 정한 말투에 맞춰 답합니다.
-              사람이 판단해야 하는 리뷰에서는 자동으로 멈춥니다.
+              소담리뷰가 리뷰에 적힌 맛·양·배송 이야기를 읽고, 매장에서 정한 말투에 맞춰 답해요.
+              사람이 판단해야 하는 리뷰에서는 자동으로 멈춰요.
             </p>
 
             <div className="intro-offer-line" aria-label="무료체험 조건">
@@ -133,7 +133,7 @@ export function IntroPage() {
               <p className="reply-signal__label">사장님 답글</p>
               <p>고객님, 넉넉한 양과 빠른 배송을 좋게 봐주셔서 감사합니다. 다음 주문도 정성껏 준비하겠습니다.</p>
             </article>
-            <p className="reply-console__caption">화면 이해를 돕기 위한 답글 예시입니다.</p>
+            <p className="reply-console__caption">화면 이해를 돕기 위한 답글 예시예요.</p>
           </div>
         </section>
 
@@ -141,7 +141,7 @@ export function IntroPage() {
           <div className="intro-section__heading">
             <p className="intro-section-label">소담리뷰 작동 방식</p>
             <h2 id="operation-title">리뷰가 도착한 뒤,<br />답글이 올라가기까지.</h2>
-            <p>사장님이 매번 복사하고 붙여넣지 않아도 되도록 반복 업무를 잇고, 사람의 판단이 필요한 순간에는 자동으로 멈춥니다.</p>
+            <p>사장님이 매번 복사하고 붙여넣지 않아도 되도록 반복 업무를 잇고, 사람의 판단이 필요한 순간에는 자동으로 멈춰요.</p>
           </div>
           <ol>
             {operationSteps.map((step, index) => (
@@ -161,9 +161,9 @@ export function IntroPage() {
           <p className="intro-section-label">지금 쓰는 답글을 확인해 보세요</p>
           <h2 id="problem-title">자동답글인데도 직접 다시 손보고 있나요?</h2>
           <div className="intro-problem__list">
-            <p><span>01</span> 리뷰와 상관없는 감사 문구가 반복됩니다.</p>
-            <p><span>02</span> 맛·양·배송 같은 고객의 핵심 이야기가 빠집니다.</p>
-            <p><span>03</span> 모든 매장이 비슷한 말투로 답하게 됩니다.</p>
+            <p><span>01</span> 리뷰와 상관없는 감사 문구가 반복돼요.</p>
+            <p><span>02</span> 맛·양·배송 같은 고객의 핵심 이야기가 빠져요.</p>
+            <p><span>03</span> 모든 매장이 비슷한 말투로 답하게 돼요.</p>
           </div>
         </section>
 
@@ -189,8 +189,8 @@ export function IntroPage() {
             <p className="intro-section-label">자동 게시 정지 기준</p>
             <h2 id="safety-title">민감한 리뷰는<br />사장님 확인 없이 올리지 않습니다.</h2>
             <p>
-              위생·이물질·식중독·법적 분쟁처럼 사람이 판단해야 하는 리뷰는 자동 게시하지 않습니다.
-              고객 리뷰 본문은 생성하거나 수정하지 않고, 사장님 답글만 다룹니다.
+              위생·이물질·식중독·법적 분쟁처럼 사람이 판단해야 하는 리뷰는 자동 게시하지 않아요.
+              고객 리뷰 본문은 생성하거나 수정하지 않고, 사장님 답글만 다뤄요.
             </p>
           </div>
           <div className="intro-safety__sample" aria-label="민감한 리뷰 처리 예시">
@@ -207,9 +207,9 @@ export function IntroPage() {
             <h2 id="process-title">시작은 세 단계면 됩니다.</h2>
           </div>
           <ol>
-            <li><span>1</span><div><strong>무료체험 신청</strong><p>가입하면서 안내받은 쿠폰번호를 입력합니다.</p></div></li>
-            <li><span>2</span><div><strong>매장 답글 기준 설정</strong><p>호칭·문장 길이·피하고 싶은 표현을 정합니다.</p></div></li>
-            <li><span>3</span><div><strong>실제 리뷰로 확인</strong><p>답글의 구체성과 민감 리뷰 정지를 한 달 동안 확인합니다.</p></div></li>
+            <li><span>1</span><div><strong>무료체험 신청</strong><p>가입하면서 안내받은 쿠폰번호를 입력해요.</p></div></li>
+            <li><span>2</span><div><strong>매장 답글 기준 설정</strong><p>호칭·문장 길이·피하고 싶은 표현을 정해요.</p></div></li>
+            <li><span>3</span><div><strong>실제 리뷰로 확인</strong><p>답글의 구체성과 민감 리뷰 정지를 한 달 동안 확인해요.</p></div></li>
           </ol>
         </section>
 
