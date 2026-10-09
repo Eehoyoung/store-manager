@@ -122,6 +122,20 @@ def active_account_ids() -> list[int]:
       ★ 이 조건을 느슨하게 바꾸면 못 받을 돈에 호출료를 우리가 대신 낸다.
       ★ 조건은 UnifiedReviewRepository.findNeedingDraft · DailyBriefingService 와 함께 바꿀 것.
     """
+    return [int(r[0]) for r in _serviceable_rows("ORDER BY pa.id")]
+
+
+def is_account_serviceable(account_id: str) -> bool:
+    """이 계정에 지금 DataAPI 를 불러도 되는가 — active_account_ids 와 **같은 조건**.
+
+    ★ 수동 poll_reviews·backfill 은 dispatch_polls 를 거치지 않아 이 검사가 없었다. 구독이
+      없는 매장도 호출 1회가 과금되고, Spring 이 적재 단계(CollectResultService)에서 결과를
+      버렸다. 호출 **앞**에서 막는다."""
+    return bool(_serviceable_rows("AND pa.id = %s", (int(account_id),)))
+
+
+def _serviceable_rows(tail: str, params: tuple = ()) -> list:
+    """수집 대상 판정 SQL 한 벌. 조건을 바꿀 때는 여기 한 곳만 고친다."""
     import psycopg
 
     if not DATABASE_URL:
@@ -141,7 +155,7 @@ def active_account_ids() -> list[int]:
                             WHERE sub.store_id = s.id
                               AND sub.status NOT IN ('SUSPENDED', 'CANCELED')
                               AND sub.service_until > now())
-             ORDER BY pa.id
-            """
+            """ + tail,
+            params,
         )
-        return [int(r[0]) for r in cur.fetchall()]
+        return cur.fetchall()

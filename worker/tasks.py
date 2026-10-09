@@ -69,6 +69,21 @@ def _load_account(account_id: str) -> AccountInfo:
     return AccountInfo(platform=platform, credentials=creds)
 
 
+class NotServiceableError(Exception):
+    """구독·위탁 동의가 없는 매장의 계정 — DataAPI 를 부르지 않고 건너뛴다."""
+
+
+def _load_collect_account(account_id: str) -> AccountInfo:
+    """수집용 계정 로더. 호출 **전에** 서비스 가능 여부를 본다(credentials.is_account_serviceable).
+
+    ★ 이게 없으면 수동 poll_reviews·backfill 이 구독 없는 매장에 과금 호출을 하고,
+      Spring 이 적재 단계에서 결과를 버린다. 게시(publish)는 PublishScheduler 가 이미 막으므로
+      여기 넣지 않는다."""
+    if not credentials.is_account_serviceable(account_id):
+        raise NotServiceableError(account_id)
+    return _load_account(account_id)
+
+
 def _redis_client():
     """실제 Redis 클라이언트를 지연 생성한다. 테스트는 redis_client 인자로 목 객체를 주입한다."""
     import redis as redis_lib  # 지연 임포트 — 테스트에서 실제 연결을 만들지 않기 위함
@@ -206,7 +221,7 @@ def poll_reviews(
     sleep: Callable[[float], None] = time.sleep,
     client_factory: Callable[[], DataApiClient] = DataApiClient,
     redis_client=None,
-    account_loader: Callable[[str], AccountInfo] = _load_account,
+    account_loader: Callable[[str], AccountInfo] = _load_collect_account,
 ) -> dict:
     """정기 수집(F-4): 최근 COLLECT_LOOKBACK_DAYS 일 재조회 → 정규화 → /internal/collect-result.
     증분 조회가 없으므로 매번 최근 구간을 통째로 재조회한다. dedupe 는 Spring UPSERT 가 담당."""
@@ -216,7 +231,11 @@ def poll_reviews(
         log.info("collect skipped (lock held) account=%s", account_id)
         return {"status": "SKIPPED"}
     try:
-        account = account_loader(account_id)
+        try:
+            account = account_loader(account_id)
+        except NotServiceableError:
+            log.info("collect skipped (not serviceable) account=%s", account_id)
+            return {"status": "SKIPPED", "reason": "NOT_SERVICEABLE"}
         today = date.today()
         start = today - timedelta(days=COLLECT_LOOKBACK_DAYS)
         client = client_factory()
@@ -430,7 +449,7 @@ def backfill(
     sleep: Callable[[float], None] = time.sleep,
     client_factory: Callable[[], DataApiClient] = DataApiClient,
     redis_client=None,
-    account_loader: Callable[[str], AccountInfo] = _load_account,
+    account_loader: Callable[[str], AccountInfo] = _load_collect_account,
 ) -> list[dict]:
     """최초 연동 백필: 90일을 7일 단위로 분할 호출한다(문서 08 F-4 — 타임아웃·응답크기 대비).
     RC_LIST(기존 답글)가 이때 대량 수집되며, 이는 말투 학습 RAG 코퍼스의 핵심 소스가 된다(문서 08 §5)."""
@@ -440,7 +459,11 @@ def backfill(
         log.info("backfill skipped (lock held) account=%s", account_id)
         return [{"status": "SKIPPED"}]
     try:
-        account = account_loader(account_id)
+        try:
+            account = account_loader(account_id)
+        except NotServiceableError:
+            log.info("backfill skipped (not serviceable) account=%s", account_id)
+            return [{"status": "SKIPPED", "reason": "NOT_SERVICEABLE"}]
         today = date.today()
         client = client_factory()
         results = []

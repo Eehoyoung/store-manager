@@ -159,3 +159,36 @@ def test_release_lock_does_not_delete_another_workers_lock():
     tasks._release_lock(rc, "acct-1", my_token)
 
     assert rc.get("lock:collect:acct-1") == "other-worker-token"
+
+
+# ── 구독 없는 매장은 DataAPI 를 부르지 않는다 (과제 #24) ─────────────────────────
+# 수동 poll_reviews·backfill 은 dispatch_polls 의 대상 선별을 거치지 않는다. 기본 로더가
+# credentials.is_account_serviceable 을 먼저 보지 않으면 과금 호출 뒤 Spring 이 결과를 버린다.
+
+def _guarded_run(monkeypatch, task, serviceable: bool):
+    checked, loaded = [], []
+    monkeypatch.setattr(tasks.credentials, "is_account_serviceable", lambda a: checked.append(a) or serviceable)
+    monkeypatch.setattr(tasks, "_load_account", lambda a: loaded.append(a) or _dummy_account())
+    monkeypatch.setattr(tasks, "_post_collect_result", lambda payload: None)
+    fake_client = FakeClient()
+    result = task("acct-9", sleep=lambda s: None, client_factory=lambda: fake_client, redis_client=FakeRedis())
+    return result, fake_client, checked, loaded
+
+
+def test_poll_does_not_call_dataapi_when_store_not_serviceable(monkeypatch):
+    result, client, checked, loaded = _guarded_run(monkeypatch, poll_reviews, serviceable=False)
+    assert result == {"status": "SKIPPED", "reason": "NOT_SERVICEABLE"}
+    assert client.calls == [] and loaded == []  # 호출 0회, 자격증명 복호화도 하지 않는다
+    assert checked == ["acct-9"]
+
+
+def test_poll_calls_dataapi_when_store_serviceable(monkeypatch):
+    result, client, checked, loaded = _guarded_run(monkeypatch, poll_reviews, serviceable=True)
+    assert len(client.calls) == 1 and loaded == ["acct-9"]
+    assert result.get("reason") != "NOT_SERVICEABLE"
+
+
+def test_backfill_does_not_call_dataapi_when_store_not_serviceable(monkeypatch):
+    result, client, _, loaded = _guarded_run(monkeypatch, backfill, serviceable=False)
+    assert result == [{"status": "SKIPPED", "reason": "NOT_SERVICEABLE"}]
+    assert client.calls == [] and loaded == []
