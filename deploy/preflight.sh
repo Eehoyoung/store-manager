@@ -13,7 +13,7 @@
 #   CRON_FILE     auto-deploy cron   (기본 /etc/cron.d/storemanager-deploy)
 #   DEPLOY_LOG    배포 로그          (기본 /var/log/storemanager-deploy.log)
 #   SITE_URL      공개 주소          (기본 https://review.sodamlabs.kr)
-#   PUBLIC_IP     서버 고정 IP       (기본 15.165.196.205)
+#   PUBLIC_IP     서버 고정 IP — 기본값 없음. 주면 443 직접 차단 확인 명령을 안내한다
 #   SKIP_NET=1    네트워크 점검 생략 / SKIP_GIT=1 git 점검 생략
 set -u
 
@@ -23,7 +23,6 @@ EXAMPLE=${EXAMPLE:-$REPO_DIR/deploy/env.example}
 CRON_FILE=${CRON_FILE:-/etc/cron.d/storemanager-deploy}
 DEPLOY_LOG=${DEPLOY_LOG:-/var/log/storemanager-deploy.log}
 SITE_URL=${SITE_URL:-https://review.sodamlabs.kr}
-PUBLIC_IP=${PUBLIC_IP:-15.165.196.205}
 DEV_HOST=datahub-dev.scraping.co.kr
 
 FAILS=0
@@ -129,7 +128,8 @@ fi
 # 6) 네트워크
 if [ "${SKIP_NET:-0}" != 1 ]; then
   # 서버 안에서 자기 공인 IP 로 붙는 것은 Lightsail 방화벽을 거치지 않을 수 있어 판정하지 않는다.
-  info "443 직접 차단은 서버 밖(PC)에서 확인: curl -k --max-time 5 https://$PUBLIC_IP  → 타임아웃이면 정상"
+  if [ -n "${PUBLIC_IP:-}" ]; then info "443 직접 차단은 서버 밖(PC)에서 확인: curl -k --max-time 5 https://$PUBLIC_IP  → 타임아웃이면 정상"
+  else info "SKIP 443 직접 차단 안내 — PUBLIC_IP 미지정(서버 IP 는 저장소에 적지 않는다)"; fi
   bi=$(curl -fsS --max-time 10 "$SITE_URL/api/v1/legal/business-info" 2>/dev/null)
   if [ -z "$bi" ]; then fail "사업자 정보 API 응답 없음 ($SITE_URL)"
   else
