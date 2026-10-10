@@ -14,34 +14,51 @@
  * 값을 바꿀 때는 반드시 다시 계산할 것. 이 수치가 이 제품의 접근성 근거다.
  */
 :root {
+  /* ── 공용 토큰 (SODAM LABS BRAND.md §4 — 이름·값을 바꾸지 말 것) ── */
+  --sodam-ink: #191F28;
+  --sodam-ink-2: #4E5968;
+  --sodam-ink-muted: #636E7B;
+  --sodam-line-control: #848C97;
+  --sodam-navy: #1B2B42;
+  --sodam-teal-strong: #0F4C5C;
+  --sodam-orange: #FF7440;      /* 포인트. 면적 10% 이하, 흰 글자 바탕 금지 */
+  --sodam-ground: #F5F7FA;
+  --sodam-surface: #FFFFFF;
+  --sodam-border: #E4E9F0;
+
   /* ── 바탕 ─────────────────────────────────────────────── */
-  --color-bg: #F5F7FA;          /* 페이지 바탕 — --sodam-ground. 순백이 아니라 눈부심을 낮춘다 */
-  --color-panel: #ffffff;       /* 계기면(카드) */
+  --color-bg: var(--sodam-ground);          /* 페이지 바탕 — --sodam-ground. 순백이 아니라 눈부심을 낮춘다 */
+  --color-panel: var(--sodam-surface);       /* 계기면(카드) */
   --color-surface: #EEF2F6;     /* 한 단계 낮은 면 */
-  --color-border: #E4E9F0;      /* 베젤 테두리 — --sodam-border */
+  --color-border: var(--sodam-border);      /* 베젤 테두리 — --sodam-border */
   --color-rule: #EEF2F6;        /* 헤어라인 — 구획만 나눌 때 */
-  --color-border-control: #848C97; /* 입력칸 테두리 — --sodam-line-control. 패널 대비 3.4:1(비텍스트 3:1 기준) */
+  --color-border-control: var(--sodam-line-control); /* 입력칸 테두리 — --sodam-line-control. 패널 대비 3.4:1(비텍스트 3:1 기준) */
 
   /* ── 글자 ─────────────────────────────────────────────── */
-  --color-text: #191F28;        /* 본문 — --sodam-ink. 바탕 대비 15.4:1, 패널 16.6:1, surface 14.7:1 */
-  --color-text-muted: #4E5968;  /* 보조 — 바탕 대비 6.6:1, 패널 7.1:1, surface 6.3:1 */
-  --color-text-subtle: #636E7B; /* 더 흐린 단계 — --sodam-ink-muted. 바탕 4.8:1, 패널 5.1:1 */
+  --color-text: var(--sodam-ink);        /* 본문 — --sodam-ink. 바탕 대비 15.4:1, 패널 16.6:1, surface 14.7:1 */
+  --color-text-muted: var(--sodam-ink-2);  /* 보조 — 바탕 대비 6.6:1, 패널 7.1:1, surface 6.3:1 */
+  --color-text-subtle: var(--sodam-ink-muted); /* 더 흐린 단계 — --sodam-ink-muted. 바탕 4.8:1, 패널 5.1:1 */
 
   /* ── 조작(상태색과 겹치지 않는 청록) ────────────────────── */
-  --color-primary: #0f4c5c;     /* --sodam-teal-strong. 패널 9.5:1 · 바탕 8.9:1 / 흰 글자 얹을 때 9.5:1 */
+  --color-primary: var(--sodam-teal-strong);     /* --sodam-teal-strong. 패널 9.5:1 · 바탕 8.9:1 / 흰 글자 얹을 때 9.5:1 */
   --color-primary-dark: #0a3644;
   --color-primary-bg: #e4eef1;
+  --color-primary-border: #c3d8de;
+  --color-on-primary: var(--sodam-surface); /* primary·ink·상태색 위 글자 */
 
   /* ── 상태 3종 (항공 표준 의미) ──────────────────────────── */
   --color-engaged: #0b6e4f;     /* 정상·자동 운항 중 — 패널 6.3:1 · 바탕 5.8:1 */
   --color-engaged-bg: #e3f1ea;
   --color-success: #0b6e4f;     /* 별칭 — 기존 페이지 CSS 호환 */
   --color-success-bg: #e3f1ea;
+  --color-success-border: #b9dbcb;
   --color-warning: #8a5200;     /* 주의·대기 — 패널 6.4:1 · 바탕 6.0:1 */
   --color-warning-bg: #f8eddc;
+  --color-warning-border: #e3cba3;
   --color-danger: #b3261e;      /* 정지·사람 확인 — 패널 6.5:1 · 바탕 6.1:1 */
   --color-danger-dark: #8f1e17;
   --color-danger-bg: #fbe7e5;
+  --color-danger-border: #eebfbb;
 
   --color-info-bg: #e4eef1;     /* 별칭 — primary-bg */
   --color-neutral-bg: #EEF2F6;

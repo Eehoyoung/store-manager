@@ -4,20 +4,46 @@
  */
 :root {
   color-scheme: light;
+  /* 시스템 글꼴 유지 — Pretendard 를 넣으면 확장 용량이 는다(DESIGN.md §3 #9). */
   font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+
+  /* 토큰 — web/src/styles/tokens.css 의 같은 이름·값을 복사한다(확장은 web CSS 를 import 할 수 없다).
+     값을 바꿀 때는 두 곳을 함께 바꾼다. */
+  --sodam-ink: #191F28;
+  --sodam-ink-2: #4E5968;
+  --sodam-line-control: #848C97;
+  --sodam-teal-strong: #0F4C5C;
+  --sodam-ground: #F5F7FA;
+  --sodam-surface: #FFFFFF;
+  --sodam-border: #E4E9F0;
+
+  --color-bg: var(--sodam-ground);
+  --color-panel: var(--sodam-surface);
+  --color-surface: #EEF2F6;
+  --color-border: var(--sodam-border);
+  --color-border-control: var(--sodam-line-control);
+  --color-text: var(--sodam-ink);
+  --color-text-muted: var(--sodam-ink-2);
+  --color-primary: var(--sodam-teal-strong);
+  --color-on-primary: var(--sodam-surface);
+  --color-warning: #8a5200;
+  --color-warning-bg: #f8eddc;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fbe7e5;
+  --color-danger-border: #eebfbb;
 }
 
 body {
   margin: 0;
   font-size: 16px;
-  background: #f7f7f8;
-  color: #1a1a1a;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 header {
   padding: 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e5e5;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
 }
 
 header h1 {
@@ -32,38 +58,38 @@ header h1 {
 }
 
 .settings-link {
-  font-size: 14px;
-  color: #555;
+  font-size: 16px;
+  color: var(--color-text-muted);
 }
 
 header .summary {
-  font-size: 14px;
-  color: #555;
+  font-size: 16px;
+  color: var(--color-text-muted);
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e5e5e5;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   margin: 12px;
   padding: 14px;
 }
 
 .card.low-rating {
-  border-color: #f2b8b5;
-  background: #fff7f7;
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-bg);
 }
 
 /* 별점 미상 — 낮은 별점(붉은색)과 구분한다. 나쁜 리뷰가 아니라 모르는 리뷰다.
    ★ 색만으로 구분하지 않는다. 배지 문구가 함께 나간다(docs/14 40~60대 설계 원칙). */
 .card.unrated {
-  border-color: #d4d4d4;
-  background: #fafafa;
+  border-color: var(--color-border-control);
+  background: var(--color-surface);
 }
 
 .card .meta {
-  font-size: 14px;
-  color: #666;
+  font-size: 16px;
+  color: var(--color-text-muted);
   margin-bottom: 6px;
 }
 
@@ -79,7 +105,7 @@ header .summary {
   font-size: 16px;
   padding: 8px;
   box-sizing: border-box;
-  border: 1px solid #d0d0d0;
+  border: 1px solid var(--color-border-control);
   border-radius: 8px;
 }
 
@@ -95,32 +121,32 @@ button {
   min-width: 44px;
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #d0d0d0;
-  background: #fff;
+  border: 1px solid var(--color-border-control);
+  background: var(--color-panel);
   cursor: pointer;
 }
 
 button.primary {
-  background: #1a73e8;
-  border-color: #1a73e8;
-  color: #fff;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .badge {
   display: inline-block;
-  font-size: 13px;
+  font-size: 16px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #fdecea;
-  color: #b3261e;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 
 .bulk-bar {
   position: sticky;
   bottom: 0;
   padding: 12px 16px;
-  background: #fff;
-  border-top: 1px solid #e5e5e5;
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
 }
 
 .bulk-bar button {
@@ -152,7 +178,7 @@ button.primary {
 }
 
 .pin-modal .box {
-  background: #fff;
+  background: var(--color-panel);
   padding: 20px;
   border-radius: 10px;
   width: 260px;
@@ -171,7 +197,7 @@ button.primary {
 .card.risky {
   /* 카드 테두리 전체를 물들인다. 한쪽 변만 두껍게 긋는 방식은 쓰지 않는다 —
      카드 안의 .risk 블록이 이미 배경색과 문구로 사유를 말하고 있어 중복이다. */
-  border-color: #d97706;
+  border-color: var(--color-warning);
 }
 .risk {
   display: flex;
@@ -180,7 +206,7 @@ button.primary {
   margin: 6px 0;
   padding: 8px 10px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.45;
 }
 .risk strong {
@@ -190,16 +216,31 @@ button.primary {
   opacity: 0.85;
 }
 .risk-mid {
-  background: #fef3c7;
-  color: #78350f;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 .risk-high {
-  background: #fee2e2;
-  color: #7f1d1d;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
 }
 .card.risky .risk-high ~ .actions [data-role="approve"] {
   /* 고위험 건은 승인 버튼을 눈에 덜 띄게 둔다. 막지는 않는다 — 판단은 사장님 몫이다. */
-  background: #fff;
-  color: #7f1d1d;
-  border: 1px solid #7f1d1d;
+  background: var(--color-panel);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+/* 스크립트 인라인 색을 옮겨 온 것(DESIGN.md §3 #12) */
+.error-text {
+  color: var(--color-danger);
+  font-size: 16px;
+}
+.note-text {
+  color: var(--color-danger);
+  font-size: 16px;
+  margin: 6px 0 0;
+}
+.fine-print {
+  color: var(--color-text-muted);
+  font-size: 16px;
 }

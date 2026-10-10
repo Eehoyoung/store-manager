@@ -64,8 +64,8 @@ async function renderPairing(): Promise<void> {
       <p>웹 대시보드에서 발급받은 8자 코드를 입력하세요.</p>
       <input id="pair-code" maxlength="8" placeholder="ABCD1234" />
       <button class="primary" id="pair-submit">연결</button>
-      <p id="pair-error" style="color:#b3261e"></p>
-      <p style="font-size:12px;color:#666">서버 <code>${escapeHtml(apiBaseUrl)}</code></p>
+      <p id="pair-error" class="error-text"></p>
+      <p class="fine-print">서버 <code>${escapeHtml(apiBaseUrl)}</code></p>
       <p><a href="#" id="open-settings">API 주소 설정</a></p>
     </div>
   `;
@@ -155,7 +155,7 @@ function renderCard(entry: QueueEntry): HTMLElement {
       <button data-role="approve">승인</button>
       <button data-role="skip">건너뛰기</button>
     </div>
-    <p data-role="note" style="color:#b3261e;font-size:13px;margin:6px 0 0"></p>
+    <p data-role="note" class="note-text"></p>
   `;
 
   card.querySelector<HTMLTextAreaElement>('[data-role="draft"]')!.addEventListener("change", (e) => {
