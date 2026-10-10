@@ -79,14 +79,14 @@
   padding: 0 var(--space-4);
   border-radius: var(--radius);
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-on-primary);
   font-weight: 600;
   font-size: var(--font-size-small);
   text-decoration: none;
 }
 .annunciator__action:hover {
   background: var(--color-danger-dark);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 .annunciator__count {
   font-weight: 700;

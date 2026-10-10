@@ -16,8 +16,9 @@ export function showBanner(message: string): void {
     <style>
       div {
         position: fixed; top: 12px; right: 12px; z-index: 2147483647;
-        background: #fff3cd; color: #664d03; border: 1px solid #ffe69c;
-        border-radius: 8px; padding: 12px 16px; font-size: 14px;
+        /* shadow DOM 이라 페이지 변수가 상속되지 않는다 — warning 토큰 값을 복사한다(tokens.css) */
+        background: #f8eddc; color: #8a5200; border: 1px solid #e3cba3;
+        border-radius: 8px; padding: 12px 16px; font-size: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 320px;
       }
     </style>
