@@ -174,7 +174,7 @@ def test_사과원시진단은_남기고_매장피해예외만_게이트에서_�
     assert detail["apology_missing_raw"]
     assert detail["apology_missing"] is missing
     assert detail["blocked"]
-    assert result["classification_prompt_versions"] == ["v2.5"]
+    assert result["classification_prompt_versions"] == ["v2.6"]
     assert detail["hard_length_ok"]
 
 
