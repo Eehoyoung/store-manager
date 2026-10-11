@@ -30,5 +30,5 @@ def test_분류의_NOISE가_만족이나_불만원인을_뜻하지_않음을_명
     for system in (prompts.CLASSIFY_SYSTEM, prompts.CLASSIFY_SYSTEM_NAVER):
         assert "NOISE 는 만족을 뜻하지 않는다" in system
         assert "별점만으로 불만 원인·이슈 태그·위험 사유를 만들지 마라" in system
-    assert prompts.PROMPT_VERSION == "v2.5"
-    assert prompts.NAVER_PROMPT_VERSION == "naver-v0.7"
+    assert prompts.PROMPT_VERSION == "v2.6"
+    assert prompts.NAVER_PROMPT_VERSION == "naver-v0.8"

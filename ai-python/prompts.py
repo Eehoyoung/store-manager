@@ -29,7 +29,9 @@ from pydantic import BaseModel, Field
 #   버전 문자열은 CLASSIFY_SYSTEM 안에 들어가지 않으므로 이 값을 올려도 캐시는 유지된다.
 # ★ v2.3 (2026-09-20) — 표기 흔들림을 두 층에서 함께 받는다. 결정론 룰은 자모 수준
 #   매칭으로(연음·자모분리·된소리), 모델은 "뜻으로 읽어라" 지침으로.
-PROMPT_VERSION = "v2.5"  # 저평점 무내용 응대와 주문 목록·추천 표현의 근거 경계를 보강
+# ★ v2.6 (2026-10-11) — 분류 프롬프트의 문서 참조 표기를 절 기호에서 "1.2장" 으로만 바꿨다(절 기호 금지 표기).
+#   판정 지침 변경 없음. 네이버 프롬프트도 이 상수에서 파생되므로 naver-v0.8 로 함께 올린다.
+PROMPT_VERSION = "v2.6"  # 문서 참조 표기만 변경(절 기호 → 장). 지침은 v2.5 와 같다
 
 
 # ── 분류 스키마 (docs/12 2장, docs/11 2.4장 review_analysis) ─────────────────
@@ -145,7 +147,8 @@ def issue_tags_for(platform: str | None) -> list[str]:
 #   자백 금지' 바구니에서 빼고(모델이 7건 중 5건에서 지침을 무시했는데 모델이 옳았다),
 #   교육·징계 약속 금지에서 '특정 직원 지목' 조건절을 떼고, PRAISE 근거에 방문 예시를 넣었다.
 #   그리고 방문 경로는 카테고리로 초안을 막지 않는다 — 네이버는 전건 사람 승인이다.
-NAVER_PROMPT_VERSION = "naver-v0.7"
+# ★ v0.8 (2026-10-11) — 배달 분류 프롬프트 v2.6 표기 변경(절 기호 → 장)을 파생으로 함께 받았다. 지침 변경 없음.
+NAVER_PROMPT_VERSION = "naver-v0.8"
 
 
 def prompt_version_for(platform: str | None) -> str:
@@ -277,7 +280,7 @@ COMPLAINT -0.8~-0.2 · ABUSIVE -1.0~-0.6 · NOISE 0.0 을 기준으로 삼는다
 
 [판정 규칙]
 - 본문이 비었거나 이모지·자모음뿐이면 NOISE
-- risk_level 은 0~3 이며 각 값의 뜻이 정해져 있다 (docs/12 §1.2). 이 척도로 채점되므로 그대로 따른다.
+- risk_level 은 0~3 이며 각 값의 뜻이 정해져 있다 (docs/12 1.2장). 이 척도로 채점되므로 그대로 따른다.
   · 0 없음   : 칭찬·중립. 불만이 전혀 없거나, 있어도 지나가듯 한 마디이고
                전체 어조가 만족이다. PRAISE·POSITIVE·NOISE 는 대개 0 이다.
   · 1 경미   : 일반적인 불만. **불만의 대다수가 여기다.**
@@ -2061,7 +2064,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
 
 
 def demo() -> None:
-    assert PROMPT_VERSION == "v2.5"
+    assert PROMPT_VERSION == "v2.6"
 
     level, reasons = upgrade_risk_level("이물질이 나왔어요", base_level=0)
     assert level == 3 and reasons == ["FOREIGN_OBJECT"]
