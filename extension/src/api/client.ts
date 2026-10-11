@@ -6,7 +6,7 @@
  *   또 있지만, 확장은 애초에 원문을 들고 있지 않은 것을 계약으로 못박는다.
  *
  * ★ 아래 타입들은 api-spring/src/main/java/com/storemanager/api/naver/NaverDtos.java 의
- *   record 를 그대로 옮긴 것이다(IMPLEMENTATION_PLAN_NAVER.md §5). 필드명·nullable 여부를
+ *   record 를 그대로 옮긴 것이다(IMPLEMENTATION_PLAN_NAVER.md 5장). 필드명·nullable 여부를
  *   서버와 다르게 바꾸지 말 것 — 어긋나면 400/역직렬화 실패로 조용히 드러난다.
  */
 

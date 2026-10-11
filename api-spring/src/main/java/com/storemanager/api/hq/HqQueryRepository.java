@@ -23,7 +23,7 @@ public interface HqQueryRepository extends JpaRepository<Store, Long> {
     @Query("SELECT s FROM Store s WHERE s.brandName = :brandName AND s.deletedAt IS NULL ORDER BY s.name")
     List<Store> findStoresByBrandName(@Param("brandName") String brandName);
 
-    /** 매장별 플랫폼 연동 상태(1매장 N플랫폼 가능, docs/11 §2.3). */
+    /** 매장별 플랫폼 연동 상태(1매장 N플랫폼 가능, docs/11 2.3장). */
     @Query("SELECT spl.storeId, spl.platform, pa.linkStatus FROM StorePlatformLink spl "
             + "JOIN PlatformAccount pa ON pa.id = spl.accountId WHERE spl.storeId IN :storeIds")
     List<Object[]> platformLinkStatuses(@Param("storeIds") List<Long> storeIds);

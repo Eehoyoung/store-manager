@@ -7,7 +7,7 @@ export interface CreateStorePayload {
   address?: string;
 }
 
-// docs/13 §3, 실제 StoreController(api-spring). GET /{id}/summary 는 미구현이라 여기 두지 않는다.
+// docs/13 3장, 실제 StoreController(api-spring). GET /{id}/summary 는 미구현이라 여기 두지 않는다.
 export const storesApi = {
   list: () => apiRequest<StoreResponse[]>("/stores"),
   create: (payload: CreateStorePayload) => apiRequest<StoreResponse>("/stores", { method: "POST", body: payload }),

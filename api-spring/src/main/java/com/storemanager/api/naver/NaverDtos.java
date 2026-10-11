@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * /api/v1/naver/** 요청·응답 DTO (IMPLEMENTATION_PLAN_NAVER.md §5).
+ * /api/v1/naver/** 요청·응답 DTO (IMPLEMENTATION_PLAN_NAVER.md 5장).
  * ★ 외부에는 매장 public_id(UUID)만 노출한다. review_hash 는 확장이 만든 불가역 해시라 그대로 오간다.
  */
 final class NaverDtos {
@@ -35,7 +35,7 @@ final class NaverDtos {
     record BulkApproveRequest(@NotBlank String storeId, List<String> reviewHashes, @NotBlank String pin) {
     }
 
-    /** 제외된 항목은 이유를 함께 돌려준다 — 화면이 "왜 빠졌는지" 보여줘야 한다(docs/naver/03 §Tier 1). */
+    /** 제외된 항목은 이유를 함께 돌려준다 — 화면이 "왜 빠졌는지" 보여줘야 한다(docs/naver/03 Tier절 1). */
     record BulkApproveResponse(List<String> approved, Map<String, String> excluded) {
     }
 

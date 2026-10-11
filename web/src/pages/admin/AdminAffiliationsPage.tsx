@@ -22,7 +22,7 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString("ko-KR");
 }
 
-// 문서 26 §5.5 — 가맹점 소속 관리. 승인·거절·해제 전부 사유 입력을 필수로 한다.
+// 문서 26 5.5장 — 가맹점 소속 관리. 승인·거절·해제 전부 사유 입력을 필수로 한다.
 export function AdminAffiliationsPage() {
   const [status, setStatus] = useState<AffiliationStatus>("PENDING");
   const [items, setItems] = useState<AdminAffiliationRow[] | null>(null);

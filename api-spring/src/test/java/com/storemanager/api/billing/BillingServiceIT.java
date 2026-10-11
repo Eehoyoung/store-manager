@@ -49,7 +49,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 포트원 V2 빌링키 자동결제(docs/13 §9, 2026-09-29). 소담한판 BillingTest 패턴 이식 —
+ * 포트원 V2 빌링키 자동결제(docs/13 9장, 2026-09-29). 소담한판 BillingTest 패턴 이식 —
  * 진짜 포트원을 부르지 않는다. 같은 규격으로 답하는 작은 서버가 빌링키 조회·빌링키 결제에 답하고,
  * 테스트는 우리 쪽 판정(누구 빌링키인지, 언제 청구하는지, 결제일이 어떻게 넘어가는지, 언제 막히는지)만 본다.
  */

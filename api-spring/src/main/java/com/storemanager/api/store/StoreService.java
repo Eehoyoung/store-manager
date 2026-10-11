@@ -97,7 +97,7 @@ public class StoreService {
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED));
     }
 
-    /** 1 ~ Integer.MAX_VALUE 범위의 랜덤 시드 (docs/11 §2.6). SecureRandom 사용 필수. */
+    /** 1 ~ Integer.MAX_VALUE 범위의 랜덤 시드 (docs/11 2.6장). SecureRandom 사용 필수. */
     private int generatePersonaSeed() {
         SecureRandom random = new SecureRandom();
         return 1 + random.nextInt(Integer.MAX_VALUE - 1);

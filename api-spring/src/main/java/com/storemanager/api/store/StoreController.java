@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** docs/13 §3. GET /stores/{id}/summary 는 Sprint 1 범위 밖(리뷰 테이블 미구현)이라 만들지 않는다. */
+/** docs/13 3장. GET /stores/{id}/summary 는 Sprint 1 범위 밖(리뷰 테이블 미구현)이라 만들지 않는다. */
 @RestController
 @RequestMapping("/api/v1/stores")
 public class StoreController {

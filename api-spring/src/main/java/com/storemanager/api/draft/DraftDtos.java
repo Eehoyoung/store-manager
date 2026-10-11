@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * /reviews/{id}/drafts, /drafts/** 요청·응답 DTO (docs/13 §6).
+ * /reviews/{id}/drafts, /drafts/** 요청·응답 DTO (docs/13 6장).
  * ★ 외부에는 리뷰·초안의 public_id(UUID)만 노출한다. AI·워커 내부 계약의 BIGINT는 변경하지 않는다.
  */
 final class DraftDtos {

@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** store 테이블 매핑 (docs/11 §2.2). */
+/** store 테이블 매핑 (docs/11 2.2장). */
 @Entity
 @Table(name = "store")
 @Getter

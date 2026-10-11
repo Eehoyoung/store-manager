@@ -1,5 +1,5 @@
 .intro-page {
-  /* 지역 별칭 — 값은 공용 토큰에서만 온다(DESIGN.md §3 #2) */
+  /* 지역 별칭 — 값은 공용 토큰에서만 온다(DESIGN.md 3장 #2) */
   --intro-ink: var(--color-text);
   --intro-teal: var(--color-primary);
   --intro-green: var(--color-success);

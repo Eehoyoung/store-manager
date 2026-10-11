@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * platform_account 테이블 매핑 (docs/11 §2.3).
+ * platform_account 테이블 매핑 (docs/11 2.3장).
  * 평문 비밀번호 필드는 존재하지 않는다 — enc_password/enc_dek 는 CredentialService 를 통해서만 다룬다.
  */
 @Entity

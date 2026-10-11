@@ -1,7 +1,7 @@
 import { apiRequest } from "./client";
 import type { PersonaRequest, PersonaResponse, PreviewResponse, StoreFactsResponse, StyleSampleListResponse, StyleSampleResponse } from "./types";
 
-// docs/13 §7, 실제 PersonaController(api-spring) 기준.
+// docs/13 7장, 실제 PersonaController(api-spring) 기준.
 export const personaApi = {
   get: (storeId: string) => apiRequest<PersonaResponse>(`/stores/${storeId}/persona`),
   update: (storeId: string, req: PersonaRequest) =>

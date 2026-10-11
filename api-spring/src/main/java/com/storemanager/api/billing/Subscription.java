@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * subscription 테이블 매핑 (docs/11 §2.7). Groble 공식 스키마 수령 전 기존 결제 필드를 임의 재사용하지 않는다.
+ * subscription 테이블 매핑 (docs/11 2.7장). Groble 공식 스키마 수령 전 기존 결제 필드를 임의 재사용하지 않는다.
  * ★ 일반 TRIAL 은 입금 대기라 서비스하지 않는다. 단, 서버가 검증해 promotion_code 와
  * trial_ends_at 을 함께 기록한 OPEN30 체험은 종료 시각 전까지만 서비스한다.
  * 상태 전이는 반드시 이 클래스의 메서드를 통해서만 한다(ReplyDraft 와 동일한 원칙).

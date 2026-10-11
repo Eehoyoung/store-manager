@@ -1,7 +1,7 @@
 """
 임베딩 추상화 (Sprint 3 (a)).
 
-docs/11_DB스키마_확정본.md §2.6 reply_style_sample.embedding 은 vector(1024) 이므로
+docs/11_DB스키마_확정본.md 2.6장 reply_style_sample.embedding 은 vector(1024) 이므로
 항상 1024차원을 반환한다.
 
 기본 구현은 표준 라이브러리(hashlib)만 쓰는 결정적 해시 임베딩이다 — 네트워크 호출이

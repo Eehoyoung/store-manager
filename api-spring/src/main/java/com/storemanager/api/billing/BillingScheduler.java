@@ -5,7 +5,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 정기 자동결제 갱신(docs/13 §9, 2026-09-29). app.scheduler.billing.enabled=false 로 끌 수 있다
+ * 정기 자동결제 갱신(docs/13 9장, 2026-09-29). app.scheduler.billing.enabled=false 로 끌 수 있다
  * (테스트 프로파일은 이 값을 false 로 지정해 비활성 — BillingServiceIT는 renew()를 직접 호출한다).
  *
  * <p>★ 무통장 청구·미납 배치(구 runDailyInvoiceBatch/runDailyOverdueBatch)는 포트원 전환과 함께

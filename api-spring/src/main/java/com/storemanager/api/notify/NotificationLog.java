@@ -13,7 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** notification_log 테이블 매핑 (docs/11 §2.8). */
+/** notification_log 테이블 매핑 (docs/11 2.8장). */
 @Entity
 @Table(name = "notification_log")
 @Getter

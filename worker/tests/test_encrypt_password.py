@@ -132,7 +132,7 @@ def test_실제_2002_응답에는_data_키가_아예_없다():
 
 
 def test_댓글중복은_RESULT가_SUCCESS여도_실패다():
-    """업체 스펙(docs/댓글 생성.html §5)의 '실패 응답 예시' 원문 그대로.
+    """업체 스펙(docs/댓글 생성.html 5장)의 '실패 응답 예시' 원문 그대로.
 
     ★ data.RESULT 가 "SUCCESS" 인데 ECODE 에 중복 오류가 담겨 온다. RESULT 만 보면
       댓글이 안 달렸는데 PUBLISHED 로 기록되고, 사장님 화면에는 답글이 달린 것으로 보인다.

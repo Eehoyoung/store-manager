@@ -13,7 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** dataapi_call_log 테이블 매핑 (docs/11 §2.8). DataAPI 호출 1건마다 1행 — 과금·에러 패턴 분석용. */
+/** dataapi_call_log 테이블 매핑 (docs/11 2.8장). DataAPI 호출 1건마다 1행 — 과금·에러 패턴 분석용. */
 @Entity
 @Table(name = "dataapi_call_log")
 @Getter

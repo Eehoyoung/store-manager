@@ -14,7 +14,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * store_persona 테이블 매핑 (docs/11 §2.6). PK = store_id (단순 PK 매핑, 별도 연관관계 없음).
+ * store_persona 테이블 매핑 (docs/11 2.6장). PK = store_id (단순 PK 매핑, 별도 연관관계 없음).
  * personaSeed 는 매장 생성 시 SecureRandom 으로 부여해 동일 브랜드 매장 간 문체 분화를 유도한다.
  */
 @Entity
@@ -78,7 +78,7 @@ public class StorePersona {
      * 자동 게시 여부. false 면 안전검사를 통과해도 예약하지 않고 사장님 확인 대기로 남긴다.
      *
      * <p><b>★ 개인정보 보호법 제37조의2(자동화된 결정에 대한 거부권)의 이행 수단이다.</b>
-     * 처리방침 §9.4 가 "요청하면 자동 게시를 중지한다" 고 약속한다 — 그 약속을 지킬 수단이
+     * 처리방침 9.4장이 "요청하면 자동 게시를 중지한다" 고 약속한다 — 그 약속을 지킬 수단이
      * 없으면 지키지 못할 약속을 적어 둔 것이 된다. 이 필드를 지우려면 방침부터 고쳐라.
      *
      * <p><b>★ 끈다고 초안 생성을 멈추지 않는다.</b> 멈추면 사장님이 빈손이 된다 —
@@ -97,7 +97,7 @@ public class StorePersona {
 
     /**
      * PUT /stores/{storeId}/persona (Sprint 5 P1). 전체 필드 교체.
-     * store_persona 에는 unified_review/reply_draft 와 달리 updated_at 트리거가 없어(docs/11 §2.6) 여기서 직접 갱신한다.
+     * store_persona 에는 unified_review/reply_draft 와 달리 updated_at 트리거가 없어(docs/11 2.6장) 여기서 직접 갱신한다.
      */
     /** 자동 게시 중지·재개. 페르소나 전체 교체(applyUpdate)와 분리해 둔다 — 말투 설정이 아니라 권리 행사다. */
     public void setAutoPublish(boolean autoPublish) {

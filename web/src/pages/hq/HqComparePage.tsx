@@ -14,7 +14,7 @@ type SortKey = "unprocessed" | "rating" | "reviews" | "completion";
 type RangeDays = 7 | 30 | 90;
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
-// 표본이 작으면(1~4건) 정확한 수치·비율을 함께 가린다(문서 26 §6.4) — 가려졌음을 "데이터 없음"과
+// 표본이 작으면(1~4건) 정확한 수치·비율을 함께 가린다(문서 26 6.4장) — 가려졌음을 "데이터 없음"과
 // 구분해 보여준다. 가린 것과 없는 것은 다르다.
 const MASKED = "표시 기준 미달";
 
@@ -32,7 +32,7 @@ function range(days: RangeDays) {
   return { from: dateInputValue(from), to: dateInputValue(to) };
 }
 
-// 문서 26 §6.4 — 매장 비교. HqAnalyticsPage 의 storeComparison 과 같은 집계를 전용 화면으로 분리했다.
+// 문서 26 6.4장 — 매장 비교. HqAnalyticsPage 의 storeComparison 과 같은 집계를 전용 화면으로 분리했다.
 export function HqComparePage() {
   const { brand = "" } = useParams<{ brand: string }>();
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);

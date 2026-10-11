@@ -1,5 +1,5 @@
 """
-골든셋 자동 평가 하네스 (문서 12 §6 지표, CI 게이트로 사용).
+골든셋 자동 평가 하네스 (문서 12 6장 지표, CI 게이트로 사용).
 
 ★ 절대규칙 1(CLAUDE.md): 이 파일은 리뷰 "본문"을 생성하지 않는다. 분류·위험도
   판정(기존 텍스트를 읽고 라벨을 매기는 것)과, 가드레일 오탐률 측정을 위한
@@ -8,7 +8,7 @@
 평가 대상 분류 로직은 main.py 에 실제 분류기가 있으면 그것을 시도하고,
 없거나(다른 에이전트가 아직 main.py/llm.py/router.py 를 작업 중일 수 있다)
 임포트가 실패하면 이 파일 내부의 규칙 기반 폴백(_fallback_classify)만으로 평가한다.
-risk_level 은 문서 12 §1.2 "키워드 룰이 모델보다 우선(상향만)" 원칙에 따라
+risk_level 은 문서 12 1.2장 "키워드 룰이 모델보다 우선(상향만)" 원칙에 따라
 모델/폴백 예측과 키워드 룰 중 더 높은 값을 최종값으로 쓴다.
 
 사용법:
@@ -46,7 +46,7 @@ _JAMO_OR_EMOJI_RE = re.compile(
 
 
 def keyword_risk(body: str) -> tuple[int, list[str]]:
-    """문서 12 §1.2 키워드 룰.
+    """문서 12 1.2장 키워드 룰.
 "
 
     ★ 규칙3(risk_level>=3 자동게시 금지)을 지키는 룰은 **한 벌만 존재해야 한다.**
@@ -129,7 +129,7 @@ def predict(row: dict, main_classifier) -> dict:
     category = model_category or _fallback_classify(rating, body)
 
     kw_risk, kw_reasons = keyword_risk(body)
-    risk_level = max(model_risk, kw_risk)  # 문서 12 §1.2: 키워드 룰은 상향만 허용
+    risk_level = max(model_risk, kw_risk)  # 문서 12 1.2장: 키워드 룰은 상향만 허용
     risk_reasons = kw_reasons
 
     # G1(60자 미만) 자체가 오탐으로 잡히지 않도록 60자 이상인 고정 안전 문구를 쓴다.
@@ -214,7 +214,7 @@ def dump_predictions(rows: list[dict], preds: dict[str, dict], path: Path) -> No
 
 def evaluate(rows: list[dict], threshold_recall: float = 0.95, classifier=AUTO,
              dump_path: Path | None = None) -> dict:
-    """골든셋 rows 에 대해 문서 12 §6.1 지표를 계산한다.
+    """골든셋 rows 에 대해 문서 12 6.1장 지표를 계산한다.
 "
 
     classifier: AUTO(기본) 면 main.py 의 실제 분류 파이프라인을 태운다.

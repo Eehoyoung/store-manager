@@ -82,7 +82,7 @@ public class SecurityConfig {
         org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
         config.setAllowedOrigins(java.util.List.of(allowedOrigins.split(",")));
         config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        // X-Extension-Token — 네이버 크롬 확장 인증 헤더(IMPLEMENTATION_PLAN_NAVER.md §6).
+        // X-Extension-Token — 네이버 크롬 확장 인증 헤더(IMPLEMENTATION_PLAN_NAVER.md 6장).
         config.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "Idempotency-Key",
                 "X-Extension-Token"));
         config.setAllowCredentials(true);

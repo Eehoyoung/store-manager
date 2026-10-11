@@ -7,7 +7,7 @@ import type {
   AnalyticsTrendResponse,
 } from "./types";
 
-// docs/13 §8, 실제 AnalyticsController(api-spring) 기준. from/to 를 생략하면 서버 기본값(최근 30일).
+// docs/13 8장, 실제 AnalyticsController(api-spring) 기준. from/to 를 생략하면 서버 기본값(최근 30일).
 function qs(from?: string, to?: string) {
   const p = new URLSearchParams();
   if (from) p.set("from", from);

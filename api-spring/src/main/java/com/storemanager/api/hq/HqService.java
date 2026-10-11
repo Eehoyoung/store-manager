@@ -338,7 +338,7 @@ public class HqService {
                 draft == null ? "NONE" : draft.getStatus());
     }
 
-    /** docs/26 §4.2 5조건 중 owner 동의 관련 2개 — 나머지(세션·멤버·브랜드·매장소속·플래그)는 앞단에서 확인한다. */
+    /** docs/26 4.2장 5조건 중 owner 동의 관련 2개 — 나머지(세션·멤버·브랜드·매장소속·플래그)는 앞단에서 확인한다. */
     private boolean reviewAccessAllowed(Store store) {
         Long ownerId = store.getOwnerId();
         UserAgreement consent = userAgreementRepository

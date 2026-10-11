@@ -23,7 +23,7 @@ public class AgreementService {
     public static final String HQ = "HQ_DATA_SHARING";
     public static final String CREDENTIAL = "PLATFORM_CREDENTIAL";
     /**
-     * 개별 리뷰 원문 제공 동의(docs/26 §4.2, docs/26a decisions.reviewConsent) — 선택, 사용자 단위
+     * 개별 리뷰 원문 제공 동의(docs/26 4.2장, docs/26a decisions.reviewConsent) — 선택, 사용자 단위
      * ({@code storeId=null}). {@code HQ}(집계) 와 별개다 — 집계에 동의해도 개별 리뷰는 별도 동의가
      * 필요하다. {@code app.hq.review-access-enabled} 가 꺼져 있으면 카탈로그·API 모두 숨긴다.
      */

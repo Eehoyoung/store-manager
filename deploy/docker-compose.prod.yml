@@ -26,7 +26,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     # ★ 443 만 연다. 80→443 리다이렉트는 Cloudflare 'Always Use HTTPS' 가 한다.
-    #   Lightsail 방화벽에서 443 은 Cloudflare IP 대역만 허용한다(README §1.2).
+    #   Lightsail 방화벽에서 443 은 Cloudflare IP 대역만 허용한다(README 1.2장).
     ports:
       - "443:443"
     environment:

@@ -13,7 +13,7 @@ export interface ReviewListFilter {
   size?: number;
 }
 
-// docs/13 §5, 실제 ReviewController(api-spring) 기준.
+// docs/13 5장, 실제 ReviewController(api-spring) 기준.
 export const reviewsApi = {
   list: (storeId: string, filter: ReviewListFilter) => {
     const qs = new URLSearchParams();
@@ -32,7 +32,7 @@ export const reviewsApi = {
 };
 
 /**
- * docs/13 §5 GET /reviews/{reviewId}. 실기동 확인 결과(2026-08-20) 백엔드에 컨트롤러가 존재한다.
+ * docs/13 5장 GET /reviews/{reviewId}. 실기동 확인 결과(2026-08-20) 백엔드에 컨트롤러가 존재한다.
  * 그래도 best-effort 로 흡수한다 — 리뷰가 삭제됐거나 storeId 불일치 등으로 개별 실패할 수 있고,
  * 리뷰 화면 전체를 막을 이유는 없다. 실패하면 "리뷰 정보를 불러올 수 없음" 자리표시자로 대체한다.
  */

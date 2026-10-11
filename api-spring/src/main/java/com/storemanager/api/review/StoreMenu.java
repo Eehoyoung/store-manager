@@ -13,7 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** store_menu 테이블 매핑 (docs/11 §2.6). */
+/** store_menu 테이블 매핑 (docs/11 2.6장). */
 @Entity
 @Table(name = "store_menu")
 @Getter

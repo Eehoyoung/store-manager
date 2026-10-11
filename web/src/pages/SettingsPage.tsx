@@ -110,7 +110,7 @@ function AgreementHistoryCard() {
 }
 
 /**
- * 문서 26 §4.2, 26a decisions.reviewFlag/ownerConsentUi — 개별 리뷰 제공 동의 카드.
+ * 문서 26 4.2장, 26a decisions.reviewFlag/ownerConsentUi — 개별 리뷰 제공 동의 카드.
  * 기능 플래그(reviewSharingEnabled)가 꺼져 있으면 렌더링 자체를 하지 않는다 — 화면에서
  * "동의할 수 있는데 안 보인다"가 아니라 애초에 기능이 없는 것처럼 보여야 한다.
  */

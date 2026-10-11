@@ -40,7 +40,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 /**
- * NaverDraftService 단위테스트(IMPLEMENTATION_PLAN_NAVER.md §7).
+ * NaverDraftService 단위테스트(IMPLEMENTATION_PLAN_NAVER.md 7장).
  *
  * <p>★ 이 클래스는 {@code ReplyDraft}·{@code UnifiedReview} 를 구조적으로 만들지 않는다
  * (생성자에 draft 패키지 리포지토리가 아예 없다) — 네이버 경로가 배달 3사 게시 큐

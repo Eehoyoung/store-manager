@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Worker → Spring 내부 API (docs/13 §11.2). 외부 네트워크에 노출하지 않는 전제로, JWT 대신
+ * Worker → Spring 내부 API (docs/13 11.2장). 외부 네트워크에 노출하지 않는 전제로, JWT 대신
  * 공유 시크릿 헤더(X-Internal-Token)로 인증한다.
  * ★ 요청 본문에 배민 원본 닉네임(authorRaw)이 포함되므로 이 컨트롤러는 요청/응답을 로깅하지 않는다.
  */

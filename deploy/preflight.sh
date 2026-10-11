@@ -94,7 +94,7 @@ fi
 if [ -f "$CRON_FILE" ] && grep -q 'auto-deploy.sh' "$CRON_FILE"; then
   pass "auto-deploy cron 등록됨 ($CRON_FILE)"
 else
-  fail "auto-deploy cron 이 없다 ($CRON_FILE) — deploy/README.md §2.0"
+  fail "auto-deploy cron 이 없다 ($CRON_FILE) — deploy/README.md 2.0장"
 fi
 if [ -x "$REPO_DIR/deploy/auto-deploy.sh" ]; then pass "auto-deploy.sh 실행 권한 있음"
 else fail "auto-deploy.sh 에 실행 권한이 없다 — sudo chmod 700 $REPO_DIR/deploy/auto-deploy.sh"; fi

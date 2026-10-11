@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** collection_job 테이블 매핑 (docs/11 §2.8). 워커가 만들고, collect-result 수신 시 Spring 이 결과로 갱신한다. */
+/** collection_job 테이블 매핑 (docs/11 2.8장). 워커가 만들고, collect-result 수신 시 Spring 이 결과로 갱신한다. */
 @Entity
 @Table(name = "collection_job")
 @Getter

@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 가맹본부 조회 API (Sprint 8, FR-800 · docs/26a 본부 홈·개별 리뷰·보고서 확장). docs/10 §2.9.
+ * 가맹본부 조회 API (Sprint 8, FR-800 · docs/26a 본부 홈·개별 리뷰·보고서 확장). docs/10 2.9장.
  * ★★ 조회 전용이다(H8) — 이 컨트롤러(그리고 hq 패키지 전체)에는 POST/PUT/PATCH/DELETE 매핑을 절대 추가하지 않는다.
  * 승인·거절·답글수정·페르소나변경·게시 등 어떤 쓰기 경로도 여기서 노출하지 않는다.
  * (HqNoWriteEndpointTest 가 hq 패키지에 쓰기 매핑이 없음을 소스 스캔으로 단언한다.)

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 포트원 V2 빌링키 자동결제(docs/13 §9, 2026-09-29). 결제창 요청 값과 결제 상태를 이 한 경로로 준다. */
+/** 포트원 V2 빌링키 자동결제(docs/13 9장, 2026-09-29). 결제창 요청 값과 결제 상태를 이 한 경로로 준다. */
 @RestController
 @RequestMapping("/api/v1/stores/{storeId}/billing")
 public class BillingController {

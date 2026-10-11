@@ -100,7 +100,7 @@ textarea {
   color: inherit;
 }
 
-/* 포커스 링을 절대 지우지 않는다 — 키보드 사용자를 위한 접근성 요구(문서 14 §1). */
+/* 포커스 링을 절대 지우지 않는다 — 키보드 사용자를 위한 접근성 요구(문서 14 1장). */
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;

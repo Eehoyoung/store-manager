@@ -3,7 +3,7 @@
 ★ 이 워커가 Spring 과 통신하는 유일한 경로는 POST /internal/collect-result 뿐이다
   (CLAUDE.md 서비스 간 경계). 다른 엔드포인트를 추가하지 않는다.
 ★ authorRaw(닉네임)는 가공 없이 그대로 전달한다 — 가명처리는 Spring 이 담당한다
-  (docs/13 §11.2). ★이 요청/응답 본문은 절대 로깅하지 않는다(원본 닉네임 포함, CLAUDE.md 규칙6).
+  (docs/13 11.2장). ★이 요청/응답 본문은 절대 로깅하지 않는다(원본 닉네임 포함, CLAUDE.md 규칙6).
   로그에는 건수·소요시간·ECODE 만 남긴다.
 """
 from __future__ import annotations
@@ -452,7 +452,7 @@ def backfill(
     account_loader: Callable[[str], AccountInfo] = _load_collect_account,
 ) -> list[dict]:
     """최초 연동 백필: 90일을 7일 단위로 분할 호출한다(문서 08 F-4 — 타임아웃·응답크기 대비).
-    RC_LIST(기존 답글)가 이때 대량 수집되며, 이는 말투 학습 RAG 코퍼스의 핵심 소스가 된다(문서 08 §5)."""
+    RC_LIST(기존 답글)가 이때 대량 수집되며, 이는 말투 학습 RAG 코퍼스의 핵심 소스가 된다(문서 08 5장)."""
     rc = redis_client if redis_client is not None else _redis_client()
     lock_token = _try_acquire_lock(rc, account_id)
     if lock_token is None:

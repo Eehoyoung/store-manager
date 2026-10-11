@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 통계가 소급해서 바뀌고, 사장님이 보던 숫자가 어느 날 달라진다.
  *
  * <p>★ 왜 익명화이지 삭제가 아닌가 — {@code unified_review} 행 자체는 매장 통계(별점·작성일·
- * 이슈태그)의 근거라 남긴다. 다만 privacy.md §7 은 "리뷰·분석·답글·검색 예시 및 그 복제·파생
+ * 이슈태그)의 근거라 남긴다. 다만 privacy.md 7장은 "리뷰·분석·답글·검색 예시 및 그 복제·파생
  * 데이터"를 파기 대상으로 명시하므로, 그 파생 테이블({@code reply_draft}, {@code review_analysis},
  * {@code reply_style_sample})은 이 배치에서 <b>행 자체를 삭제</b>한다. {@code notification_log}
  * 는 "언제 무엇을 보냈는가"를 답해야 하는 발송 이력이라 행은 남기고 개인정보가 담긴

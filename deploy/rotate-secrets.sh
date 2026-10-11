@@ -1,7 +1,7 @@
 #!/bin/sh
 # 비밀값 교체 — JWT_SECRET · INTERNAL_TOKEN · CREDENTIAL_MASTER_KEY (2026-09-28, 90일 주기).
 #
-# ★ AUTHOR_HASH_SALT 는 교체하지 않는다. 바꾸면 기존 리뷰 작성자와 연결이 끊긴다(README §8).
+# ★ AUTHOR_HASH_SALT 는 교체하지 않는다. 바꾸면 기존 리뷰 작성자와 연결이 끊긴다(README 8장).
 #
 #   JWT_SECRET            30분짜리 액세스 토큰만 무효가 된다. refresh 는 Redis 값이라 웹이 조용히 재발급한다.
 #   INTERNAL_TOKEN        api-spring·ai-python·worker 를 한꺼번에 재기동하므로 어긋나는 구간이 없다.
@@ -72,7 +72,7 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' "$($DC ps -q api-spring)
 	i=$((i + 1))
 	if [ "$i" -ge 30 ]; then
 		log "경고: api-spring 이 5분 안에 healthy 가 되지 않았다. 옛 env: $ARCHIVE/env.$STAMP" >&2
-		log "되돌리려면 README §8.3 — 이미 DB 는 새 키로 감싸져 있으니 env 만 되돌리면 안 된다" >&2
+		log "되돌리려면 README 8.3장 — 이미 DB 는 새 키로 감싸져 있으니 env 만 되돌리면 안 된다" >&2
 		exit 1
 	fi
 	sleep 10

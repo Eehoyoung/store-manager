@@ -29,7 +29,7 @@ function MonthPriceCell({ p }: { p: MonthPrice }) {
   );
 }
 
-// 문서 26 §5.1·§5.2 — 가맹본부 목록·검색·생성. 시스템 콘솔의 첫 화면이다.
+// 문서 26 5.1장·5.2장 — 가맹본부 목록·검색·생성. 시스템 콘솔의 첫 화면이다.
 export function AdminFranchisesPage() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<AdminFranchiseListItem[] | null>(null);

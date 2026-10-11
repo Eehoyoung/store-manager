@@ -3,7 +3,7 @@ package com.storemanager.api.review;
 import java.util.List;
 
 /**
- * /stores/{storeId}/reviews, /reviews/{reviewId} 응답 DTO (docs/13 §5, Sprint 5 R1/R2).
+ * /stores/{storeId}/reviews, /reviews/{reviewId} 응답 DTO (docs/13 5장, Sprint 5 R1/R2).
  * ★ 리뷰는 읽기 전용이다 — 이 패키지에 리뷰 본문을 생성·수정하는 코드를 추가하지 않는다(절대규칙 1).
  * ★ author_hash 는 재식별 위험이 있어 응답에 절대 포함하지 않는다(절대규칙 6) — author_masked 만 노출한다.
  * ★ 외부에는 리뷰·초안의 public_id(UUID)만 노출한다. 내부 BIGSERIAL은 서비스 경계 밖으로 내보내지 않는다.

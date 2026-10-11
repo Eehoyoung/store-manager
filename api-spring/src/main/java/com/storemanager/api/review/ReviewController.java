@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** docs/13 §5 리뷰 조회 API(Sprint 5 R1/R2). 읽기 전용 — 리뷰 본문 생성 엔드포인트는 여기 없다(절대규칙 1). */
+/** docs/13 5장 리뷰 조회 API(Sprint 5 R1/R2). 읽기 전용 — 리뷰 본문 생성 엔드포인트는 여기 없다(절대규칙 1). */
 @RestController
 public class ReviewController {
 

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * POST /internal/collect-result 요청 계약 (docs/13 §11.2 + 코디네이터 확정 조정사항, Worker → Spring).
+ * POST /internal/collect-result 요청 계약 (docs/13 11.2장 + 코디네이터 확정 조정사항, Worker → Spring).
  * ★ 이 요청 본문은 authorRaw(가명처리 전 원본 닉네임)를 포함하므로 어디에도 로깅하지 않는다.
  * 알 수 없는 필드는 거부하지 않고 무시한다(@JsonIgnoreProperties) — 워커가 필드를 추가해도 400 이 나지 않아야 한다.
  */

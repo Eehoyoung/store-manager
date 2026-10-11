@@ -24,7 +24,7 @@ function dateInputValue(date: Date): string {
 }
 
 
-// 문서 26 §6.6, 26a hq.report — 인쇄용 보고서 + 집계 CSV. 개별 리뷰 원문은 절대 포함하지 않는다.
+// 문서 26 6.6장, 26a hq.report — 인쇄용 보고서 + 집계 CSV. 개별 리뷰 원문은 절대 포함하지 않는다.
 export function HqReportPage() {
   const { brand = "" } = useParams<{ brand: string }>();
   const [from, setFrom] = useState(() => dateInputValue(new Date(Date.now() - 29 * 86400000)));

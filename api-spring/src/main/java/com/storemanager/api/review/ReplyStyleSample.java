@@ -14,7 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * reply_style_sample 테이블 매핑 (docs/11 §2.6) — 말투 학습 RAG 코퍼스.
+ * reply_style_sample 테이블 매핑 (docs/11 2.6장) — 말투 학습 RAG 코퍼스.
  * embedding(vector(1024)) 컬럼은 이 엔티티에 매핑하지 않는다. Sprint 3(임베딩) 담당이며,
  * 매핑에서 빠진 컬럼은 INSERT 시 DB 기본값(NULL)으로 남는다. TODO: Sprint 3 에서 임베딩 채우기.
  */

@@ -39,7 +39,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * POST /internal/collect-result 수신 → 정규화 → 적재 경로를 실제 Postgres 위에서 검증한다 (docs/13 §11.2).
+ * POST /internal/collect-result 수신 → 정규화 → 적재 경로를 실제 Postgres 위에서 검증한다 (docs/13 11.2장).
  * CredentialServiceIT 와 동일한 Testcontainers 패턴을 재사용한다.
  */
 @SpringBootTest
@@ -242,7 +242,7 @@ class CollectResultIT {
     /**
      * ★ 말투 코퍼스는 ai-python 이 pgvector 로 직접 조회해 few-shot 예시로 Anthropic 에 보낸다
      * (ai-python/rag.py). DraftService 의 마스킹이 덮지 못하는 두 번째 국외 이전 경로이므로
-     * 적재 시점에 지운다 — 개인정보처리방침 §6.3 은 "개인을 알아볼 수 없도록 처리된 정보만
+     * 적재 시점에 지운다 — 개인정보처리방침 6.3장은 "개인을 알아볼 수 없도록 처리된 정보만
      * 외부 AI 에 전송한다" 고 약속한다. 이 검증을 지우면 그 약속이 코드에서 풀린다.
      */
     @Test

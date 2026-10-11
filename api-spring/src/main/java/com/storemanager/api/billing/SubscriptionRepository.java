@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
 
-    /** 매장당 CANCELED 가 아닌 구독은 최대 1건(uq_sub_store, docs/11 §2.7). */
+    /** 매장당 CANCELED 가 아닌 구독은 최대 1건(uq_sub_store, docs/11 2.7장). */
     Optional<Subscription> findByStoreIdAndStatusNot(Long storeId, String status);
 
     long countByPromotionCode(String promotionCode);

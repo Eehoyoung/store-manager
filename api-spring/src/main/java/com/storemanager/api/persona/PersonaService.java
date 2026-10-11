@@ -47,7 +47,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 페르소나 조회/수정/미리보기, 말투 학습 샘플 목록 (docs/13 §7, Sprint 5 P1~P4).
+ * 페르소나 조회/수정/미리보기, 말투 학습 샘플 목록 (docs/13 7장, Sprint 5 P1~P4).
  * ★ 절대규칙 3: 미리보기는 AI 가 돌려준 riskLevel>=3 이면 내용을 만들지 않고 422 를 던진다.
  * ★ 절대규칙 1: 미리보기는 reply_draft/review_analysis 어디에도 쓰지 않는다 — 순수 조회다.
  */
@@ -115,7 +115,7 @@ public class PersonaService {
      *
      * <p><b>★ 페르소나 전체 교체와 분리했다.</b> 말투 설정을 저장하다가 실수로 자동 게시가
      * 켜지거나 꺼지면 안 된다. 이건 취향이 아니라 개인정보 보호법 제37조의2 의 거부권 행사이고,
-     * 처리방침 §9.4 가 "접수 즉시 중지한다" 고 약속한 동작이다.
+     * 처리방침 9.4장이 "접수 즉시 중지한다" 고 약속한 동작이다.
      *
      * <p>끈다고 초안 생성이 멈추지는 않는다 — 초안은 계속 나오고 게시만 사람이 한다.
      */
@@ -238,7 +238,7 @@ public class PersonaService {
     }
 
     /**
-     * DELETE /stores/{storeId}/persona/style-samples/{sampleId} (B4, docs/13 §7).
+     * DELETE /stores/{storeId}/persona/style-samples/{sampleId} (B4, docs/13 7장).
      * ★ reply_style_sample 은 말투 학습 RAG 코퍼스이자 핵심 자산이다(CLAUDE.md 데이터처리 6번) — 삭제는 감사로그를 남긴다.
      */
     @Transactional

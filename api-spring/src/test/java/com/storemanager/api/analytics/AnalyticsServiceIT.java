@@ -70,7 +70,7 @@ class AnalyticsServiceIT {
         AppUser owner = appUserRepository.save(AppUser.builder().email(email).passwordHash("dummy").name("사장")
                 .build());
         Store store = storeRepository.save(Store.builder().ownerId(owner.getId()).name("집계매장-" + email).build());
-        // unified_review.link_id 는 store_platform_link FK 이므로 계정·연동을 먼저 만든다(docs/11 §2.3~2.4).
+        // unified_review.link_id 는 store_platform_link FK 이므로 계정·연동을 먼저 만든다(docs/11 2.3~2.4장).
         PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "id-" + email, "pw");
         StorePlatformLink link = storePlatformLinkRepository.save(StorePlatformLink.builder()
                 .storeId(store.getId()).accountId(account.getId()).platform("BAEMIN")

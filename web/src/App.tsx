@@ -36,7 +36,7 @@ import { HqReportPage } from "./pages/hq/HqReportPage";
 import { LegalDocumentPage } from "./pages/LegalDocumentPage";
 import { IntroPage } from "./pages/IntroPage";
 
-// 라우트 표 (문서 14 §2, 문서 26). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
+// 라우트 표 (문서 14 2장, 문서 26). 동의 전문은 가입 전에 확인할 수 있도록 공개한다.
 // ★ 시스템 관리자(/admin/**)·가맹본부(/hq/**)는 사장님 세션(USER)과 완전히 분리된 이메일 OTP
 //   세션이다(docs/26a auth). 각자 전용 로그인·셸·가드를 쓴다 — 사장님 ProtectedRoute 를 타지 않는다.
 function App() {
@@ -96,7 +96,7 @@ export function AppRoutes() {
         </Route>
       </Route>
 
-      {/* 가맹본부 — 조회 전용, 이메일 OTP 전용(문서 14 §11, 문서 26). 쓰기 라우트를 추가하지 말 것. */}
+      {/* 가맹본부 — 조회 전용, 이메일 OTP 전용(문서 14 11장, 문서 26). 쓰기 라우트를 추가하지 말 것. */}
       <Route path="/hq/login" element={<HqLoginPage />} />
       <Route element={<HqProtectedRoute />}>
         <Route element={<HqShell />}>
