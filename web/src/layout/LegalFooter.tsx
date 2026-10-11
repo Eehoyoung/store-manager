@@ -31,7 +31,7 @@ export function LegalFooter() {
           <div><dt>상호</dt><dd>{info.name}</dd></div>
           <div><dt>대표자</dt><dd>{field(info.representative)}</dd></div>
           <div><dt>사업자등록번호</dt><dd>{field(info.registrationNumber)}</dd></div>
-          <div><dt>통신판매업 신고번호</dt><dd>{field(info.mailOrderNumber)}</dd></div>
+          {info.mailOrderNumber ? <div><dt>통신판매업 신고번호</dt><dd>{info.mailOrderNumber}</dd></div> : null}
           <div><dt>사업장 주소</dt><dd>{field(info.address)}</dd></div>
           <div><dt>전화</dt><dd>{field(info.phone)}</dd></div>
           <div><dt>이메일</dt><dd>{field(info.email)}</dd></div>

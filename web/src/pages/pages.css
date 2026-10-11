@@ -366,7 +366,7 @@
 }
 .settings-page__tab:focus-visible,
 .persona-page__tab:focus-visible {
-  outline: 3px solid var(--color-primary);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 .settings-page__intro {
