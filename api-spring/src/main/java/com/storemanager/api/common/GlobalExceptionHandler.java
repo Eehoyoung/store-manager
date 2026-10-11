@@ -14,7 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** 모든 컨트롤러의 예외를 docs/13 §1.1 표준 에러 봉투로 변환한다. */
+/** 모든 컨트롤러의 예외를 docs/13 1.1장 표준 에러 봉투로 변환한다. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

@@ -72,7 +72,7 @@ public interface AnalyticsQueryRepository extends JpaRepository<UnifiedReview, L
             """)
     long highRiskPendingCount(@Param("storeId") Long storeId);
 
-    /** 일자별 리뷰수·평균별점. KST 달력일 기준(written_at 은 REVIEWDATE 기준 KST 자정, docs/11 §2.4). */
+    /** 일자별 리뷰수·평균별점. KST 달력일 기준(written_at 은 REVIEWDATE 기준 KST 자정, docs/11 2.4장). */
     @Query(value = "SELECT (written_at AT TIME ZONE 'Asia/Seoul')::date AS day, COUNT(*), AVG(rating) "
             + "FROM unified_review WHERE store_id = :storeId AND written_at >= :from AND written_at < :to "
             + "GROUP BY day ORDER BY day", nativeQuery = true)

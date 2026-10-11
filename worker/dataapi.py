@@ -51,7 +51,7 @@ ECODE_NO_POINT = "2003"
 ECODE_AUTH_FAIL = "8003"  # Authorization 토큰 오류
 ECODE_DECRYPT_FAIL = "3020"  # 입력 데이터 복호화 실패 = 우리 LOGINPWD 암호화 설정이 틀렸다
 
-# ECODE → (재시도 가능 여부, 후속 조치). 후속 조치는 문서 08 §6.2 그대로:
+# ECODE → (재시도 가능 여부, 후속 조치). 후속 조치는 문서 08 6.2장 그대로:
 #   LINK_ERROR       재로그인 필요 — 연동 상태 ERROR, 사장님 알림 (Spring 이 실제 전이를 수행)
 #   ALREADY_REPLIED  실패가 아니라 정상 종료 시나리오
 #   CONFIG_ERROR     우리 설정 문제 — 사장님이 아니라 운영자가 고쳐야 한다
@@ -139,7 +139,7 @@ def parse_envelope(resp: dict) -> dict:
     """
     data = resp.get("data") or {}
     # ★ RESULT 만으로는 부족하다. 댓글 중복(ERR_MDCOM_MSG00009)은 업체 스펙의 '실패 응답 예시'
-    #   인데도 data.RESULT 가 "SUCCESS" 로 온다(docs/댓글 생성.html §5). 이걸 성공으로 넘기면
+    #   인데도 data.RESULT 가 "SUCCESS" 로 온다(docs/댓글 생성.html 5장). 이걸 성공으로 넘기면
     #   댓글이 달리지 않았는데 PUBLISHED 로 기록되고, 사장님 화면에는 답글이 달린 것으로 보인다.
     #   그래서 ECODE 가 채워져 있으면 RESULT 와 무관하게 실패로 다룬다.
     #   (정상 응답의 ECODE 는 빈 문자열이라 _s() 가 None 으로 정규화한다)
@@ -164,7 +164,7 @@ def parse_envelope(resp: dict) -> dict:
 def is_retryable_exception(exc: BaseException) -> bool:
     """재시도 헬퍼(call_with_retry)가 재시도 여부를 판단하는 데 쓰는 분류기.
     DataApiError 는 ECODE_POLICY 를 그대로 따르고, HTTP 레벨 예외(타임아웃·5xx)는
-    일시 장애로 보아 재시도 가능으로 분류한다 (문서 08 §6.2 '타임아웃·일시 장애' 행)."""
+    일시 장애로 보아 재시도 가능으로 분류한다 (문서 08 6.2장 '타임아웃·일시 장애' 행)."""
     if isinstance(exc, DataApiError):
         return exc.retryable
     if isinstance(exc, httpx.TimeoutException):

@@ -1,5 +1,5 @@
 // 서버가 코드값으로 내려주는 위험 사유·가드레일 플래그를 40~60대 사장님이 읽을 수 있는 한국어로 바꾼다.
-// 출처: docs/12_프롬프트_및_평가명세.md §4 가드레일 명세(G1~G9), risk_reasons 목록.
+// 출처: docs/12_프롬프트_및_평가명세.md 4장 가드레일 명세(G1~G9), risk_reasons 목록.
 // 목록에 없는 새 코드가 오면(=업체·정책 변경) 원본 코드를 그대로 보여준다 — "알 수 없는 오류"로 뭉개지 않는다.
 
 import type { MonthPrice } from "../api/types";
@@ -33,7 +33,7 @@ export function describeGuardrailFlag(code: string): string {
   return GUARDRAIL_FLAG_LABELS[code] ?? code;
 }
 
-// 출처: docs/12_프롬프트_및_평가명세.md §2 분류 프롬프트 category enum.
+// 출처: docs/12_프롬프트_및_평가명세.md 2장 분류 프롬프트 category enum.
 const CATEGORY_LABELS: Record<string, string> = {
   PRAISE: "칭찬",
   POSITIVE: "긍정",

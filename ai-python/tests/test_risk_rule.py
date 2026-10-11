@@ -15,7 +15,7 @@ import pytest
 import prompts
 from prompts import RISK_REASON_VALUES, upgrade_risk_level
 
-# docs/12 §1.2 의 트리거 키워드 전종. 하나라도 빠지면 그 유형이 자동 게시된다.
+# docs/12 1.2장 의 트리거 키워드 전종. 하나라도 빠지면 그 유형이 자동 게시된다.
 _MUST_BLOCK = [
     # 식중독
     ("식중독 걸렸어요", "FOOD_POISONING"),

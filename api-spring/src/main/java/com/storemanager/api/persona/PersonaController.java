@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** docs/13 §7 페르소나 API (Sprint 5 P1~P4). */
+/** docs/13 7장 페르소나 API (Sprint 5 P1~P4). */
 @RestController
 public class PersonaController {
 

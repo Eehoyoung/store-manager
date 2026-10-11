@@ -73,7 +73,7 @@ app:
       # 자체 계좌이체 청구는 폐기됐다. Groble 상태 동기화 구현 전까지 절대 실행하지 않는다.
       enabled: ${BILLING_SCHEDULER_ENABLED:false}
   billing:
-    # 계좌이체 입금 안내 정보(docs/13 §9). 실제 계좌번호는 절대 커밋하지 않는다 — 기본값 없음, 미설정 시 부팅 실패.
+    # 계좌이체 입금 안내 정보(docs/13 9장). 실제 계좌번호는 절대 커밋하지 않는다 — 기본값 없음, 미설정 시 부팅 실패.
     # 레거시 자체 계좌이체 서비스가 제거될 때까지 빈 기본값으로만 유지한다.
     bank-name: ${BILLING_BANK_NAME:}
     account-no: ${BILLING_ACCOUNT_NO:}

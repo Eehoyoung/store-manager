@@ -17,7 +17,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * unified_review 테이블 매핑 (docs/11 §2.4).
+ * unified_review 테이블 매핑 (docs/11 2.4장).
  * (platform, platform_review_id) 로 dedupe 하며(F-4), author_masked/author_hash 만 저장하고
  * 원본 닉네임은 저장하지 않는다(절대규칙 6).
  */

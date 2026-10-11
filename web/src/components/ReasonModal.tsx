@@ -5,7 +5,7 @@ import { Modal } from "./Modal";
 interface ReasonModalProps {
   open: boolean;
   title: string;
-  /** 이 변경이 무엇을 의미하는지 — 근거 없이 누르는 변경은 감사기록이라 부를 수 없다(docs/26 §5.3). */
+  /** 이 변경이 무엇을 의미하는지 — 근거 없이 누르는 변경은 감사기록이라 부를 수 없다(docs/26 5.3장). */
   description: string;
   confirmLabel?: string;
   danger?: boolean;
@@ -14,7 +14,7 @@ interface ReasonModalProps {
 }
 
 /**
- * 시스템 콘솔의 모든 변경은 사유 입력이 필수다(docs/26 §5.3, §5.5 — "변경 사유 필수 입력").
+ * 시스템 콘솔의 모든 변경은 사유 입력이 필수다(docs/26 5.3장, 5.5장 — "변경 사유 필수 입력").
  * 본부 생성·중지, 담당자 변경, 가맹코드 교체, 소속 승인·거절·해제까지 전부 이 컴포넌트로 통일한다.
  */
 export function ReasonModal({ open, title, description, confirmLabel = "확인", danger, onCancel, onConfirm }: ReasonModalProps) {

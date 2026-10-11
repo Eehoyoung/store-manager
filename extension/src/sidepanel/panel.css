@@ -4,7 +4,7 @@
  */
 :root {
   color-scheme: light;
-  /* 시스템 글꼴 유지 — Pretendard 를 넣으면 확장 용량이 는다(DESIGN.md §3 #9). */
+  /* 시스템 글꼴 유지 — Pretendard 를 넣으면 확장 용량이 는다(DESIGN.md 3장 #9). */
   font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
 
   /* 토큰 — web/src/styles/tokens.css 의 같은 이름·값을 복사한다(확장은 web CSS 를 import 할 수 없다).
@@ -230,7 +230,7 @@ button.primary {
   border: 1px solid var(--color-danger);
 }
 
-/* 스크립트 인라인 색을 옮겨 온 것(DESIGN.md §3 #12) */
+/* 스크립트 인라인 색을 옮겨 온 것(DESIGN.md 3장 #12) */
 .error-text {
   color: var(--color-danger);
   font-size: 16px;

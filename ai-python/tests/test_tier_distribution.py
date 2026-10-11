@@ -14,7 +14,7 @@ import router
 
 # 실측 트래픽 표본 — 실연동 매장의 review_analysis 60건(2026-08-25).
 # (category, risk_level, rating, issue_tag_count)
-# ★ COMPLAINT 8건은 모델이 risk 2 로 부풀린 것을 docs/12 §1.2 기준으로 1 로 교정했다.
+# ★ COMPLAINT 8건은 모델이 risk 2 로 부풀린 것을 docs/12 1.2장 기준으로 1 로 교정했다.
 #   "면이 다 불어 있어서 그냥 버렸습니다" 에는 강한 표현·환불 요구·반복 불만이 없다.
 REAL_TRAFFIC = (
     [("PRAISE", 0, 5, 0)] * 28

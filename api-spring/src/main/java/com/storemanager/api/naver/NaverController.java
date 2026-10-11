@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 네이버 스마트플레이스 확장 연동 API (IMPLEMENTATION_PLAN_NAVER.md §5).
+ * 네이버 스마트플레이스 확장 연동 API (IMPLEMENTATION_PLAN_NAVER.md 5장).
  *
  * <p>인증은 두 갈래다 — pairing-code/pin 발급은 웹 로그인(JWT), 나머지는 확장 토큰
  * ({@code X-Extension-Token}, {@link ExtensionTokenFilter})이다. 둘 다 {@link CurrentUser} 로

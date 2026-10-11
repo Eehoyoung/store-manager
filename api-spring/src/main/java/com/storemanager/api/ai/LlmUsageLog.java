@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** llm_usage_log 테이블 매핑 (docs/11 §2.8). 원가 집계용 — draft 생성마다 1행 적재한다(S3). */
+/** llm_usage_log 테이블 매핑 (docs/11 2.8장). 원가 집계용 — draft 생성마다 1행 적재한다(S3). */
 @Entity
 @Table(name = "llm_usage_log")
 @Getter

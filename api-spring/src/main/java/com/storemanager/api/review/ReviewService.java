@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * GET /stores/{storeId}/reviews, GET /reviews/{reviewId} (docs/13 §5, Sprint 5 R1/R2).
+ * GET /stores/{storeId}/reviews, GET /reviews/{reviewId} (docs/13 5장, Sprint 5 R1/R2).
  * ★ 읽기 전용이다. 리뷰 본문·답글을 생성·수정하는 코드는 이 클래스에 절대 추가하지 않는다(절대규칙 1).
  * ★ 소유권 검사는 DraftService/StoreService 와 달리 403 이 아니라 404 를 던진다 — 오케스트레이터 지시(X1):
  * 남의 매장 storeId 로 조회 시 존재 여부를 흘리지 않기 위함이다.
@@ -199,7 +199,7 @@ public class ReviewService {
     private static final Instant OPEN_START = Instant.EPOCH;
     private static final Instant OPEN_END = LocalDate.of(9999, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
 
-    /** yyyy-MM-dd 를 KST 자정 기준 Instant 로 변환한다(written_at 저장 규약과 동일, docs/11 §2.4). */
+    /** yyyy-MM-dd 를 KST 자정 기준 Instant 로 변환한다(written_at 저장 규약과 동일, docs/11 2.4장). */
     private static Instant parseFromDate(String date) {
         if (date == null || date.isBlank()) {
             return OPEN_START;

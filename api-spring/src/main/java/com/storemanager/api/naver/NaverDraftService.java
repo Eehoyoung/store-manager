@@ -35,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 네이버 리뷰 초안 생성 (IMPLEMENTATION_PLAN_NAVER.md §2.3, §6).
+ * 네이버 리뷰 초안 생성 (IMPLEMENTATION_PLAN_NAVER.md 2.3장, 6장).
  *
  * <p>★ ai-python 파이프라인은 배달 3사와 완전히 동일하게 재사용한다. platform="NAVER" 문자열만
  * 다르고 나머지(분류·risk 룰·T0~T3 라우팅·RAG·가드레일)는 무변경이다({@code AiClientDtos.ReviewIn.platform} 이
@@ -49,7 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NaverDraftService {
 
     private static final Logger log = LoggerFactory.getLogger(NaverDraftService.class);
-    private static final short RISK_BULK_BLOCK_LEVEL = 2; // docs/naver/03 §Tier 1 성립조건 3번
+    private static final short RISK_BULK_BLOCK_LEVEL = 2; // docs/naver/03 Tier절 1 성립조건 3번
     private static final short RISK_AUTO_BLOCK_LEVEL = 3; // CLAUDE.md 절대규칙 3 — DraftService 와 동일 기준
 
     private final NaverReviewEventRepository naverReviewEventRepository;

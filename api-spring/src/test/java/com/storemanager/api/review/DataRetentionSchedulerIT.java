@@ -32,7 +32,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * WP-03 — privacy.md §7 "리뷰·분석·답글·검색 예시 및 그 복제·파생 데이터" 파기를 실제 Postgres 위에서 검증한다.
+ * WP-03 — privacy.md 7장 "리뷰·분석·답글·검색 예시 및 그 복제·파생 데이터" 파기를 실제 Postgres 위에서 검증한다.
  * CollectResultIT 와 동일한 Testcontainers 패턴을 재사용한다. 스케줄러 메서드는 cron 을 기다리지 않고 직접 호출한다.
  */
 @SpringBootTest

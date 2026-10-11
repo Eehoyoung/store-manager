@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * payment 테이블 매핑 (docs/11 §2.7 + V11 계좌이체 컬럼). {@code pg_tx_id} 는 죽은 컬럼 — 값을 쓰지 않는다.
+ * payment 테이블 매핑 (docs/11 2.7장 + V11 계좌이체 컬럼). {@code pg_tx_id} 는 죽은 컬럼 — 값을 쓰지 않는다.
  * ★ {@code depositor_name} 은 [PII]. 로그·예외 메시지에 남기지 않는다(절대규칙 5 와 동일한 이유).
  */
 @Entity

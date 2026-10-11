@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
- * /stores/{storeId}/persona, /persona/preview, /persona/style-samples DTO (docs/13 §7, Sprint 5 P1~P4).
+ * /stores/{storeId}/persona, /persona/preview, /persona/style-samples DTO (docs/13 7장, Sprint 5 P1~P4).
  * ★ lengthMax 는 280 초과 불가(CLAUDE.md 데이터처리 8번 — 플랫폼 300자, 이모지 여유).
  */
 final class PersonaDtos {
@@ -60,7 +60,7 @@ final class PersonaDtos {
             List<WindowDto> publishWindows, boolean autoPublish, int personaSeed, String updatedAt) {
     }
 
-    /** PUT /stores/{id}/auto-publish — 자동화된 결정 거부권 행사(처리방침 §9.4). */
+    /** PUT /stores/{id}/auto-publish — 자동화된 결정 거부권 행사(처리방침 9.4장). */
     record AutoPublishRequest(@NotNull Boolean autoPublish) {
     }
 

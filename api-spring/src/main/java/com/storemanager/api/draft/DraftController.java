@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** docs/13 §6 답글 API. */
+/** docs/13 6장 답글 API. */
 @RestController
 public class DraftController {
 

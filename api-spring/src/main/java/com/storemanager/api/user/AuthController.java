@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * docs/13 §2. Refresh 토큰은 응답 바디에 담지 않고 HttpOnly 쿠키로만 전달한다(공통규약 "HttpOnly 쿠키").
+ * docs/13 2장. Refresh 토큰은 응답 바디에 담지 않고 HttpOnly 쿠키로만 전달한다(공통규약 "HttpOnly 쿠키").
  * 카카오 소셜 로그인, 휴대폰 인증은 Sprint 1 범위 밖이라 만들지 않는다.
  */
 @RestController

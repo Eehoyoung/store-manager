@@ -1,7 +1,7 @@
 import { getAccessToken, getSessionKind, setAccessToken, triggerForceLogout } from "../auth/tokenStore";
 import type { ApiErrorEnvelope } from "./types";
 
-// docs/13 §1 공통규약: Base URL 환경변수, 기본값은 로컬 Spring.
+// docs/13 1장 공통규약: Base URL 환경변수, 기본값은 로컬 Spring.
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
 
 // docs/26a — 세션 종류별 refresh 엔드포인트. 자기 자신은 재시도 대상에서 제외한다(무한 루프 방지).
@@ -21,7 +21,7 @@ const AUTH_ENDPOINTS = new Set([
   "/hq-auth/refresh",
 ]);
 
-/** 서버가 docs/13 §1.1 에러 봉투({code,message,traceId,details})로 응답한 실패. */
+/** 서버가 docs/13 1.1장 에러 봉투({code,message,traceId,details})로 응답한 실패. */
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -42,7 +42,7 @@ export class NetworkError extends Error {}
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
-  /** 되돌릴 수 없는 요청(게시·해지 접수 등)에 붙인다(docs/13 §1 멱등성). 승인·거절 API는 풀자동화로 폐기됐다. */
+  /** 되돌릴 수 없는 요청(게시·해지 접수 등)에 붙인다(docs/13 1장 멱등성). 승인·거절 API는 풀자동화로 폐기됐다. */
   idempotencyKey?: string;
 }
 

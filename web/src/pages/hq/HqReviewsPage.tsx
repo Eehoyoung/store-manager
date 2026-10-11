@@ -43,7 +43,7 @@ function defaultFilters(): Filters {
 }
 
 /**
- * 문서 26 §6.5, 26a hq.reviews — 개별 리뷰 조회. HQ_REVIEW_ACCESS_ENABLED 가 꺼져 있으면
+ * 문서 26 6.5장, 26a hq.reviews — 개별 리뷰 조회. HQ_REVIEW_ACCESS_ENABLED 가 꺼져 있으면
  * 서버가 404 를 주므로 진입 전에 /hq/features 로 먼저 확인해 홈으로 돌려보낸다.
  *
  * ★ 필터는 URL 이 아니라 컴포넌트 state 에만 둔다(문서 26a web.ux) — 리뷰 본문·검색어가

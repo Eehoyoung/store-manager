@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /**
  * 외부 AI(Claude)에 리뷰 관련 텍스트를 보내기 전, 형식이 명확한 개인 식별자만 지운다.
- * privacy.md §6.3 — "회사는 개인을 알아볼 수 없도록 처리된 정보만 외부 AI에 전송합니다.
+ * privacy.md 6.3장 — "회사는 개인을 알아볼 수 없도록 처리된 정보만 외부 AI에 전송합니다.
  * 개인정보가 남아 있거나 익명성을 보장할 수 없는 경우에는 전송하지 않습니다" 를 실제로 지키는 지점.
  *
  * <p>★ 반드시 Spring 쪽, AI 요청을 만드는 시점(DraftService.buildAiRequest)에 적용한다.

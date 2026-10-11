@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** app_user 테이블 매핑 (docs/11 §2.2). 외부에는 publicId(UUID)만 노출한다. */
+/** app_user 테이블 매핑 (docs/11 2.2장). 외부에는 publicId(UUID)만 노출한다. */
 @Entity
 @Table(name = "app_user")
 @Getter

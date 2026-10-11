@@ -9,7 +9,7 @@ payload 조립만 담당해 목(mock)만으로 전부 테스트 가능하게 한
   create_comment 콜러블은 dataapi.DataApiClient.create_comment 를 그대로 주입하므로
   이 판정을 다시 구현하지 않는다.
 ★ 절대규칙 3: riskLevel >= 3 이면 DataAPI 를 호출하지 않는다 — Spring 이 이미 막지만
-  워커에서도 이중 검증한다(문서 11 §2.4/§8.2 체크리스트).
+  워커에서도 이중 검증한다(문서 11 2.4장/8.2장 체크리스트).
 """
 from __future__ import annotations
 

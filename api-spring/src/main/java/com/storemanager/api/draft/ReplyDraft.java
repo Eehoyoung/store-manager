@@ -20,7 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * reply_draft 테이블 매핑 (docs/11 §2.5).
+ * reply_draft 테이블 매핑 (docs/11 2.5장).
  * ★ 상태 전이(CLAUDE.md 상태 머신 절)를 이 클래스 하나에 모은다 — 컨트롤러·스케줄러·collect-result 에서
  * 상태값을 직접 대입하지 않고 반드시 이 메서드들을 통해서만 바꾼다(S4).
  *

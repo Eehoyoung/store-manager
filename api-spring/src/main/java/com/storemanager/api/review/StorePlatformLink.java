@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** store_platform_link 테이블 매핑 (docs/11 §2.3). 계정 1개에 매장 여러 개(F-7)를 지원하는 연결 테이블. */
+/** store_platform_link 테이블 매핑 (docs/11 2.3장). 계정 1개에 매장 여러 개(F-7)를 지원하는 연결 테이블. */
 @Entity
 @Table(name = "store_platform_link")
 @Getter
@@ -52,7 +52,7 @@ public class StorePlatformLink {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
-    /** 워커가 보낸 최신 매장명·평점 스냅샷으로 갱신한다 (docs/08 §5 매핑). */
+    /** 워커가 보낸 최신 매장명·평점 스냅샷으로 갱신한다 (docs/08 5장 매핑). */
     public void updateSnapshot(String storeName, BigDecimal avgRating) {
         if (storeName != null) {
             this.storeNameSnapshot = storeName;

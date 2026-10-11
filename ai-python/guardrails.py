@@ -1,8 +1,8 @@
 """
-답글 가드레일 완전 구현 (문서 12 §4, G1~G9).
+답글 가드레일 완전 구현 (문서 12 4장, G1~G9).
 
 ★ 절대규칙 3(CLAUDE.md): risk_level >= 3 이면 무조건 사람 검수 큐로 보낸다.
-  이 파일의 G8 은 문서 12 §4 표대로 risk_level >= 2 부터 자동 게시를 차단한다
+  이 파일의 G8 은 문서 12 4장 표대로 risk_level >= 2 부터 자동 게시를 차단한다
   (risk_level=2 는 "자동 게시 불가 + 알림", risk_level=3 은 그중에서도 CLAUDE.md 가
   별도로 강제하는 "즉시 알림 + 사람 검수 필수" 케이스 — 둘 다 이 가드레일 통과 실패로 이어진다).
 ★ 절대규칙 4(CLAUDE.md): 답글에 금전적 보상 약속을 생성하지 않는다 (G3).
@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import re
 
-MAX_LENGTH = 280  # 문서 12 §4 G1 상한 (CLAUDE.md #8: 플랫폼 300자보다 여유를 둔 하드 제한)
+MAX_LENGTH = 280  # 문서 12 4장 G1 상한 (CLAUDE.md #8: 플랫폼 300자보다 여유를 둔 하드 제한)
 # ★ 하한 45(2026-09-19 운영자 결정, 이전 60). 60 은 "억지로 안내를 만들지 마라" 는
 #   지침과 정면으로 부딪쳤다 — 쓸 말이 없는데 글자수를 채우려다 상투구가 붙었고,
 #   실측에서 분류·위험도가 전부 맞은 초안이 길이 하나로 통째로 사라졌다(C-L-012·N-G-04).
 #   상한은 상황별로 자동 조절한다(prompts.length_max_for).
-MIN_LENGTH = 45  # 문서 12 §4 G1 하한 — 미달은 BLOCK 이 아니라 재생성 대상
+MIN_LENGTH = 45  # 문서 12 4장 G1 하한 — 미달은 BLOCK 이 아니라 재생성 대상
 
 # ★ 하한을 카테고리별로 나눈다 (2026-09-17).
 #   60 자 일률 적용은 **가장 쉬운 리뷰를 무응답으로 만들었다.** "좋아요 감사합니다" 에
@@ -57,9 +57,9 @@ def min_length_for(category: str | None, tone: str | None = None) -> int:
 #   ★ 즉시 게시가 아니다. `PublishScheduler` 가 사장님 지연시간(기본 6시간, store_persona.delay_hours) 뒤에
 #     올리고, 그 사이 알림톡이 가서 사장님이 철회·수정할 수 있다.
 #   ★ risk 3 은 그대로 차단이다. 이 값을 3 보다 크게 만들지 말 것 — 절대규칙 3 이다.
-RISK_BLOCK_THRESHOLD = 3  # 문서 12 §4 G8: risk_level >= 3 부터 자동 게시 차단
-REVIEW_QUOTE_MIN_RUN = 15  # 문서 12 §4 G6: 리뷰 본문과 15자 이상 연속 일치
-DUPLICATE_SIMILARITY_THRESHOLD = 0.90  # 문서 12 §4 G7
+RISK_BLOCK_THRESHOLD = 3  # 문서 12 4장 G8: risk_level >= 3 부터 자동 게시 차단
+REVIEW_QUOTE_MIN_RUN = 15  # 문서 12 4장 G6: 리뷰 본문과 15자 이상 연속 일치
+DUPLICATE_SIMILARITY_THRESHOLD = 0.90  # 문서 12 4장 G7
 
 # ── G3 금전 보상 차단 (절대규칙 4) ────────────────────────────────────────
 #
@@ -129,7 +129,7 @@ _ADDRESS_PATTERN = re.compile(
     r"|\d{1,4}동\s?\d{1,4}호"
 )
 
-# 문서 12 §4 G9 — 리뷰 본문에서 감지할 지시성 문구
+# 문서 12 4장 G9 — 리뷰 본문에서 감지할 지시성 문구
 # ★ 마커는 "정상 답글에 나올 일이 없는 문구" 여야 한다. 흔한 한국어 단어를 넣으면
 #   인젝션을 막는 게 아니라 멀쩡한 답글을 폐기한다(G9 는 BLOCK 이라 재생성도 없다).
 #   실측(2026-09-17) — "양념치킨 **대신** 다른 구성이 나간 점 죄송합니다" 가 오배송·누락
@@ -185,7 +185,7 @@ def _banned_word_hit(text: str, extra_words: list[tuple[str, str, str]] | None) 
 
 
 def sanitize_review(review_body: str) -> tuple[str, bool, list[str]]:
-    """리뷰 본문에서 인젝션 지시성 문구를 감지해 '[내용]' 으로 치환한다 (문서 12 §4 G9).
+    """리뷰 본문에서 인젝션 지시성 문구를 감지해 '[내용]' 으로 치환한다 (문서 12 4장 G9).
 
     반환: (치환된 텍스트, 감지 여부, 감지된 문구 목록). LLM 에 넘기기 전 전처리로 쓴다.
     """
@@ -251,7 +251,7 @@ def check(
     extra_banned_words: list[tuple[str, str, str]] | None = None,
     min_length: int | None = None,
 ) -> GuardrailFlags:
-    """답글 텍스트를 검사해 위반한 가드레일 플래그 목록을 반환한다 (문서 12 §4 G1~G9).
+    """답글 텍스트를 검사해 위반한 가드레일 플래그 목록을 반환한다 (문서 12 4장 G1~G9).
 
     review_body 를 주면 G6(리뷰 인용)·G9(인젝션 반영 여부)를,
     recent_replies 를 주면 G7(중복)을 함께 검사한다. 두 인자를 생략해도(기존 2-인자

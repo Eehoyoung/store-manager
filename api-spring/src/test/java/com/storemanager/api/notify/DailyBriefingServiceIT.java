@@ -34,7 +34,7 @@ import org.testcontainers.utility.DockerImageName;
  * 매일 정오 브리핑 집계 통합테스트.
  *
  * <p>★ 목이 아니라 실제 DB 로 돌린다 — 집계 SQL 이 이 기능의 전부이고, 목은 SQL 의
- * 오류를 재현하지 못한다(핸드오프 §2.1 에서 같은 교훈을 얻었다).
+ * 오류를 재현하지 못한다(핸드오프 2.1장 에서 같은 교훈을 얻었다).
  */
 @SpringBootTest
 @ActiveProfiles("test")

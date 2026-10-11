@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 
-/** 포트원 V2 빌링키 자동결제 DTO(2026-09-29, docs/13 §9). */
+/** 포트원 V2 빌링키 자동결제 DTO(2026-09-29, docs/13 9장). */
 final class BillingDtos {
 
     private BillingDtos() {

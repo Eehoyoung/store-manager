@@ -42,7 +42,7 @@ type ReasonAction =
   | { type: "memberRevokeSessions"; member: AdminFranchiseMember }
   | { type: "committedStoreCount"; value: number | null };
 
-// 문서 26 §5.2~§5.4 — 본부 상세: 상태·가맹코드·담당자·승인 매장·감사기록. 모든 변경에 사유를 받는다.
+// 문서 26 5.2장~5.4장 — 본부 상세: 상태·가맹코드·담당자·승인 매장·감사기록. 모든 변경에 사유를 받는다.
 export function AdminFranchiseDetailPage() {
   const { brand = "" } = useParams<{ brand: string }>();
   const [detail, setDetail] = useState<AdminFranchiseDetail | null>(null);

@@ -354,7 +354,7 @@ export function PersonaPage() {
       <Card className="persona-page__section">
         <h2>자동 게시</h2>
         {/* ★ 저장 버튼을 거치지 않고 즉시 반영한다 — 개인정보 보호법 제37조의2 거부권 행사이고,
-            처리방침 §9.4 가 "접수 즉시 중지한다" 고 약속한 동작이다. */}
+            처리방침 9.4장이 "접수 즉시 중지한다" 고 약속한 동작이다. */}
         <label className="persona-page__switch">
           <input
             type="checkbox"

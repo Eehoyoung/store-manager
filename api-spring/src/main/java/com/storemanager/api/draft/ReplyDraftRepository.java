@@ -32,7 +32,7 @@ public interface ReplyDraftRepository extends JpaRepository<ReplyDraft, Long> {
 
     /**
      * 보유기간 파기(DataRetentionScheduler) — 파생 데이터라 리뷰와 같은 기준(purge_after)으로 지운다.
-     * privacy.md §7 "리뷰·분석·답글 및 그 복제·파생 데이터".
+     * privacy.md 7장 "리뷰·분석·답글 및 그 복제·파생 데이터".
      */
     long deleteByReviewIdIn(Collection<Long> reviewIds);
 }

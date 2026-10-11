@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * franchise_hq_member 테이블 매핑 (docs/11 §2.7, FR-801 · docs/26a schema.V46 확장).
+ * franchise_hq_member 테이블 매핑 (docs/11 2.7장, FR-801 · docs/26a schema.V46 확장).
  * 행이 존재하면 그 사용자는 해당 브랜드(store.brand_name)의 본부 사용자다.
  * ★ app_user 에 role 컬럼을 두지 않는다 — 본부 권한의 유일한 근거는 이 테이블이다.
  * ★ name 컬럼을 따로 두지 않는다 — 표시 이름은 항상 app_user.name 을 조인해 쓴다(중복 방지).

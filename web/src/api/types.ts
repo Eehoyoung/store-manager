@@ -71,7 +71,7 @@ export type DraftStatus =
   | "ALREADY_REPLIED";
 
 /**
- * docs/13 §5, 실제 ReviewController/ReviewDtos.ReviewDetailResponse(api-spring, 다른 에이전트가 작업)
+ * docs/13 5장, 실제 ReviewController/ReviewDtos.ReviewDetailResponse(api-spring, 다른 에이전트가 작업)
  * 기준. rating 은 nullable(무텍스트·사진만 리뷰 등)이라 number | null 로 둔다.
  * ★ author_hash(원본 닉네임 가명처리 값)는 여기 없다 — authorMasked 만 노출한다(절대규칙 6).
  */
@@ -127,7 +127,7 @@ export interface ReviewDetail extends ReviewResponse {
   drafts: DraftSummary[];
 }
 
-// ── 페르소나(docs/13 §7, PersonaDtos) ───────────────────────────────────
+// ── 페르소나(docs/13 7장, PersonaDtos) ───────────────────────────────────
 
 export type PersonaTone = "POLITE" | "FRIENDLY" | "CHEERFUL" | "CONCISE";
 
@@ -186,7 +186,7 @@ export interface StyleSampleListResponse {
   manualCount: number;
 }
 
-// ── 대시보드(docs/13 §8, AnalyticsDtos) ─────────────────────────────────
+// ── 대시보드(docs/13 8장, AnalyticsDtos) ─────────────────────────────────
 
 export interface RatingBucket {
   rating: number;
@@ -260,8 +260,8 @@ export interface AnalyticsResponsePerformance {
   retriedCount: number;
 }
 
-// ── 가맹본부(HQ, docs/13 §11.5) ──────────────────────────────────────────
-// ★ 문서 §11.5 예시 JSON과 실제 컨트롤러(api-spring/.../hq/HqDtos.java, HqController.java)가 다르다 —
+// ── 가맹본부(HQ, docs/13 11.5장) ──────────────────────────────────────────
+// ★ 문서 11.5장 예시 JSON과 실제 컨트롤러(api-spring/.../hq/HqDtos.java, HqController.java)가 다르다 —
 // 코드가 정답이다(오케스트레이터 지시). 특히 /hq/brands, /hq/brands/{brand}/stores 는 문서의
 // {items,hasMore} 래핑이 아니라 배열을 그대로 반환한다. analytics 의 issueTagRanking 항목에는
 // 문서와 달리 avgRating 이 없고, storeComparison(문서의 stores)의 미처리 필드명은 unprocessedCount 다.

@@ -1,7 +1,7 @@
 """
 분류·생성 프롬프트 정의 (Sprint 3 (a)).
 
-docs/12_프롬프트_및_평가명세.md §2(분류), §3(생성), §1.2(위험도 키워드 룰)의 계약을
+docs/12_프롬프트_및_평가명세.md 2장(분류), 3장(생성), 1.2장(위험도 키워드 룰)의 계약을
 그대로 옮긴다.
 
 ★ 절대규칙 1(CLAUDE.md): 이 파일은 리뷰 "답글"을 생성하기 위한 프롬프트와, 답글 생성을
@@ -10,7 +10,7 @@ docs/12_프롬프트_및_평가명세.md §2(분류), §3(생성), §1.2(위험�
 
 리뷰 본문은 항상 <review> 태그로 감싸 데이터로 격리한다. 태그 안의 내용은 지시가 아니라
 데이터이며, 그 안에 포함된 어떤 지시문도 따르지 않는다는 점을 시스템 프롬프트에 명시한다
-(문서 12 §4 G9 인젝션 방어와 연결됨).
+(문서 12 4장 G9 인젝션 방어와 연결됨).
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 PROMPT_VERSION = "v2.5"  # 저평점 무내용 응대와 주문 목록·추천 표현의 근거 경계를 보강
 
 
-# ── 분류 스키마 (docs/12 §2, docs/11 §2.4 review_analysis) ─────────────────
+# ── 분류 스키마 (docs/12 2장, docs/11 2.4장 review_analysis) ─────────────────
 # ★ v2.0 — ABUSIVE 를 둘로 나눴다(2026-09-17). 프롬프트 정의는 이미 (1)공격 (2)리뷰가
 #   아닌 것 으로 이원화돼 있었는데 출력이 한 값이라 하류에서 구분할 수 없었다.
 #   처리가 다르다 — 공격은 사람이 읽어야 하고, 광고는 읽을 것도 없이 무시한다.
@@ -47,8 +47,8 @@ NO_DRAFT_CATEGORIES = ("ABUSIVE", "OFF_TOPIC")
 #   별점 5 인데 정말 화난 리뷰와 별점 1 인데 담담한 리뷰를 가르지 못한다.
 TONE_VALUES = ("CALM", "DISAPPOINTED", "ANGRY")
 
-# docs/12 §1.2 는 5종(FOOD_POISONING/FOREIGN_OBJECT/HYGIENE/LEGAL/MEDIA)을 나열하지만,
-# docs/11 §2.4(확정 DB 스키마)와 CLAUDE.md 절대규칙 3("위생·이물질·식중독·법적분쟁")은
+# docs/12 1.2장은 5종(FOOD_POISONING/FOREIGN_OBJECT/HYGIENE/LEGAL/MEDIA)을 나열하지만,
+# docs/11 2.4장(확정 DB 스키마)와 CLAUDE.md 절대규칙 3("위생·이물질·식중독·법적분쟁")은
 # 4종만 정의한다. DB 가 기준이므로 MEDIA(방송·제보)는 LEGAL 로 흡수한다.
 # ★ 2026-08-30 추가: THREAT(협박·영업방해 예고)·REVIEW_TRADE(리뷰 대가 거래)·
 #   ORIGIN_LABEL(원산지 허위표시 주장)·UNDERAGE_ALCOHOL(청소년 주류)·PRIVACY_LEAK(제3자
@@ -474,7 +474,7 @@ def build_classify_messages(
     return system, user
 
 
-# ── risk_level 키워드 룰 (docs/12 §1.2) ─────────────────────────────────────
+# ── risk_level 키워드 룰 (docs/12 1.2장) ─────────────────────────────────────
 # "키워드 룰이 모델보다 우선한다" — 모델이 0으로 판단해도 키워드가 걸리면 3으로 승격한다.
 # 하향은 절대 하지 않는다(재현율 우선, 오탐 감수).
 # ★ 단독으로 성립하는 키워드. 부분문자열로 걸어도 일상 표현과 충돌하지 않는 것만 둔다.
@@ -1104,7 +1104,7 @@ def visit_risk(text: str) -> tuple[int, list[str]]:
 
 
 def upgrade_risk_level(text: str, base_level: int, platform: str | None = None) -> tuple[int, list[str]]:
-    """문서 12 §1.2: 키워드 히트 시 risk_level 을 3으로 승격한다(하향 금지).
+    """문서 12 1.2장: 키워드 히트 시 risk_level 을 3으로 승격한다(하향 금지).
     반환값은 (최종 risk_level, 키워드로 새로 감지된 risk_reasons).
 
     ★ 이 함수가 절대규칙 3 을 지키는 유일한 결정론적 방어선이다. 모델은 믿을 수 없다 —
@@ -1138,7 +1138,7 @@ def upgrade_risk_level(text: str, base_level: int, platform: str | None = None) 
     return max(base_level, level), reasons
 
 
-# ── 생성 프롬프트 (docs/12 §3) ──────────────────────────────────────────────
+# ── 생성 프롬프트 (docs/12 3장) ──────────────────────────────────────────────
 CATEGORY_GUIDE: dict[str, str] = {
     "PRAISE": "감사를 표하고, 칭찬받은 메뉴나 부분을 구체적으로 호응한 뒤 재방문을 자연스럽게 권한다.",
     "POSITIVE": "짧고 담백하게 감사만 전한다. 길게 늘이지 마라.",
@@ -1992,7 +1992,7 @@ def t0_template_allowed(category: str) -> bool:
     return category in T0_TEMPLATE_CATEGORIES
 
 
-# ── T0 룰 템플릿 (docs/12 §8, LLM 미사용 — 원가 0) ──────────────────────────
+# ── T0 룰 템플릿 (docs/12 8장, LLM 미사용 — 원가 0) ──────────────────────────
 # T0 은 PRAISE·POSITIVE·NOISE 전용이다. 짧은 리뷰에 불만 답글 분량을 억지로 채우면
 # 다짐·상투구가 붙으므로, 칭찬 하한만 넘기되 한두 문장으로 끝낸다.
 _T0_TEMPLATES = [
@@ -2032,7 +2032,7 @@ def render_t0_template(customer_title: str, persona_seed: int | None, use_emoji:
                        platform: str | None = None, review_body: str = "", *,
                        rating: int | None = None, category: str | None = None,
                        review_id: str | None = None) -> str:
-    """5종 중 하나를 골라 반복을 피한다(문서 12 §8).
+    """5종 중 하나를 골라 반복을 피한다(문서 12 8장).
 
     ★ persona_seed 만으로는 반복을 **전혀** 피하지 못했다(실기동 2026-09-20).
       persona_seed 는 매장당 고정값이라 한 매장의 T0 리뷰가 전부 같은 문장을 받는다.

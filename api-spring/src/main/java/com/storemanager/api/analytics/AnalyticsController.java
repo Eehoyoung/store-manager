@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** docs/13 §8 대시보드 API (Sprint 5 A1/A2). page/size 가 아니라 from/to 기간 조회다. */
+/** docs/13 8장 대시보드 API (Sprint 5 A1/A2). page/size 가 아니라 from/to 기간 조회다. */
 @RestController
 public class AnalyticsController {
 

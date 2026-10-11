@@ -7,7 +7,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Skeleton } from "../../components/Skeleton";
 import { Button } from "../../components/Button";
 
-// 문서 14 §11.1 — 본부 권한을 가진 브랜드 목록. 브랜드가 하나뿐이면(대부분의 본부) 선택 화면 없이
+// 문서 14 11.1장 — 본부 권한을 가진 브랜드 목록. 브랜드가 하나뿐이면(대부분의 본부) 선택 화면 없이
 // 바로 가맹점 목록으로 이동한다.
 export function HqBrandsPage() {
   const [brands, setBrands] = useState<HqBrand[] | null>(null);

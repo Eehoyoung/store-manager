@@ -43,10 +43,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 답글 생성·자동예약(S3, S8). docs/13 §6.
+ * 답글 생성·자동예약(S3, S8). docs/13 6장.
  * ★ 리뷰 본문은 AiClient 를 통해 있는 그대로 전달만 하고 여기서 생성·가공하지 않는다(절대규칙 1).
  *   예외: buildAiRequest 에서 PersonalIdentifierMasker 로 형식이 명확한 개인 식별자만 지워 사본을
- *   만든다(privacy.md §6.3). 리뷰 원문(unified_review.body)은 이 사본과 무관하게 그대로 남는다.
+ *   만든다(privacy.md 6.3장). 리뷰 원문(unified_review.body)은 이 사본과 무관하게 그대로 남는다.
  * ★ risk_level >= 3 인 초안은 승인할 수 없다(절대규칙 3) — 여기와 PublishScheduler 양쪽에서 검증한다.
  */
 @Service
@@ -220,7 +220,7 @@ public class DraftService {
             draft.blockForAutomationUnavailable();
             return;
         }
-        // ★ 사장님이 자동 게시를 껐으면 예약하지 않는다(처리방침 §9.4 — 자동화된 결정 거부권).
+        // ★ 사장님이 자동 게시를 껐으면 예약하지 않는다(처리방침 9.4장 — 자동화된 결정 거부권).
         //   초안은 그대로 두고 게시만 사람이 한다. 차단이 아니라 DRAFT 로 남긴다 —
         //   차단은 "규칙을 어겼다" 는 뜻이고 이건 "사장님이 직접 올리기로 했다" 는 뜻이다.
         if (!persona.isAutoPublish()) {
@@ -263,7 +263,7 @@ public class DraftService {
 
     private AiClientDtos.AnalyzeAndDraftRequest buildAiRequest(UnifiedReview review, StorePersona persona,
             GenerateDraftsRequest req) {
-        // ★ privacy.md §6.3 — 외부 AI 에는 비식별 처리된 정보만 보낸다. 여기서 만드는 사본에만 적용하고
+        // ★ privacy.md 6.3장 — 외부 AI 에는 비식별 처리된 정보만 보낸다. 여기서 만드는 사본에만 적용하고
         // review.getBody() 등 원본(unified_review.body)은 건드리지 않는다(WP-04, T-6).
         List<String> menus = PersonalIdentifierMasker.maskAll(parseStringList(review.getOrderedMenus()));
         // ★ 별점 null 을 0 으로 접지 않는다 — 0 은 최저 평점이고 null 은 "모름" 이다.

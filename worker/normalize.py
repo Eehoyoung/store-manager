@@ -1,12 +1,12 @@
 """DataAPI 응답(data) → /internal/collect-result 페이로드(stores[]) 정규화.
 
-docs/08_DataAPI_연동명세서.md §2.2(응답 구조)·§2.3(플랫폼별 필드 지원)·§5(매핑표)와
-docs/13_내부API명세.md §11.2(collect-result 스키마)를 동시에 만족해야 한다.
+docs/08_DataAPI_연동명세서.md 2.2장(응답 구조)·2.3장(플랫폼별 필드 지원)·5장(매핑표)와
+docs/13_내부API명세.md 11.2장(collect-result 스키마)를 동시에 만족해야 한다.
 
 ★ authorRaw(닉네임)는 가공하지 않고 원문 그대로 담는다 — 가명처리는 Spring 책임이다
   (CLAUDE.md 규칙6, 문서 08 F-5: 배민은 마스킹되지 않은 원문이 온다).
 ★ 모든 값은 dataapi._s() 로 문자열 "null" 을 걸러 None 으로 정규화한다 (문서 08 F-2).
-★ 필드 부재·타입 이상에 관대하게 동작해야 한다 — 플랫폼별로 지원 필드가 다르다(§2.3).
+★ 필드 부재·타입 이상에 관대하게 동작해야 한다 — 플랫폼별로 지원 필드가 다르다(2.3장).
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def _written_date(review_date: Any) -> str | None:
 
 
 def _image_urls(review: dict) -> list[str]:
-    """review['LIST'][].IMAGE — 리뷰 하위의 LIST 는 이미지 배열이다(§2.2, 매장 하위 LIST=리뷰 배열과 다름)."""
+    """review['LIST'][].IMAGE — 리뷰 하위의 LIST 는 이미지 배열이다(2.2장, 매장 하위 LIST=리뷰 배열과 다름)."""
     urls = []
     for item in review.get("LIST") or []:
         url = _s(item.get("IMAGE"))
@@ -56,7 +56,7 @@ def _image_urls(review: dict) -> list[str]:
 def _menu_items(review: dict) -> list[dict]:
     """review['ORDER_LIST'][].LIST[] 를 {menuId, menuName} 으로 평탄화한다.
 
-    ★ MENUID 는 3사 모두 제공한다(리뷰관리 스펙 §4). 이름만 쓰면 사장님이 메뉴명을
+    ★ MENUID 는 3사 모두 제공한다(리뷰관리 스펙 4장). 이름만 쓰면 사장님이 메뉴명을
       바꾸는 순간 같은 메뉴가 둘로 갈라져 메뉴별 통계가 어긋난다.
       store_menu 의 (store_id, platform, menu_id) 유니크 제약이 이 값을 전제로 만들어져 있다."""
     items = []
@@ -78,7 +78,7 @@ def _existing_reply(review: dict) -> dict | None:
 
 
 def _platform_extra(review: dict, platform: Platform) -> dict:
-    """플랫폼 전용 필드만 담는다(문서 08 §2.3/§5). 배민은 전용 필드가 없어 빈 dict."""
+    """플랫폼 전용 필드만 담는다(문서 08 2.3장/5장). 배민은 전용 필드가 없어 빈 dict."""
     if platform == "yogiyo":
         return {"taste": _s(review.get("TASTEVALUE")), "quantity": _s(review.get("QUANTITYVALUE"))}
     if platform == "coupangeats":

@@ -8,7 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * scheduledAt 계산(docs/13 §6, S7). 순수 함수 — DB·Redis 를 건드리지 않는다.
+ * scheduledAt 계산(docs/13 6장, S7). 순수 함수 — DB·Redis 를 건드리지 않는다.
  * ★ collected_at + delayHours 를 KST(Asia/Seoul) 로 해석하고, publishWindows 가 있으면
  * 그 시각 이후 가장 이른 윈도우 시작으로 당긴다. 이미 윈도우 안이면 그대로 둔다.
  * unified_review.written_at 은 시각 정보가 없으므로(writtenDateOnly) 기준으로 쓰지 않는다 — collected_at 만 쓴다.

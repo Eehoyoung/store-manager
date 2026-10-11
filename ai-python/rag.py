@@ -1,7 +1,7 @@
 """
 말투 few-shot 검색 (Sprint 3 (a)).
 
-docs/12_프롬프트_및_평가명세.md §3.2, docs/11_DB스키마_확정본.md §2.6 reply_style_sample.
+docs/12_프롬프트_및_평가명세.md 3.2장, docs/11_DB스키마_확정본.md 2.6장 reply_style_sample.
 
 reply_style_sample 에서 같은 매장의 수동 예시를 우선하고 나머지는 최신순으로 반환한다.
 현재 해시 임베딩은 의미 유사도를 보장하지 않으므로 운영 요청 경로에서 사용하지 않는다.

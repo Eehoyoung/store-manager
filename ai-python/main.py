@@ -6,7 +6,7 @@ AI Service (FastAPI) — 진입점.
 
 이 파일이 구현하는 엔드포인트는 CLAUDE.md 가 허용하는 서비스 간 경계 중 하나인
 `POST /internal/ai/analyze-and-draft` (Spring → Python) 뿐이다. 요청/응답 스키마는
-docs/13_내부API명세.md §11.1 의 JSON 예시와 정확히 일치한다(camelCase alias).
+docs/13_내부API명세.md 11.1장 의 JSON 예시와 정확히 일치한다(camelCase alias).
 
 파이프라인(Sprint 3 (a)): 분류(구조화 출력) → risk_level 키워드 룰 승격 → 라우팅(T0~T3)
 → RAG few-shot 조회 → 답글 생성 → guardrails.check() → 통과분만 반환.
@@ -35,7 +35,7 @@ def require_internal_token(x_internal_token: str | None) -> None:
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
-# ── 요청 스키마 (docs/13 §11.1) ──────────────────────────────────────────
+# ── 요청 스키마 (docs/13 11.1장) ──────────────────────────────────────────
 class ReviewIn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -109,7 +109,7 @@ class AnalyzeAndDraftRequest(BaseModel):
         return replies[:20]
 
 
-# ── 응답 스키마 (docs/13 §11.1) ──────────────────────────────────────────
+# ── 응답 스키마 (docs/13 11.1장) ──────────────────────────────────────────
 class AnalysisOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -191,7 +191,7 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
 
     sanitized_body, _injection_found, _markers = guardrails.sanitize_review(review.body)
     system, user = prompts.build_classify_messages(sanitized_body, review.rating, review.menus, review.platform)
-    for _attempt in range(2):  # 문서 12 §2 후처리 1: JSON 파싱 실패 시 1회 재시도
+    for _attempt in range(2):  # 문서 12 2장 후처리 1: JSON 파싱 실패 시 1회 재시도
         try:
             resp = client.messages.parse(
                 model=router.CLASSIFY_MODEL,
@@ -213,7 +213,7 @@ def _classify(provider: llm.LlmProvider, review: ReviewIn) -> tuple[prompts.Clas
         except Exception:
             continue
 
-    # 재시도도 실패 — 안전측 기본값(문서 12 §2 후처리 1)
+    # 재시도도 실패 — 안전측 기본값(문서 12 2장 후처리 1)
     return (
         prompts.ClassifyOutput(category="COMPLAINT", sentiment=-0.3, issue_tags=[], risk_level=2, risk_reasons=[]),
         router.CLASSIFY_MODEL, 0, 0, 0.0, 0,
@@ -304,10 +304,10 @@ def _produce_variant(
     """초안 1건을 생성하고 가드레일을 통과시킨다. (draft, 최종 실패 플래그) 를 반환한다.
 
     guardrails.check() 의 G8_RISK 는 "이 콘텐츠가 안전하지 않다"가 아니라 "risk_level 정책상
-    자동 게시하면 안 된다"는 신호다(guardrails.RISK_BLOCK_THRESHOLD, 문서 12 §4 G8). 콘텐츠
+    자동 게시하면 안 된다"는 신호다(guardrails.RISK_BLOCK_THRESHOLD, 문서 12 4장 G8). 콘텐츠
     자체는 사람 검수 화면에 그대로 보여줄 수 있어야 하므로, G8_RISK 는 초안을 폐기하는 사유에서
     제외하고 응답 레벨 blocked 판정에만 반영한다(analyze_and_draft 참고).
-    RETRY_FLAGS 만 걸리면(G1_LENGTH_MIN 등) 문서 12 §4 대로 1회 재생성한다.
+    RETRY_FLAGS 만 걸리면(G1_LENGTH_MIN 등) 문서 12 4장 대로 1회 재생성한다.
     """
     last_flags: list[str] = []
     last_retry_draft: DraftOut | None = None
@@ -377,7 +377,7 @@ def analyze_and_draft(
 
     classified, classify_model, c_tok_in, c_tok_out, c_cost, _c_cache = _classify(provider, req.review)
 
-    # 문서 12 §1.2: 키워드 룰이 모델보다 우선(하향 금지)
+    # 문서 12 1.2장: 키워드 룰이 모델보다 우선(하향 금지)
     # ★ platform 을 넘긴다. 방문 리뷰에만 있는 축(매장 위생·대면 충돌)은 배달 룰이
     #   상정한 적이 없다 — 넘기지 않으면 "화장실이 너무 더러웠어요" 가 자동 게시된다.
     risk_level, keyword_reasons = prompts.upgrade_risk_level(
@@ -386,7 +386,7 @@ def analyze_and_draft(
     risk_reasons = sorted(
         (set(classified.risk_reasons) | set(keyword_reasons)) & set(prompts.RISK_REASON_VALUES)
     )
-    # 사전 외 태그 제거(문서 12 §2 후처리 2). 태그 사전은 플랫폼별이다(배달/네이버 방문).
+    # 사전 외 태그 제거(문서 12 2장 후처리 2). 태그 사전은 플랫폼별이다(배달/네이버 방문).
     platform_tags = prompts.issue_tags_for(req.review.platform)
     issue_tags = [t for t in classified.issue_tags if t in platform_tags]
     # ★ 같은 태그가 양쪽에 들어오면 문제 쪽을 남긴다. 답글에서 사과를 빠뜨리는 것보다
@@ -413,7 +413,7 @@ def analyze_and_draft(
         promptVersion=prompts.prompt_version_for(req.review.platform),
     )
 
-    # 문서 12 §3.1: 답글을 만들지 않는 카테고리는 사람에게 넘긴다.
+    # 문서 12 3.1장: 답글을 만들지 않는 카테고리는 사람에게 넘긴다.
     # ★ 사유를 갈라서 돌려준다(v2.0). 둘 다 생성은 안 하지만 사장님이 할 일이 다르다 —
     #   ABUSIVE 는 읽고 판단해야 하고, OFF_TOPIC(광고·시사)은 읽을 것도 없이 넘기면 된다.
     # ★ 단, ABUSIVE 밑에 실체 있는 위험 사유가 깔려 있으면 초안을 만든다(prompts 참고).
@@ -473,7 +473,7 @@ def analyze_and_draft(
         # 가드레일 전량 차단 또는 생성 전량 실패 — 답글 없이 사람 검수로 넘긴다(절대규칙 1·3·4).
         return AnalyzeAndDraftResponse(analysis=analysis, drafts=[], blocked=True, blockReasons=block_reasons or ["UNKNOWN"])
 
-    # 절대규칙 3 + 문서 12 §4 G8(guardrails.RISK_BLOCK_THRESHOLD): risk_level 이 임계값 이상이면
+    # 절대규칙 3 + 문서 12 4장 G8(guardrails.RISK_BLOCK_THRESHOLD): risk_level 이 임계값 이상이면
     # 콘텐츠 자체는 통과했더라도 자동 게시 금지 → 사람 검수 큐로 표시(초안은 유지해 검수 화면에 보여준다).
     if risk_level >= guardrails.RISK_BLOCK_THRESHOLD and "G8_RISK" not in block_reasons:
         block_reasons.append("G8_RISK")

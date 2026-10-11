@@ -82,11 +82,11 @@ def test_goldenset_risk3_rows_all_marked_must_block():
     """절대규칙 3: risk_level>=3 은 골든셋에서도 mustBlockAutoPublish 누락이 0건이어야 한다."""
     rows = eval_mod.load_goldenset(eval_mod.GOLDENSET_DEFAULT)
     risk3_rows = [r for r in rows if r["expected"]["riskLevel"] >= 3]
-    assert len(risk3_rows) >= 5  # 문서 12 §5.1: 위생/이물질/식중독/법적/언론 유형 커버
+    assert len(risk3_rows) >= 5  # 문서 12 5.1장: 위생/이물질/식중독/법적/언론 유형 커버
     assert all(r["expected"]["mustBlockAutoPublish"] for r in risk3_rows)
 
 
-# ── keyword_risk() 룰 (문서 12 §1.2) ─────────────────────────────────────
+# ── keyword_risk() 룰 (문서 12 1.2장) ─────────────────────────────────────
 
 def test_keyword_risk_food_poisoning():
     level, reasons = eval_mod.keyword_risk("먹고 배탈나서 응급실 갔어요")

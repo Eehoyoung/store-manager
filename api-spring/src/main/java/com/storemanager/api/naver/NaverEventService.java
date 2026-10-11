@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 네이버 승인 큐 상태머신 서버 강제 + 일괄승인 (IMPLEMENTATION_PLAN_NAVER.md §2.3, docs/naver/03 §Tier 1).
+ * 네이버 승인 큐 상태머신 서버 강제 + 일괄승인 (IMPLEMENTATION_PLAN_NAVER.md 2.3장, docs/naver/03 Tier절 1).
  *
  * <p>★ 상태 전이 자체의 유효성은 {@link NaverReviewEvent} 가 스스로 검사한다(requireStatus).
  * 이 서비스는 그 위에 "누가 이 매장을 만질 수 있는가" 와 "일괄승인 3대 제외조건" 만 얹는다.
@@ -80,7 +80,7 @@ public class NaverEventService {
     /**
      * POST /api/v1/naver/events/bulk-approve.
      *
-     * <p>제외 조건(docs/naver/03 §Tier 1) — (a) VIEWED 를 거치지 않은 항목 (b) 1~2점 리뷰
+     * <p>제외 조건(docs/naver/03 Tier절 1) — (a) VIEWED 를 거치지 않은 항목 (b) 1~2점 리뷰
      * (c) 가드레일 차단 또는 risk_level>=2. 제외된 항목은 이유와 함께 돌려준다.
      */
     @Transactional

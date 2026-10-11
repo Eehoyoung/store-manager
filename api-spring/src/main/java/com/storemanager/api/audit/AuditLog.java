@@ -16,7 +16,7 @@ import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** audit_log 테이블 매핑 (docs/11 §2.8). 개인정보 접속기록 포함, 최소 1년 보관(법정 요건). */
+/** audit_log 테이블 매핑 (docs/11 2.8장). 개인정보 접속기록 포함, 최소 1년 보관(법정 요건). */
 @Entity
 @Table(name = "audit_log")
 @Getter

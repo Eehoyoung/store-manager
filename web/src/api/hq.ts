@@ -35,7 +35,7 @@ export interface HqReviewFilter {
   size?: number;
 }
 
-// docs/13 §11.5, docs/26a §8.4, 실제 HqController(api-spring) 기준. 조회 전용 — 쓰기 메서드를 추가하지 않는다.
+// docs/13 11.5장, docs/26a 8.4장, 실제 HqController(api-spring) 기준. 조회 전용 — 쓰기 메서드를 추가하지 않는다.
 // ★ brandName 은 한글이다 — 경로에 넣을 때 반드시 encodeURIComponent 한다(안 하면 404).
 export const hqApi = {
   features: () => apiRequest<HqFeatures>("/hq/features"),

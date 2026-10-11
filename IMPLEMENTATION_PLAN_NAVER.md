@@ -9,7 +9,7 @@
 
 ## 0. STEP 2 — 사전 질문에 대한 답 (코드 작성 전 확정)
 
-프롬프트 §53 STEP 2 가 요구한 5개 질문에 저장소 실물을 읽고 답한다.
+프롬프트 53장 STEP 2 가 요구한 5개 질문에 저장소 실물을 읽고 답한다.
 
 ### Q1. 네이버 리뷰를 기존 `AnalyzeAndDraftRequest` 에 넣을 수 있는가?
 
@@ -43,10 +43,10 @@ Spring 쪽 호출부는 `ai/AiClient.java` + `ai/AiClientDtos.java` 를 재사�
 **재사용하지 않는다.** `draft/DraftService.java` 는 `UnifiedReview` 를 DB에서 읽는 것으로 시작하고
 (`unifiedReviewRepository.findByPublicId`), `ReplyDraft.reviewId` 는 `unified_review.id` 를 가리키는
 BIGINT 다. 네이버 리뷰를 여기 태우려면 **리뷰 원문을 `unified_review.body` 에 저장해야 하고**
-이는 프롬프트 §14 위반이다.
+이는 프롬프트 14장 위반이다.
 
 또한 `ReplyDraft` 에 행이 생기는 순간 `PublishScheduler` → `worker/publish.py` 게시 큐에
-진입한다(프롬프트 §6·§41 위반). 즉 재사용이 아니라 **격리가 요구사항이다.**
+진입한다(프롬프트 6장·41장 위반). 즉 재사용이 아니라 **격리가 요구사항이다.**
 
 ### Q5. 네이버 metadata 는 어디에 저장하는 것이 가장 안전한가?
 
@@ -241,4 +241,4 @@ content script ── 1차 마스킹(mask.ts) ─┐
 
 Google Business Profile · 네이버 순위 분석 · 서버 Health Canary(헤드리스 금지, 개발자
 브라우저 방식으로 Phase 2) · 모바일/Firefox 확장 · `docs/naver` → `docs/naver-extension`
-디렉터리 이동(현행 convention 우선, 프롬프트 §7 단서).
+디렉터리 이동(현행 convention 우선, 프롬프트 7장 단서).

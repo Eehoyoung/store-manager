@@ -30,7 +30,7 @@ function fmt(iso: string | null): string {
   return new Date(iso).toLocaleString("ko-KR");
 }
 
-// 문서 26 §6.1 — 본부 홈. "지금 무엇을 봐야 하나" 하나에 답한다. 대시보드가 아니라 계기판이다.
+// 문서 26 6.1장 — 본부 홈. "지금 무엇을 봐야 하나" 하나에 답한다. 대시보드가 아니라 계기판이다.
 export function HqOverviewPage() {
   const { brand = "" } = useParams<{ brand: string }>();
   const [data, setData] = useState<HqOverviewResponse | null>(null);

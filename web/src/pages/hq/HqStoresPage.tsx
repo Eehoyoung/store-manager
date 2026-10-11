@@ -12,7 +12,7 @@ import { describeLinkStatus, describeServiceStatus } from "./hqLabels";
 import { HqNav } from "./HqNav";
 import { HqAccessDenied } from "./HqAccessDenied";
 
-// 문서 14 §11.2 — 가맹점 목록·운영 상태. 미처리·고위험이 많은 매장이 위로 오도록 기본 정렬한다
+// 문서 14 11.2장 — 가맹점 목록·운영 상태. 미처리·고위험이 많은 매장이 위로 오도록 기본 정렬한다
 // (본부가 가장 먼저 봐야 할 매장이다).
 // ★ WP-03 — 표시 기준 미달로 null 이 된 값은 실제로는 1~4건이다. 정렬에서 0 취급하지 않도록 1로 본다.
 function problemScore(s: HqStore): number {

@@ -4,7 +4,7 @@
  *
  * ★ 왜 계기판인가
  * 항공 계기 디자인은 "피곤한 눈이, 빠르게, 틀리지 않게 읽는다"를 위해 만들어진 규율이다.
- * 그것이 정확히 문서 14 §1 의 40~60대 요구사항(18px·행간 1.6·대비 4.5:1·44px)과 같은 문제다.
+ * 그것이 정확히 문서 14 1장 의 40~60대 요구사항(18px·행간 1.6·대비 4.5:1·44px)과 같은 문제다.
  * 그래서 이 방향은 이름(파일럿)에 맞춘 장식이 아니라, 접근성 요구가 이미 가리키고 있던 답이다.
  *
  * ★ 상태색 3종(green/amber/red)은 항공 표준 의미를 그대로 쓴다 — 정상/주의/정지.
@@ -14,7 +14,7 @@
  * 값을 바꿀 때는 반드시 다시 계산할 것. 이 수치가 이 제품의 접근성 근거다.
  */
 :root {
-  /* ── 공용 토큰 (SODAM LABS BRAND.md §4 — 이름·값을 바꾸지 말 것) ── */
+  /* ── 공용 토큰 (SODAM LABS BRAND.md 4장 — 이름·값을 바꾸지 말 것) ── */
   --sodam-ink: #191F28;
   --sodam-ink-2: #4E5968;
   --sodam-ink-muted: #636E7B;
@@ -64,14 +64,14 @@
   --color-neutral-bg: #EEF2F6;
 
   /* ── 서체 ─────────────────────────────────────────────── */
-  /* Pretendard Variable 자체 호스팅(BRAND.md §5 — 외부 폰트 CDN 금지). @font-face 는 base.css. */
+  /* Pretendard Variable 자체 호스팅(BRAND.md 5장 — 외부 폰트 CDN 금지). @font-face 는 base.css. */
   --font-family: "Pretendard Variable", Pretendard, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-display: var(--font-family);
   /* 예전 Plex Mono 자리. 고정폭 서체 대신 같은 서체 + tabular-nums 로 자리수를 맞춘다.
      가맹코드는 혼동 문자(I·O·0·1)를 뺀 알파벳이라 고정폭 없이도 글자 단위로 읽힌다. */
   --font-mono: var(--font-family);
 
-  /* 본문 최소 18px. 어떤 텍스트도 16px 미만 금지(문서 14 §1). */
+  /* 본문 최소 18px. 어떤 텍스트도 16px 미만 금지(문서 14 1장). */
   --font-size-body: 18px;
   --font-size-small: 16px;
   --font-size-h3: 19px;

@@ -19,7 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * naver_review_event 테이블 매핑 (IMPLEMENTATION_PLAN_NAVER.md §4).
+ * naver_review_event 테이블 매핑 (IMPLEMENTATION_PLAN_NAVER.md 4장).
  *
  * <p>★ 이 엔티티에는 리뷰 원문 컬럼이 없다. 확장이 브라우저 로컬에서 1차 마스킹한 뒤
  * {@code review_hash}(SHA-256)만 넘기고, 서버는 그 해시와 우리가 생성한 답글({@code draftContent})만

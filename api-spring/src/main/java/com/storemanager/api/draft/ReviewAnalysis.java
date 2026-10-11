@@ -12,7 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * review_analysis 테이블 매핑 (docs/11 §2.4). PK = review_id (unified_review 1:1).
+ * review_analysis 테이블 매핑 (docs/11 2.4장). PK = review_id (unified_review 1:1).
  * TEXT[] 컬럼은 StorePersona.bannedWords 와 동일하게 String[] 로 매핑한다(Hibernate 6 PG 배열 기본 지원).
  * ★ risk_level >= 3 판정은 이 엔티티가 아니라 호출부(DraftService, PublishScheduler)에서 절대규칙 3 으로 강제한다.
  */
@@ -65,7 +65,7 @@ public class ReviewAnalysis {
     @Column(name = "analyzed_at", nullable = false)
     private Instant analyzedAt = Instant.now();
 
-    /** AI 재분석 결과로 덮어쓴다 (PK 고정 UPSERT, docs/11 §2.4). */
+    /** AI 재분석 결과로 덮어쓴다 (PK 고정 UPSERT, docs/11 2.4장). */
     public void applyIncoming(String category, String tone, float sentiment, String[] issueTags,
             String[] praisedTags, short riskLevel,
             String[] riskReasons, String model, String promptVersion) {

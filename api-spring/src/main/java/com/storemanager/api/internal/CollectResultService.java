@@ -51,7 +51,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 워커가 보낸 수집 결과를 정규화해 적재한다 (docs/13 §11.2 계약 + 코디네이터 확정 조정사항, docs/08 §5 매핑표).
+ * 워커가 보낸 수집 결과를 정규화해 적재한다 (docs/13 11.2장 계약 + 코디네이터 확정 조정사항, docs/08 5장 매핑표).
  * ★ 이 클래스는 요청 본문(특히 authorRaw)을 절대 로그로 남기지 않는다. jobId 처럼 PII 가 아닌 값만 로그에 남긴다.
  */
 @Service
@@ -406,14 +406,14 @@ public class CollectResultService {
         return isNew;
     }
 
-    /** RC_LIST 기존 답글을 말투 학습 코퍼스로 적재한다(docs/08 §5). (store_id, reply_text) 중복은 적재하지 않는다. */
+    /** RC_LIST 기존 답글을 말투 학습 코퍼스로 적재한다(docs/08 5장). (store_id, reply_text) 중복은 적재하지 않는다. */
     private void saveStyleSample(Long storeId, String reviewBody, String replyText, Short rating) {
         if (replyText == null || replyText.isBlank()) {
             return;
         }
         // ★ 적재 시점에 식별자를 지운다. 이 코퍼스는 ai-python 이 pgvector 로 직접 조회해
         //   few-shot 예시로 Anthropic 에 보낸다(ai-python/rag.py). 즉 DraftService 의
-        //   마스킹이 덮지 못하는 두 번째 국외 이전 경로다 — 개인정보처리방침 §6.3 은
+        //   마스킹이 덮지 못하는 두 번째 국외 이전 경로다 — 개인정보처리방침 6.3장 은
         //   "개인을 알아볼 수 없도록 처리된 정보만 외부 AI 에 전송한다" 고 약속한다.
         //   원본 리뷰는 unified_review.body 에 그대로 남으므로 잃는 것이 없다.
         String maskedReply = PersonalIdentifierMasker.mask(replyText);

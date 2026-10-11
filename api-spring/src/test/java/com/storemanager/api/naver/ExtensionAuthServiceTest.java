@@ -27,7 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * ExtensionAuthService.pair() 단위테스트 — PairResponse 에 소유 매장이 public_id 로만
- * 담기는지 검증한다(IMPLEMENTATION_PLAN_NAVER.md §5 T1).
+ * 담기는지 검증한다(IMPLEMENTATION_PLAN_NAVER.md 5장 T1).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
