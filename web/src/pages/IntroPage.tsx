@@ -98,7 +98,7 @@ export function IntroPage() {
       <main>
         <section className="intro-hero" aria-labelledby="intro-title">
           <div className="intro-hero__copy">
-            <h1 id="intro-title"><span className="intro-hero__brand">소담리뷰</span>고객의 목소리는<br />놓치지 않고,<br /><em>위험한 답글은 멈춥니다.</em></h1>
+            <h1 id="intro-title"><span className="intro-hero__brand">소담리뷰</span>손님의 목소리는<br />놓치지 않고,<br /><em>위험한 답글은 멈춥니다.</em></h1>
             <p className="intro-hero__lede">
               소담리뷰가 리뷰에 적힌 맛·양·배송 이야기를 읽고, 매장에서 정한 말투에 맞춰 답해요.
               사람이 판단해야 하는 리뷰에서는 자동으로 멈춰요.
