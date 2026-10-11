@@ -54,7 +54,7 @@ def min_length_for(category: str | None, tone: str | None = None) -> int:
 #   환불 요구(나)와 반복 불만(다)을 risk 3 으로 올렸으므로 **risk 2 에 남은 것은
 #   (가) 화·분노 하나뿐**이다. 화난 손님은 붙잡아 둘수록 나빠진다 — 빨리 사과하는
 #   것이 최선이고, 그래서 자동 예약 경로로 보낸다.
-#   ★ 즉시 게시가 아니다. `PublishScheduler` 가 사장님 지연시간(기본 2시간) 뒤에
+#   ★ 즉시 게시가 아니다. `PublishScheduler` 가 사장님 지연시간(기본 6시간, store_persona.delay_hours) 뒤에
 #     올리고, 그 사이 알림톡이 가서 사장님이 철회·수정할 수 있다.
 #   ★ risk 3 은 그대로 차단이다. 이 값을 3 보다 크게 만들지 말 것 — 절대규칙 3 이다.
 RISK_BLOCK_THRESHOLD = 3  # 문서 12 §4 G8: risk_level >= 3 부터 자동 게시 차단
