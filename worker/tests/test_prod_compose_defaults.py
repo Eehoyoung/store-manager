@@ -21,3 +21,27 @@ def test_댓글_등록은_env_에_명시해야만_켜진다():
 
 def test_키가_없으면_개발계로_떨어진다():
     assert "datahub-dev" in _default("DATAAPI_BASE_URL")
+
+
+# 운영 compose 기본값 잠금. 바꾸려면 이 표와 문서(deploy/README.md 등)를 함께 고친다.
+LOCKED = {
+    "DATAAPI_WRITE_ENABLED": "false",
+    "DATAAPI_BASE_URL": "https://datahub-dev.scraping.co.kr",
+    "DATAAPI_CALL_BUDGET": "0",
+    "BILLING_SCHEDULER_ENABLED": "true",
+    "MAIL_REQUIRED": "true",
+    "BUSINESS_INFO_REQUIRED": "false",
+    "DRAFT_SCHEDULER_ENABLED": "true",
+    "RETENTION_SCHEDULER_ENABLED": "true",
+    "CREDENTIAL_REQUIRE_KMS": "false",
+    "GOLDENSET_EVAL_ENABLED": "false",
+}
+
+
+def test_운영_compose_기본값이_잠긴_값과_같다():
+    for key, want in LOCKED.items():
+        got = _default(key)
+        assert got == want, (
+            f"{key} 기본값이 {want!r} 에서 {got!r} 로 바뀌었다 — "
+            "이 표를 고치면서 문서(deploy/README.md 등)도 함께 고쳐라"
+        )

@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # 운영 서버 사전점검 — 읽기 전용. 무엇도 바꾸지 않는다(2026-10-09).
 #
-#   sudo bash /opt/storemanager/deploy/preflight.sh
+#   sudo bash /opt/storemanager/deploy/preflight.sh          # 기본: 개발계 모드(테스트 배포)
+#   sudo bash /opt/storemanager/deploy/preflight.sh --prod   # 운영계 전환 점검
+#
+# 모드 차이(그 밖의 점검은 두 모드 공통):
+#   기본   DATAAPI_BASE_URL 은 개발계여야 PASS, DATAAPI_WRITE_ENABLED 는 false 여야 PASS
+#   --prod DATAAPI_BASE_URL 이 개발계면 FAIL, DATAAPI_WRITE_ENABLED 는 true/false 명시만 확인하고
+#          값은 INFO 로 보인다(의도는 사람이 확인). ANTHROPIC_API_KEY 가 비면 FAIL.
+#          BILLING_SCHEDULER_ENABLED 값은 INFO 로 보인다.
 #
 # ★ 비밀값의 **값**은 출력하지 않는다. 키 이름과 판정만 낸다. DATAAPI_BASE_URL 만 예외로
 #   개발계/운영계 판정을 위해 호스트 이름을 보여 준다(비밀값이 아니다).
@@ -16,6 +23,13 @@
 #   PUBLIC_IP     서버 고정 IP — 기본값 없음. 주면 443 직접 차단 확인 명령을 안내한다
 #   SKIP_NET=1    네트워크 점검 생략 / SKIP_GIT=1 git 점검 생략
 set -u
+
+MODE=dev
+case "${1:-}" in
+  "") ;;
+  --prod) MODE=prod ;;
+  *) echo "사용법: preflight.sh [--prod]" >&2; exit 2 ;;
+esac
 
 REPO_DIR=${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}
 ENV_FILE=${ENV_FILE:-/etc/storemanager/env}
@@ -36,7 +50,7 @@ env_val() {
 }
 has_key() { grep -qE "^$1=" "$ENV_FILE" 2>/dev/null; }
 
-echo "== 소담리뷰 운영 사전점검 $(date -u +%FT%TZ)"
+echo "== 소담리뷰 운영 사전점검 [$MODE] $(date -u +%FT%TZ)"
 
 # 1) env 파일과 키
 if [ ! -r "$ENV_FILE" ]; then
@@ -51,17 +65,31 @@ else
     fail "DATAAPI_BASE_URL 이 env 에 없다 — compose 기본값에 맡기지 말고 명시할 것"
   else
     host=$(env_val DATAAPI_BASE_URL | sed -E 's#^[a-z]+://##; s#/.*$##')
-    if [ "$host" = "$DEV_HOST" ]; then pass "DATAAPI_BASE_URL = 개발계 ($host)"
+    if [ "$MODE" = prod ]; then
+      if [ "$host" = "$DEV_HOST" ]; then fail "DATAAPI_BASE_URL 이 아직 개발계다 ($host) — 운영계 전환 점검에서는 운영계여야 한다"
+      else pass "DATAAPI_BASE_URL = 개발계 아님 ($host)"; fi
+    elif [ "$host" = "$DEV_HOST" ]; then pass "DATAAPI_BASE_URL = 개발계 ($host)"
     else fail "DATAAPI_BASE_URL 이 개발계가 아니다 ($host) — 테스트 중에는 개발계여야 한다"; fi
   fi
 
   # 3) 답글 등록 명시적 false
   if ! has_key DATAAPI_WRITE_ENABLED; then
     fail "DATAAPI_WRITE_ENABLED 가 env 에 없다 — 옛 compose 는 이때 등록을 켠다"
+  elif [ "$MODE" = prod ]; then
+    w=$(env_val DATAAPI_WRITE_ENABLED | tr 'A-Z' 'a-z')
+    case $w in
+      true|false) info "DATAAPI_WRITE_ENABLED = $w (명시) — 의도한 값인지 사람이 확인할 것. true 면 답글 등록은 되돌릴 수 없다" ;;
+      *) fail "DATAAPI_WRITE_ENABLED 가 true/false 로 명시되지 않았다" ;;
+    esac
   elif [ "$(env_val DATAAPI_WRITE_ENABLED | tr 'A-Z' 'a-z')" = "false" ]; then
     pass "DATAAPI_WRITE_ENABLED = false (명시)"
   else
     fail "DATAAPI_WRITE_ENABLED 가 false 가 아니다 — 실매장 리뷰에 답글이 달릴 수 있다"
+  fi
+
+  if [ "$MODE" = prod ]; then
+    [ -n "$(env_val ANTHROPIC_API_KEY)" ] && pass "ANTHROPIC_API_KEY 값 있음" || fail "ANTHROPIC_API_KEY 가 비었다 — 답글 생성 불가"
+    b=$(env_val BILLING_SCHEDULER_ENABLED); info "BILLING_SCHEDULER_ENABLED = ${b:-(미지정, compose 기본 true)} — 실결제 갱신 스케줄러, 의도 확인"
   fi
 
   # 3-1) 테스트 매장 절차에 필요한 값 — 값은 보지 않고 비었는지만 본다.
