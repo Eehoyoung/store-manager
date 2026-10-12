@@ -107,6 +107,25 @@ export const adminApi = {
 
   /** 재시도를 소진하고 실패한 건. 조회 전용 — 재시도 API 는 두지 않는다. */
   failures: (limit = 100) => apiRequest<FailureReport>(`/admin/failures?limit=${limit}`),
+  /** 출시 준비 점검. 조회 전용. */
+  readiness: () => apiRequest<ReadinessReport>("/admin/readiness"),
+};
+
+export type ReadinessStatus = "GREEN" | "RED" | "UNKNOWN" | "INFO";
+
+export type ReadinessItem = {
+  id: string;
+  label: string;
+  status: ReadinessStatus;
+  intended: boolean;
+  detail: string;
+  lastSuccessAt: string | null;
+};
+
+export type ReadinessReport = {
+  generatedAt: string;
+  mode: "dev" | "prod" | "unknown";
+  items: ReadinessItem[];
 };
 export type PublishFailureRow = {
   storeName: string;

@@ -25,6 +25,7 @@ import { AdminFranchiseDetailPage } from "./pages/admin/AdminFranchiseDetailPage
 import { AdminAffiliationsPage } from "./pages/admin/AdminAffiliationsPage";
 import { AdminSubscriptions } from "./pages/AdminSubscriptions";
 import { AdminFailures } from "./pages/AdminFailures";
+import { AdminReadiness } from "./pages/AdminReadiness";
 import { HqLoginPage } from "./pages/hq/HqLoginPage";
 import { HqBrandsPage } from "./pages/hq/HqBrandsPage";
 import { HqOverviewPage } from "./pages/hq/HqOverviewPage";
@@ -93,6 +94,7 @@ export function AppRoutes() {
           <Route path="/admin/affiliations" element={<AdminAffiliationsPage />} />
           <Route path="/admin/subscriptions" element={<AdminSubscriptions />} />
           <Route path="/admin/failures" element={<AdminFailures />} />
+          <Route path="/admin/readiness" element={<AdminReadiness />} />
         </Route>
       </Route>
 
