@@ -43,6 +43,10 @@ app.conf.beat_schedule = {
         "task": "tasks.dispatch_polls",
         "schedule": crontab(hour=POLL_HOURS, minute=0),
     },
+    "readiness-heartbeat-every-60s": {
+        "task": "tasks.readiness_heartbeat",
+        "schedule": 60.0,
+    },
     "publish-drafts-every-30s": {
         "task": "tasks.publish_drafts",
         "schedule": 30.0,

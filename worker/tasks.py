@@ -91,6 +91,43 @@ def _redis_client():
     return redis_lib.Redis.from_url(REDIS_URL)
 
 
+READINESS_KEY = "readiness:worker"
+READINESS_TTL_SECONDS = 600
+
+
+def _dataapi_env() -> str:
+    """DATAAPI_BASE_URL 호스트로 dev/prod/unknown 만 판정한다. 호스트 문자열은 값에 남기지 않는다."""
+    from urllib.parse import urlparse
+
+    host = (urlparse(os.environ.get("DATAAPI_BASE_URL", "")).hostname or "").lower()
+    if "datahub-dev" in host:
+        return "dev"
+    if host == "api.mydatahub.co.kr":
+        return "prod"
+    return "unknown"
+
+
+def readiness_payload() -> dict:
+    from datetime import datetime, timezone
+
+    return {
+        "v": 1,
+        "heartbeatAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "writeEnabled": os.environ.get(WRITE_ENABLED_ENV, "false").lower() == "true",
+        "dataapiEnv": _dataapi_env(),
+    }
+
+
+@app.task(name="tasks.readiness_heartbeat")
+def readiness_heartbeat(redis_client=None) -> None:
+    """워커 상태를 Redis 에 60초마다 기록한다. 실패는 삼킨다 — 다른 태스크에 영향 0."""
+    try:
+        rc = redis_client if redis_client is not None else _redis_client()
+        rc.set(READINESS_KEY, json.dumps(readiness_payload()), ex=READINESS_TTL_SECONDS)
+    except Exception as e:  # noqa: BLE001
+        log.warning("readiness heartbeat 기록 실패: %s", type(e).__name__)
+
+
 # 소유자만 락을 해제할 수 있게 하는 compare-and-delete 스크립트.
 # 락이 TTL 로 만료된 뒤 다른 워커가 새로 잡았다면, 만료된 쪽이 그 락을 지워서는 안 된다
 # (지우면 같은 계정을 두 워커가 동시에 수집 → DataAPI 호출이 이중 과금된다).
