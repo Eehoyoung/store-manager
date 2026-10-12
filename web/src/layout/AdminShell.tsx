@@ -49,6 +49,7 @@ export function AdminShell() {
             <span className="shell__nav-group-title">운영</span>
             <NavLink to="/admin/subscriptions" className={navLinkClass}>서비스 상태</NavLink>
             <NavLink to="/admin/failures" className={navLinkClass}>실패 건</NavLink>
+            <NavLink to="/admin/readiness" className={navLinkClass}>출시 준비</NavLink>
           </div>
         </nav>
         <main className="shell__main">
