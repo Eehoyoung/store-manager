@@ -29,6 +29,10 @@ public class AdminAccessGuard {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    public Set<String> emails() {
+        return adminEmails;
+    }
+
     public boolean isAdminEmail(String email) {
         return email != null && adminEmails.contains(email.trim().toLowerCase(Locale.ROOT));
     }
