@@ -124,7 +124,7 @@ public class ReviewService {
                 toDraftSummary(latestDraft));
     }
 
-    private static DraftSummaryResponse toDraftSummary(ReplyDraft d) {
+    static DraftSummaryResponse toDraftSummary(ReplyDraft d) {
         if (d == null) {
             return null;
         }
