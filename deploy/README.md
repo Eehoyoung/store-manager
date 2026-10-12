@@ -193,7 +193,7 @@ gunzip -c backups/storemanager-YYYYmmdd-HHMMSS.sql.gz \
 | `DATAAPI_CALL_BUDGET` | `0` | 0=무제한. 테스트 토큰이면 잔여 횟수를 넣는다 |
 | `DRAFT_SCHEDULER_ENABLED` | `true` | 끄면 리뷰만 쌓이고 답글이 생성되지 않는다 (LLM 비용) |
 | `RETENTION_SCHEDULER_ENABLED` | `true` | **끄면 보유기간을 정해 두고 영구 보관하게 된다** |
-| `BILLING_SCHEDULER_ENABLED` | `false` | **올리지 말 것.** Groble 동기화 전이라 잘못 청구된다 |
+| `BILLING_SCHEDULER_ENABLED` | `true` | 포트원 자동결제 00:10 · 사전고지 09:00. 끄면 갱신 청구와 사전고지가 멈춘다 |
 | `CREDENTIAL_REQUIRE_KMS` | `false` | `true` 로 두면 KMS 어댑터 전까지 기동이 차단된다(T-10) |
 | `GOLDENSET_EVAL_ENABLED` | `false` | 1회 약 1,500원. 운영자가 직접 켠다 |
 
@@ -218,7 +218,7 @@ Spring 스케줄러 중복(아래)까지 손봐야 한다. 매장 100~200개 규
 
 > ★ **이 제품은 실시간 서비스가 아니다 — 그래서 HA 가 필요 없다.** 수집은 하루 1회 10시이고
 > 조회 윈도우가 2일이라 **한 번 통째로 빠져도 다음 날 같은 리뷰를 다시 가져온다.** 게시는
-> 사장님 지연시간(기본 2시간) 뒤에 나가므로 **서버가 1시간 죽어도 답글은 늦지 않는다.**
+> 사장님 지연시간(기본 6시간, `store_persona.delay_hours`) 뒤에 나가므로 **서버가 1시간 죽어도 답글은 늦지 않는다.**
 > 다운타임에 실제로 사라지는 것은 대시보드 접속뿐이다. RTO 20분이면 충분하고, 그 20분을
 > 위해 이중화를 사는 것은 이 규모에서 과잉이다.
 >
