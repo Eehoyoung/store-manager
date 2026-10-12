@@ -109,6 +109,8 @@ export interface DraftSummary {
   guardrailFlags: string[];
   /** SCHEDULED 일 때의 게시 예정 시각. 그 전까지 사장님이 취소할 수 있다. */
   scheduledAt: string | null;
+  /** 등록 게이트가 닫혀 게시가 미뤄지는 중(SCHEDULED + DATAAPI_WRITE_DISABLED). 예약 시각이 계속 밀리므로 시각 대신 대기 문구를 보인다. */
+  publishPaused: boolean;
 }
 
 /** GET /stores/{storeId}/reviews 항목(ReviewDtos.ReviewSummaryResponse). */

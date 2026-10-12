@@ -14,7 +14,7 @@ import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
 import { Button } from "../components/Button";
 import { useToast } from "../components/Toast";
-import { DRAFT_STATUS_META } from "../components/draftStatus";
+import { AI_UNAVAILABLE_FLAG, draftStatusMeta } from "../components/draftStatus";
 import {
   describeCategory,
   describeGeneratedBy,
@@ -247,7 +247,7 @@ export function ReviewsPage() {
 function ReviewCard({ review, onOpen }: { review: ReviewSummary; onOpen: () => void }) {
   const analysis = review.analysis;
   const highRisk = (analysis?.riskLevel ?? 0) >= HIGH_RISK_THRESHOLD;
-  const meta = review.draft ? DRAFT_STATUS_META[review.draft.status] : null;
+  const meta = review.draft ? draftStatusMeta(review.draft) : null;
   const generatedByLabel = describeGeneratedBy(review.draft?.generatedBy);
 
   return (
@@ -402,7 +402,7 @@ function ReviewDetailModal({
           ) : (
             <ul className="review-detail__drafts">
               {detail.drafts.map((d, idx) => {
-                const meta = DRAFT_STATUS_META[d.status];
+                const meta = draftStatusMeta(d);
                 const generatedByLabel = describeGeneratedBy(d.generatedBy);
                 // 이용 중지(결제 미비)로 게시가 막힌 초안 — 위험 사유가 아니라 결제 문제라 승인 패널과 다르게 다룬다.
                 // 서버(BillingService.isHeldReply)와 같은 기준: STORE_INACTIVE 단독일 때만 '보류 답글'이다.
@@ -418,11 +418,17 @@ function ReviewDetailModal({
                       {meta.label}
                     </Badge>
                     {generatedByLabel ? <Badge tone="info">{generatedByLabel}</Badge> : null}
+                    {d.status === "BLOCKED" && flags.includes(AI_UNAVAILABLE_FLAG) ? (
+                      <p className="queue-item__scheduled-notice" role="note">
+                        AI 답글 작성을 잠시 쓸 수 없어 자동으로 올리지 않았어요. 아래 문안은 임시라 그대로 올리지 마세요.
+                      </p>
+                    ) : null}
                     <p>{d.content}</p>
                     {isCancelable ? (
                       <CancelScheduledPanel
                         draftId={d.id}
                         scheduledAt={d.scheduledAt}
+                        paused={d.publishPaused}
                         onDone={() => {
                           reload();
                           onDraftChanged();
@@ -524,10 +530,12 @@ function HeldReplyPanel({ storeId, draftId, onDone }: { storeId: string; draftId
 function CancelScheduledPanel({
   draftId,
   scheduledAt,
+  paused,
   onDone,
 }: {
   draftId: string;
   scheduledAt: string | null;
+  paused: boolean;
   onDone: () => void;
 }) {
   const toast = useToast();
@@ -551,9 +559,11 @@ function CancelScheduledPanel({
   return (
     <div className="queue-item__scheduled-notice" role="group" aria-label="예약된 답글">
       <p>
-        {scheduledAt
-          ? `${new Date(scheduledAt).toLocaleString("ko-KR")}에 게시될 예정이에요.`
-          : "게시 예정이에요."}{" "}
+        {paused
+          ? "지금은 답글 게시가 잠시 멈춰 있어요. 다시 열리면 순서대로 올라가요."
+          : scheduledAt
+            ? `${new Date(scheduledAt).toLocaleString("ko-KR")}에 게시될 예정이에요.`
+            : "게시 예정이에요."}{" "}
         그 전까지는 멈추실 수 있어요.
       </p>
       {error ? <p className="field__error" role="alert">{error}</p> : null}
