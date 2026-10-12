@@ -25,14 +25,23 @@ public class AdminController {
     private final AdminFailureService failures;
     private final AuditLogRepository audits;
     private final AppUserRepository users;
+    private final ReadinessService readiness;
 
     public AdminController(FranchiseService franchises, AdminSubscriptionService subscriptions,
-            AdminFailureService failures, AuditLogRepository audits, AppUserRepository users) {
+            AdminFailureService failures, AuditLogRepository audits, AppUserRepository users,
+            ReadinessService readiness) {
+        this.readiness = readiness;
         this.franchises = franchises;
         this.subscriptions = subscriptions;
         this.failures = failures;
         this.audits = audits;
         this.users = users;
+    }
+
+    /** 출시 준비 점검. 값·비밀 없이 상태·시각·건수만. */
+    @GetMapping("/readiness")
+    public ReadinessService.Report readiness() {
+        return readiness.report();
     }
 
     @GetMapping("/me")

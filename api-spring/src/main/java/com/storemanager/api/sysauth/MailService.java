@@ -69,6 +69,15 @@ public class MailService {
         return send(toEmail, subject, body);
     }
 
+    /** 관리자 점검 요약 등 내부 안내. 계정이 없으면 조용히 false. */
+    public boolean sendAdminNotice(String toEmail, String subject, String body) {
+        return canSend() && send(toEmail, subject, body);
+    }
+
+    public boolean isConfigured() {
+        return canSend();
+    }
+
     private boolean canSend() {
         return !props.getUsername().isBlank() && !props.getPassword().isBlank();
     }
