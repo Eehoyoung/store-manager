@@ -409,7 +409,9 @@ function ReviewDetailModal({
                 const flags = d.guardrailFlags ?? [];
                 const isHeldForBilling = idx === 0 && d.status === "BLOCKED" && flags.length === 1 && flags[0] === "STORE_INACTIVE";
                 // drafts 는 재생성 이력 최신순이다 — 승인·거절은 가장 최근 초안(idx===0)에만 연다.
-                const isLatestBlocked = idx === 0 && d.status === "BLOCKED" && !isHeldForBilling;
+                // AI 작성 불가(AUTOMATION_MODEL_UNAVAILABLE)는 위험 리뷰가 아니고 승인도 열리지 않는다 — 위험 승인 패널을 띄우면 사유를 잘못 알린다.
+                const isAiUnavailable = d.status === "BLOCKED" && flags.includes(AI_UNAVAILABLE_FLAG);
+                const isLatestBlocked = idx === 0 && d.status === "BLOCKED" && !isHeldForBilling && !isAiUnavailable;
                 // 예약된 답글은 게시 전까지 멈출 수 있어야 한다 — 없으면 지연 시간이 지나면 그대로 나간다.
                 const isCancelable = idx === 0 && d.status === "SCHEDULED";
                 return (
@@ -418,7 +420,7 @@ function ReviewDetailModal({
                       {meta.label}
                     </Badge>
                     {generatedByLabel ? <Badge tone="info">{generatedByLabel}</Badge> : null}
-                    {d.status === "BLOCKED" && flags.includes(AI_UNAVAILABLE_FLAG) ? (
+                    {isAiUnavailable ? (
                       <p className="queue-item__scheduled-notice" role="note">
                         AI 답글 작성을 잠시 쓸 수 없어 자동으로 올리지 않았어요. 아래 문안은 임시라 그대로 올리지 마세요.
                       </p>
