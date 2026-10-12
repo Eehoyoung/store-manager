@@ -131,7 +131,9 @@ public class ReviewService {
         String[] flags = d.getGuardrailFlags();
         return new DraftSummaryResponse(d.getPublicId().toString(), d.getStatus(), d.getContent(),
                 d.getGeneratedBy(), flags == null ? List.of() : List.of(flags),
-                d.getScheduledAt() == null ? null : d.getScheduledAt().toString());
+                d.getScheduledAt() == null ? null : d.getScheduledAt().toString(),
+                // 등록 게이트가 닫혀 10분씩 미뤄지는 중(CollectResultService.handlePublishFail). 사장님 화면이 '게시 예정' 대신 '게시 대기'를 보인다.
+                "SCHEDULED".equals(d.getStatus()) && "DATAAPI_WRITE_DISABLED".equals(d.getFailReason()));
     }
 
     private static AnalysisResponse toAnalysisResponse(ReviewAnalysis a) {
