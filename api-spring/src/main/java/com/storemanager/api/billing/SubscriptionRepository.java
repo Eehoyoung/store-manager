@@ -13,6 +13,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     /** 매장당 CANCELED 가 아닌 구독은 최대 1건(uq_sub_store, docs/11 2.7장). */
     Optional<Subscription> findByStoreIdAndStatusNot(Long storeId, String status);
 
+    /** 상품 변경 전용 - 행을 잠가 읽는다(갱신의 조건부 UPDATE 잠금과 순서가 갈린다). */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Subscription s where s.storeId = :storeId and s.status <> 'CANCELED'")
+    Optional<Subscription> findActiveForUpdate(@Param("storeId") Long storeId);
+
+    /** 매장 기준 마지막 상품 변경 시각 - 해지 후 재가입(새 구독 행)이어도 월 1회가 이어진다. */
+    @Query("select max(s.planChangedAt) from Subscription s where s.storeId = :storeId")
+    Instant findLastPlanChangedAt(@Param("storeId") Long storeId);
+
     long countByPromotionCode(String promotionCode);
 
     /** 정기 갱신 스케줄러(B) 대상 — 결제예정일이 내일 이전인 구독. 실제 청구 여부는 서비스가 판정한다. */

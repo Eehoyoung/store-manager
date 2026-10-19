@@ -33,6 +33,9 @@ public enum ErrorCode {
     PAYMENT_DECLINED(HttpStatus.PAYMENT_REQUIRED, "결제가 승인되지 않았어요."),
     // 선택형 요금(D38): 고르지 않은 배달앱. 미납(402)과 구분한다 — 화면이 코드로 분기한다.
     PLATFORM_NOT_SELECTED(HttpStatus.FORBIDDEN, "이용 중인 상품에 포함되지 않은 배달앱이에요. 결제 화면에서 상품을 바꿔 주세요."),
+    // 선택형 요금(D38) 상품 변경. 사장님 노출 문구는 대표 승인 대상.
+    PLAN_CHANGE_LIMIT(HttpStatus.CONFLICT, "상품 변경은 한 달에 한 번만 할 수 있어요."),
+    PLAN_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "지금은 상품을 바꿀 수 없어요. 결제 상태를 먼저 확인해 주세요."),
     PAYMENT_PENDING(HttpStatus.BAD_GATEWAY, "결제 결과를 확인하지 못했어요. 잠시 후 결제 화면을 다시 확인해 주세요."),
     BILLING_BUSY(HttpStatus.CONFLICT, "결제를 처리하고 있어요. 잠시 후 다시 확인해 주세요."),
     BILLING_KEY_INVALID(HttpStatus.BAD_REQUEST, "이 매장에서 등록한 결제수단이 아니에요. 다시 등록해 주세요."),

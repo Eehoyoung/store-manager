@@ -125,6 +125,38 @@ public class Subscription {
         return activeDeliveryPlatforms == null ? 3 : Math.min(Math.max(activeDeliveryPlatforms.length, 1), 3);
     }
 
+    public static final java.util.List<String> DELIVERY_PLATFORMS = java.util.List.of("BAEMIN", "COUPANGEATS", "YOGIYO");
+
+    /** 지금 적용 중인 명단(null = 3개 상품 = 전부). */
+    public java.util.Set<String> effectivePlatforms() {
+        return activeDeliveryPlatforms == null ? new java.util.TreeSet<>(DELIVERY_PLATFORMS)
+                : new java.util.TreeSet<>(java.util.Arrays.asList(activeDeliveryPlatforms));
+    }
+
+    /** 다음 결제에 쓸 명단: 대기(pending)가 있으면 그것, 없으면 현재. */
+    public java.util.Set<String> nextPlatforms() {
+        return pendingDeliveryPlatforms == null ? effectivePlatforms()
+                : new java.util.TreeSet<>(java.util.Arrays.asList(pendingDeliveryPlatforms));
+    }
+
+    /**
+     * 상품 변경 예약(다음 결제부터 적용). pending 만 쓴다. 현재 명단과 같은 값이면 대기를 비운다(취소).
+     * 호출자가 월 1회·미납 검사를 끝낸 뒤 부른다.
+     */
+    public void reservePlan(java.util.Set<String> requested, Instant now) {
+        this.pendingDeliveryPlatforms = requested.equals(effectivePlatforms()) ? null
+                : requested.toArray(new String[0]);
+        this.planChangedAt = now;
+        this.updatedAt = now;
+    }
+
+    /** 새 명단을 현재 명단으로 확정하고 대기를 비운다. 승격(갱신 성공)·카드 등록 결제에서 쓴다. */
+    public void applyActivePlatforms(java.util.Set<String> platforms) {
+        this.activeDeliveryPlatforms = platforms.toArray(new String[0]);
+        this.pendingDeliveryPlatforms = null;
+        this.updatedAt = Instant.now();
+    }
+
     /** 결제예정일(D)이 지나도 D+2 23:59:59(KST)까지 서비스하고 D+3 00:00부터 막는다(소담한판과 동일). */
     public static final int GRACE_DAYS = 2;
     private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");

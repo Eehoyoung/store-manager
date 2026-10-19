@@ -1,5 +1,6 @@
 package com.storemanager.api.billing;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -30,10 +31,38 @@ final class BillingDtos {
             String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
             String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
             long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
-            int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount) {}
+            int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount,
+            @JsonInclude(JsonInclude.Include.NON_NULL) TieredPlanView tiered) {
 
+        /** 선택형 요금 필드가 없는 기존 형태(꺼짐). tiered 가 null 이라 JSON 에서 키가 빠진다. */
+        BillingView(boolean enabled, String portoneStoreId, String channelKey, CustomerInfo customer,
+                String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
+                String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
+                long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
+                int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount) {
+            this(enabled, portoneStoreId, channelKey, customer, serviceState, trialPending, trialDays, trialEndsAt,
+                    nextBillingAt, restrictedFrom, lastPaidAt, hasCard, autoRenew, renewalFailures, amountKrw,
+                    chargeNowKrw, consentVersion, payments, heldReplyCount, unitPriceKrw, brandPaidStoreCount, null);
+        }
+    }
+
+    /** 선택형 요금(D38) 현재/다음 결제 명단과 서버 산정 가격. 켜짐일 때만 응답에 나온다. */
+    record TieredPlanView(PlanPrice current, @JsonInclude(JsonInclude.Include.NON_NULL) PlanPrice next,
+            boolean changedThisMonth) {}
+
+    record PlanPrice(List<String> deliveryPlatforms, int supplyKrw, int vatKrw, int totalKrw) {}
+
+    /** PUT /stores/{storeId}/billing/plan 요청. 클라이언트가 보낸 금액은 받지 않는다. */
+    record PlanChangeRequest(List<String> deliveryPlatforms) {}
+
+    /** deliveryPlatforms: 선택형 요금 켜짐에서만 필수(꺼짐이면 무시). */
     record CheckoutRequest(@NotBlank @Size(max = 200) String billingKey, boolean billingConsentAgreed,
-            @NotBlank @Size(max = 20) String billingConsentVersion) {}
+            @NotBlank @Size(max = 20) String billingConsentVersion, List<String> deliveryPlatforms) {
+
+        CheckoutRequest(String billingKey, boolean billingConsentAgreed, String billingConsentVersion) {
+            this(billingKey, billingConsentAgreed, billingConsentVersion, null);
+        }
+    }
 
     record AutoRenewRequest(boolean on) {}
 

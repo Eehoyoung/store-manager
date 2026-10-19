@@ -154,7 +154,8 @@ class TieredPricingIT {
         when(portOne.billingKey("key-tiered")).thenReturn(info);
 
         BillingView view = billingService.checkout(owner.getPublicId(), store.getPublicId(),
-                new CheckoutRequest("key-tiered", true, agreements.currentVersion()), "127.0.0.1", "junit");
+                new CheckoutRequest("key-tiered", true, agreements.currentVersion(), List.of("YOGIYO")), // D43A: 켜짐이면 선택 필수
+                "127.0.0.1", "junit");
 
         ArgumentCaptor<Long> amount = ArgumentCaptor.forClass(Long.class);
         Mockito.verify(portOne).pay(anyString(), anyString(), anyString(), amount.capture(), anyMap());

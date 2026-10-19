@@ -11,4 +11,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     /** 이중청구 방지 — 같은 paymentId(pgTxId)로 다시 부르면 기존 PENDING 행을 재사용한다. */
     Optional<Payment> findByPgTxId(String pgTxId);
+
+    /** 결과를 모르는(PENDING) 결제가 있는지 - 있으면 상품 변경을 막는다. */
+    boolean existsBySubscriptionIdAndStatus(Long subscriptionId, String status);
 }
