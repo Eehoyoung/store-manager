@@ -70,6 +70,10 @@ public class PlatformAccountService {
         if (!serviceGate.isSubscriptionServiceable(store.getId())) {
             throw new ApiException(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED);
         }
+        // ★ 선택형 요금(D38): 고르지 않은 배달앱은 자격증명을 저장하기 전에 거절한다. 기존 연결은 건드리지 않는다.
+        if (!serviceGate.isPlatformSelected(store.getId(), platform)) {
+            throw new ApiException(ErrorCode.PLATFORM_NOT_SELECTED);
+        }
 
         PlatformAccount account = credentialService.save(owner.getId(), platform, loginId, request.password(),
                 store.getId());
