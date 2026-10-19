@@ -81,6 +81,11 @@ app:
     bank-name: ${BILLING_BANK_NAME:}
     account-no: ${BILLING_ACCOUNT_NO:}
     account-holder: ${BILLING_ACCOUNT_HOLDER:}
+  pricing:
+    tiered:
+      # 선택형 요금(플랫폼 수별 상품). 기본 false - 정확히 "true" 문자열일 때만 켜진다(DATAAPI_WRITE_ENABLED 와 같은 규칙).
+      # 켜면 약관 새 버전(2026-11-01 자리표시자)이 제공된다.
+      enabled: ${TIERED_PRICING_ENABLED:false}
   promotion:
     # 가입 시 쿠폰번호를 넣으면 30일 무료체험(TRIAL + promotion_code)이 열린다(2026-09-28).
     # ★ 비공개 코드다. 저장소에 적지 말고 env 로만 준다. 비면 어떤 코드도 받지 않는다.

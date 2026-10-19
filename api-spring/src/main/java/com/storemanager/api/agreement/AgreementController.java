@@ -61,7 +61,7 @@ public class AgreementController {
                     "(선택) 가맹본부에 개별 리뷰 원문이 제공되는 것에 동의합니다",
                     "/api/v1/agreements/documents/hq-review-sharing"));
         }
-        return new AgreementCatalog(AgreementService.CURRENT_VERSION, items);
+        return new AgreementCatalog(service.currentVersion(), items);
     }
 
     @GetMapping("/documents/terms")
@@ -156,9 +156,9 @@ public class AgreementController {
     public record ReviewSharingRequest(boolean agreed) {}
 
     private AgreementDocument document(String name) {
-        try (var in = new ClassPathResource("agreements/" + AgreementService.CURRENT_VERSION + "/" + name + ".md")
+        try (var in = new ClassPathResource("agreements/" + service.currentVersion() + "/" + name + ".md")
                 .getInputStream()) {
-            return new AgreementDocument(AgreementService.CURRENT_VERSION,
+            return new AgreementDocument(service.currentVersion(),
                     new String(in.readAllBytes(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);

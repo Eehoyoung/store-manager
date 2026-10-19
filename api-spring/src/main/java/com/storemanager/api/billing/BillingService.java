@@ -510,7 +510,7 @@ public class BillingService {
                 subOpt.map(s -> s.getBillingKey() != null).orElse(false),
                 subOpt.map(Subscription::isAutoRenew).orElse(false),
                 subOpt.map(Subscription::getRenewalFailures).orElse(0),
-                total, chargeNow, AgreementService.CURRENT_VERSION, items, heldReplies(store.getId()).size(),
+                total, chargeNow, agreementService.currentVersion(), items, heldReplies(store.getId()).size(),
                 unit, brandPaidStoreCount);
     }
 
