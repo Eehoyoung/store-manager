@@ -120,6 +120,11 @@ public class Subscription {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    /** 선택한 배달앱 수. 명단이 없으면(null, 기존 행·체험 중 미선택) 3개다. */
+    public int selectedDeliveryCount() {
+        return activeDeliveryPlatforms == null ? 3 : Math.min(Math.max(activeDeliveryPlatforms.length, 1), 3);
+    }
+
     /** 결제예정일(D)이 지나도 D+2 23:59:59(KST)까지 서비스하고 D+3 00:00부터 막는다(소담한판과 동일). */
     public static final int GRACE_DAYS = 2;
     private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");

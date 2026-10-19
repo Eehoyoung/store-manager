@@ -202,10 +202,10 @@ public class BillingService {
             Instant periodStart = grace ? sub.getNextBillingAt() : now;
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
             // ★ 청구 대상 월: 유예 중 재결제는 원래 결제예정일의 연월, 그 외(신규 청구)는 오늘의 연월.
-            int unit = brandPricingService.unitPriceFor(store, YearMonth.from(periodStart.atZone(KST)));
+            PriceQuote quote = brandPricingService.quoteFor(store, YearMonth.from(periodStart.atZone(KST)), sub);
             String paymentId = "sub-" + store.getId() + "-" + randomToken();
             PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", req.billingKey(),
-                    customer(store, owner), unit, PricingTier.vat(unit));
+                    customer(store, owner), quote.supply(), quote.vat());
             if (charge.outcome() == PortOneClient.Outcome.DECLINED) {
                 discardRejectedKey(oldKey, req.billingKey());
                 throw new ApiException(ErrorCode.PAYMENT_DECLINED, Map.of("reason", charge.reason()));
@@ -350,9 +350,10 @@ public class BillingService {
             AppUser owner = users.findById(store.getOwnerId()).orElse(null);
             Map<String, Object> customer = owner == null ? Map.of("id", customerId(store)) : customer(store, owner);
             // ★ 정기 갱신은 결제예정일(nextBillingAt)의 KST 연월 단가를 쓴다.
-            int unit = brandPricingService.unitPriceFor(store, YearMonth.from(sub.getNextBillingAt().atZone(KST)));
+            PriceQuote quote = brandPricingService.quoteFor(store, YearMonth.from(sub.getNextBillingAt().atZone(KST)),
+                    sub);
             PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", sub.getBillingKey(), customer,
-                    unit, PricingTier.vat(unit));
+                    quote.supply(), quote.vat());
             Instant periodStart = sub.getNextBillingAt();
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
             switch (charge.outcome()) {
@@ -487,8 +488,9 @@ public class BillingService {
         YearMonth chargeMonth = scheduled && subOpt.get().getNextBillingAt() != null
                 ? YearMonth.from(subOpt.get().getNextBillingAt().atZone(KST))
                 : YearMonth.from(now.atZone(KST));
-        int unit = brandPricingService.unitPriceFor(store, chargeMonth);
-        long total = PricingTier.total(unit);
+        PriceQuote quote = brandPricingService.quoteFor(store, chargeMonth, subOpt.orElse(null));
+        int unit = quote.supply();
+        long total = quote.total();
         long chargeNow = trialPending || "TRIAL".equals(state) || "ACTIVE".equals(state) ? 0L : total;
         Integer brandPaidStoreCount = store.getBrandName() == null ? null
                 : brandPricingService.paidStoreCount(store.getBrandName());

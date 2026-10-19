@@ -1,5 +1,6 @@
 package com.storemanager.api.billing;
 
+import com.storemanager.api.agreement.TieredPricingFlag;
 import com.storemanager.api.billing.PricingDtos.AdminBrandPricingRow;
 import com.storemanager.api.billing.PricingDtos.MonthPrice;
 import com.storemanager.api.franchise.FranchiseBrand;
@@ -46,11 +47,13 @@ public class BrandPricingService {
     private final AppUserRepository users;
     private final MailService mail;
     private final String publicOrigin;
+    private final TieredPricingFlag tieredPricing;
 
     public BrandPricingService(FranchiseBrandRepository brands, StoreRepository stores,
             SubscriptionRepository subscriptions, BrandMonthlyPriceRepository monthlyPrices,
             FranchiseHqMemberRepository hqMembers, AppUserRepository users, MailService mail,
-            @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin) {
+            @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin,
+            TieredPricingFlag tieredPricing) {
         this.brands = brands;
         this.stores = stores;
         this.subscriptions = subscriptions;
@@ -59,11 +62,32 @@ public class BrandPricingService {
         this.users = users;
         this.mail = mail;
         this.publicOrigin = publicOrigin;
+        this.tieredPricing = tieredPricing;
     }
 
     // ── 매장 1건의 청구 단가 ─────────────────────────────────────────────
 
-    /** 결제 대상 월의 매장 단가(부가세 별도). 브랜드가 없으면 기본 단가. */
+    /**
+     * 결제 대상 월의 청구 금액 정본(공급가, VAT, 합계). 청구·화면·사전고지는 전부 여기서 받는다.
+     *
+     * <p>꺼짐(TIERED_PRICING_ENABLED)이면 예전 경로 그대로다. 켜짐이면 선택 수로 정한다 — 명단이 없으면(null)
+     * 3개. 가맹 브랜드 매장은 3개일 때만 구간 단가({@link #unitPriceFor})를 쓰고, 1·2개면 일반가
+     * (25,000/29,000)이며 구간 할인이 없다. 브랜드 구간 산정 매장 수({@link #paidStoreCount})는 1·2개 매장도 센다.
+     *
+     * @param sub 구독 행. null 이면(아직 행이 없는 UNPAID) 3개로 본다.
+     */
+    public PriceQuote quoteFor(Store store, YearMonth month, Subscription sub) {
+        if (tieredPricing.enabled()) {
+            int count = sub == null ? 3 : sub.selectedDeliveryCount();
+            boolean franchise = store.getBrandName() != null && !store.getBrandName().isBlank();
+            if (count < 3 || !franchise) {
+                return PricingTier.tieredQuote(count);
+            }
+        }
+        return PriceQuote.ofSupply(unitPriceFor(store, month));
+    }
+
+    /** 결제 대상 월의 매장 단가(부가세 별도). 브랜드가 없으면 기본 단가. 선택형 요금은 {@link #quoteFor} 를 쓴다. */
     public int unitPriceFor(Store store, YearMonth month) {
         String brand = store.getBrandName();
         return brand == null || brand.isBlank() ? PricingTier.DEFAULT_UNIT_PRICE : unitPriceForBrand(brand, month);
@@ -195,7 +219,7 @@ public class BrandPricingService {
 
     private String body(BrandMonthlyPrice row) {
         YearMonth m = YearMonth.from(row.getBillingMonth());
-        int total = PricingTier.total(row.getUnitPrice());
+        int total = PriceQuote.ofSupply(row.getUnitPrice()).total();
         return m.getYear() + "년 " + m.getMonthValue() + "월부터 가맹 브랜드 구간 단가가 적용됩니다.\n\n"
                 + "- 매장당 월 이용료: " + String.format("%,d", row.getUnitPrice()) + "원(부가세 포함 "
                 + String.format("%,d", total) + "원)\n"
@@ -228,15 +252,15 @@ public class BrandPricingService {
         var row = monthlyPrices.findByBrandNameAndBillingMonth(brand, month.atDay(1));
         if (row.isPresent()) {
             BrandMonthlyPrice r = row.get();
-            return new MonthPrice(month.toString(), r.getUnitPrice(), PricingTier.total(r.getUnitPrice()),
+            return new MonthPrice(month.toString(), r.getUnitPrice(), PriceQuote.ofSupply(r.getUnitPrice()).total(),
                     r.getPaidStoreCount(), "SNAPSHOT", true);
         }
         if (isNext && currentPaid > 0) {
             int unit = PricingTier.monthlyPrice(currentPaid);
-            return new MonthPrice(month.toString(), unit, PricingTier.total(unit), currentPaid, "LIVE_ESTIMATE", false);
+            return new MonthPrice(month.toString(), unit, PriceQuote.ofSupply(unit).total(), currentPaid, "LIVE_ESTIMATE", false);
         }
         int unit = committed != null ? PricingTier.monthlyPrice(committed) : PricingTier.DEFAULT_UNIT_PRICE;
         String basis = committed != null ? "COMMITTED" : "DEFAULT";
-        return new MonthPrice(month.toString(), unit, PricingTier.total(unit), committed, basis, !isNext);
+        return new MonthPrice(month.toString(), unit, PriceQuote.ofSupply(unit).total(), committed, basis, !isNext);
     }
 }

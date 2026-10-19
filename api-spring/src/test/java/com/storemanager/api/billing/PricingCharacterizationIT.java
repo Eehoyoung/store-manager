@@ -212,6 +212,22 @@ class PricingCharacterizationIT {
         assertThat(p.getVatKrw()).isEqualByComparingTo("2700");
     }
 
+    // ── 꺼짐이면 저장된 선택 명단을 무시한다 ──────────────────────────────
+
+    @Test
+    void 꺼짐이면_명단이_저장돼_있어도_금액은_예전과_같다() throws Exception {
+        F plain = 매장("char-off-plain@example.com", null);
+        F b50 = 매장("char-off-b50@example.com", 브랜드(50));
+        for (F f : List.of(plain, b50)) {
+            subscriptions.save(Subscription.builder().storeId(f.store().getId()).priceKrw(new BigDecimal("30000"))
+                    .activeDeliveryPlatforms(new String[] {"BAEMIN"}).build());
+        }
+        assertThat(billingService.view(plain.owner().getPublicId(), plain.store().getPublicId()).amountKrw())
+                .isEqualTo(33000L);
+        assertThat(billingService.view(b50.owner().getPublicId(), b50.store().getPublicId()).amountKrw())
+                .isEqualTo(31900L);
+    }
+
     // ── 유료 전환 사전고지 메일 금액 ───────────────────────────────────
 
     @Test
