@@ -60,6 +60,8 @@ class PublishSchedulerTest {
                 new ObjectMapper(), serviceGate);
         // 일부 테스트는 게이트 이전에 반환하므로 lenient 로 둔다.
         org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
+        // 선택형 요금 플래그 꺼짐 운영 동작 재현 - 플랫폼 판정은 항상 통과(기존 테스트 기대값 불변).
+        org.mockito.Mockito.lenient().when(serviceGate.isPlatformSelected(any(), any())).thenReturn(true);
     }
 
     private ReplyDraft dueDraft(long id, long reviewId) {
@@ -228,5 +230,29 @@ class PublishSchedulerTest {
         scheduler.dispatchDuePublishJobs();
 
         verify(stringRedisTemplate, times(0)).opsForList();
+    }
+
+    @Test
+    void publishSchedulerSkipsUnselectedScheduled() {
+        ReplyDraft draft = dueDraft(8L, 16L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(16L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(16L).category("PRAISE").sentiment(0.9f)
+                        .riskLevel((short) 0).model("m").promptVersion("v1").build()));
+        // 플랫폼 게이트에서 끝나므로 연결 조회까지 가지 않는다(safeContext 는 쓰지 않는다).
+        when(unifiedReviewRepository.findById(16L)).thenReturn(Optional.of(UnifiedReview.builder()
+                .id(16L).storeId(100L).linkId(5L).platform("BAEMIN")
+                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build()));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(Store.builder().id(100L).ownerId(1L)
+                .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
+        when(serviceGate.isPlatformSelected(100L, "BAEMIN")).thenReturn(false);
+
+        scheduler.dispatchDuePublishJobs();
+
+        // STORE_INACTIVE 가 아니라 별도 표식 - 결제 회복 시 재개 대상(보류)에 섞이지 않는다.
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("PLATFORM_NOT_SELECTED");
+        verify(stringRedisTemplate, never()).opsForValue();
+        verify(auditLogRepository).save(any());
     }
 }

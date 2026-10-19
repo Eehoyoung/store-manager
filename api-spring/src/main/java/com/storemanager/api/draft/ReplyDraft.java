@@ -272,6 +272,16 @@ public class ReplyDraft {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * 이용 제한(STORE_INACTIVE)으로 보류돼 있던 초안인데 그 배달앱이 선택 상품에서 빠진 경우의 표식 교체.
+     * 결제가 회복돼도 재개·자동 재게시 대상이 아니다(선택형 요금).
+     */
+    public void markPlatformNotSelected() {
+        requireStatus("BLOCKED");
+        this.guardrailFlags = new String[] {"PLATFORM_NOT_SELECTED"};
+        this.updatedAt = Instant.now();
+    }
+
     /** 실 모델이 아닌 결과는 무인 게시할 수 없으므로 운영 화면에서 식별 가능한 BLOCKED로 남긴다. */
     public void blockForAutomationUnavailable() {
         requireStatus("DRAFT");

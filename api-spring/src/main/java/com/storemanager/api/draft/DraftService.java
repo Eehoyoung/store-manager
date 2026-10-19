@@ -131,6 +131,10 @@ public class DraftService {
         if (!serviceGate.isServiceable(store)) {
             throw new ApiException(ErrorCode.SUBSCRIPTION_INACTIVE);
         }
+        // ★ 선택하지 않은 배달앱의 리뷰도 LLM 비용이 든다. AI 호출 전에 막는다(선택형 요금, 플래그 꺼짐이면 통과).
+        if (!serviceGate.isPlatformSelected(store.getId(), review.getPlatform())) {
+            throw new ApiException(ErrorCode.PLATFORM_NOT_SELECTED);
+        }
         if (replyDraftRepository.existsByReviewIdAndStatusIn(reviewId, ACTIVE_REPLY_STATUSES)) {
             throw new ApiException(ErrorCode.INVALID_DRAFT_STATE,
                     Map.of("reviewId", reviewId, "reason", "ACTIVE_OR_COMPLETED_REPLY_EXISTS"));

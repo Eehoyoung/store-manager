@@ -77,6 +77,8 @@ class DraftServiceTest {
                 llmUsageLogRepository, auditLogRepository, notifier, new ObjectMapper(), serviceGate);
         // 기본은 서비스 가능. 게이트 자체는 아래 전용 테스트에서 확인한다.
         org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
+        // 선택형 요금 플래그 꺼짐 운영 동작 재현 - 플랫폼 판정은 항상 통과(기존 테스트 기대값 불변).
+        org.mockito.Mockito.lenient().when(serviceGate.isPlatformSelected(any(), any())).thenReturn(true);
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 
@@ -318,4 +320,25 @@ class DraftServiceTest {
         assertThat(saved.getGuardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
     }
 
+    @Test
+    void draftServiceBlockedBeforeAiCall() {
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(23L).publicId(reviewPublicId).storeId(100L).linkId(1L)
+                .platform("COUPANGEATS").platformReviewId("r-23").rating((short) 5).body("맛있어요")
+                .writtenAt(Instant.now()).collectedAt(Instant.now()).build();
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY").publishWindows("[]")
+                .personaSeed(1).build();
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+        when(serviceGate.isPlatformSelected(100L, "COUPANGEATS")).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> draftService.generateDrafts(ownerPublicId, reviewPublicId, null));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
+        org.mockito.Mockito.verifyNoInteractions(aiClient); // AI 호출 0회 = LLM 비용 0
+        org.mockito.Mockito.verify(replyDraftRepository, org.mockito.Mockito.never()).save(any());
+    }
 }
+

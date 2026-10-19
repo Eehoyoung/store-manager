@@ -122,6 +122,12 @@ public class PublishScheduler {
             auditBlocked(draft, "DRAFT_BLOCKED_STORE_INACTIVE");
             return;
         }
+        // ★ 선택하지 않은 배달앱은 STORE_INACTIVE(결제 회복 시 재개 대상)가 아니라 별도 표식으로 막는다.
+        if (!serviceGate.isPlatformSelected(draft.getStoreId(), review.getPlatform())) {
+            draft.blockForScheduling("PLATFORM_NOT_SELECTED");
+            auditBlocked(draft, "DRAFT_BLOCKED_PLATFORM_NOT_SELECTED");
+            return;
+        }
         StorePlatformLink link = storePlatformLinkRepository.findById(review.getLinkId()).orElse(null);
         if (link == null || !link.getStoreId().equals(draft.getStoreId())) {
             draft.blockForScheduling("PLATFORM_LINK_INVALID");

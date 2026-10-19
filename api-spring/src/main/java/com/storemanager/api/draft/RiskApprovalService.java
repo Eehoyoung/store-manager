@@ -190,6 +190,10 @@ public class RiskApprovalService {
     private UnifiedReview doApprove(Store store, ReplyDraft draft, Long approverId, String editedContent) {
         UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        // ★ 로그인 승인(approve)과 알림톡 링크 승인(approveForLink) 모두 여기를 지난다. 미선택 배달앱은 승인 불가.
+        if (!serviceGate.isPlatformSelected(store.getId(), review.getPlatform())) {
+            throw new ApiException(ErrorCode.PLATFORM_NOT_SELECTED);
+        }
         StorePersona persona = storePersonaRepository.findById(store.getId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
 

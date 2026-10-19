@@ -1,5 +1,6 @@
 package com.storemanager.api.draft;
 
+import com.storemanager.api.agreement.TieredPricingFlag;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.review.UnifiedReview;
 import com.storemanager.api.review.UnifiedReviewRepository;
@@ -55,13 +56,15 @@ public class DraftScheduler {
     private final StoreRepository storeRepository;
     private final AppUserRepository appUserRepository;
     private final DraftService draftService;
+    private final TieredPricingFlag tieredPricingFlag;
 
     public DraftScheduler(UnifiedReviewRepository unifiedReviewRepository, StoreRepository storeRepository,
-            AppUserRepository appUserRepository, DraftService draftService) {
+            AppUserRepository appUserRepository, DraftService draftService, TieredPricingFlag tieredPricingFlag) {
         this.unifiedReviewRepository = unifiedReviewRepository;
         this.storeRepository = storeRepository;
         this.appUserRepository = appUserRepository;
         this.draftService = draftService;
+        this.tieredPricingFlag = tieredPricingFlag;
     }
 
     /**
@@ -72,7 +75,7 @@ public class DraftScheduler {
     @Scheduled(fixedDelay = POLL_INTERVAL_MS)
     public void generatePendingDrafts() {
         List<UnifiedReview> pending = unifiedReviewRepository.findNeedingDraft(
-                java.time.Instant.now(), PageRequest.of(0, BATCH_SIZE));
+                java.time.Instant.now(), tieredPricingFlag.enabled(), PageRequest.of(0, BATCH_SIZE));
         if (pending.isEmpty()) {
             return;
         }

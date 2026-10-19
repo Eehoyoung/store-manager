@@ -1,6 +1,7 @@
 package com.storemanager.api.notify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.storemanager.api.agreement.TieredPricingFlag;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
@@ -37,11 +38,25 @@ public class DailyBriefingService {
     private final JdbcTemplate jdbcTemplate;
     private final Notifier notifier;
     private final ObjectMapper objectMapper;
+    private final TieredPricingFlag tieredPricingFlag;
 
-    public DailyBriefingService(JdbcTemplate jdbcTemplate, Notifier notifier, ObjectMapper objectMapper) {
+    public DailyBriefingService(JdbcTemplate jdbcTemplate, Notifier notifier, ObjectMapper objectMapper,
+            TieredPricingFlag tieredPricingFlag) {
         this.jdbcTemplate = jdbcTemplate;
         this.notifier = notifier;
         this.objectMapper = objectMapper;
+        this.tieredPricingFlag = tieredPricingFlag;
+    }
+
+    /**
+     * 선택형 요금 플랫폼 조건(SQL 복제). StoreServiceGate.isPlatformSelected 와 같아야 한다 - 함께 바꿀 것
+     * (UnifiedReviewRepository.findNeedingDraft 도 같은 조건). 자리표시 ? 하나는 플래그(꺼짐이면 항상 참).
+     */
+    private static String platformOk(String r) {
+        return "(? = false OR " + r + ".platform = 'NAVER' OR EXISTS (SELECT 1 FROM subscription psub"
+                + " WHERE psub.store_id = " + r + ".store_id AND psub.status <> 'CANCELED'"
+                + " AND (psub.active_delivery_platforms IS NULL"
+                + " OR " + r + ".platform = ANY(psub.active_delivery_platforms))))";
     }
 
     /** 한 매장의 하루치 요약. */
@@ -98,19 +113,23 @@ public class DailyBriefingService {
                        COALESCE(b.cnt, 0) AS needs_review
                   FROM store s
                   LEFT JOIN (
-                        SELECT store_id, COUNT(*) cnt FROM unified_review
-                         WHERE collected_at >= ?::timestamptz GROUP BY store_id
+                        SELECT r.store_id, COUNT(*) cnt FROM unified_review r
+                         WHERE r.collected_at >= ?::timestamptz AND {{R}} GROUP BY r.store_id
                   ) c ON c.store_id = s.id
                   LEFT JOIN (
-                        SELECT store_id, COUNT(*) cnt FROM reply_draft
-                         WHERE status IN ('PUBLISHED','SCHEDULED') AND updated_at >= ?::timestamptz
-                         GROUP BY store_id
+                        SELECT d.store_id, COUNT(*) cnt FROM reply_draft d
+                          JOIN unified_review r ON r.id = d.review_id
+                         WHERE d.status IN ('PUBLISHED','SCHEDULED') AND d.updated_at >= ?::timestamptz AND {{R}}
+                         GROUP BY d.store_id
                   ) p ON p.store_id = s.id
                   LEFT JOIN (
                         -- ★ 기간 필터 없음. 밀린 검수는 오늘의 일이다.
-                        SELECT store_id, COUNT(*) cnt FROM reply_draft
-                         WHERE status = 'BLOCKED' AND NOT ('HUMAN_REJECTED' = ANY(guardrail_flags))
-                         GROUP BY store_id
+                        -- ★ 미선택 플랫폼의 차단 건은 승인할 수 없으므로 '확인 필요' 에 세지 않는다.
+                        SELECT d.store_id, COUNT(*) cnt FROM reply_draft d
+                          JOIN unified_review r ON r.id = d.review_id
+                         WHERE d.status = 'BLOCKED' AND NOT ('HUMAN_REJECTED' = ANY(d.guardrail_flags))
+                           AND NOT ('PLATFORM_NOT_SELECTED' = ANY(d.guardrail_flags)) AND {{R}}
+                         GROUP BY d.store_id
                   ) b ON b.store_id = s.id
                  WHERE s.deleted_at IS NULL
                    AND s.activated_at IS NOT NULL
@@ -128,11 +147,12 @@ public class DailyBriefingService {
                          WHERE n.store_id = s.id AND n.template = ?
                            AND timezone('Asia/Seoul', n.sent_at)::date = ?::date)
                  ORDER BY s.id
-                """;
+                """.replace("{{R}}", platformOk("r"));
         String dayStart = today.atStartOfDay(KST).toOffsetDateTime().toString();
+        Boolean flag = tieredPricingFlag.enabled();
         return jdbcTemplate.query(sql, (rs, i) -> new Briefing(
                 rs.getLong("id"), rs.getLong("owner_id"), rs.getString("name"),
                 rs.getLong("collected"), rs.getLong("replied"), rs.getLong("needs_review")),
-                dayStart, dayStart, TEMPLATE, today.toString());
+                dayStart, flag, dayStart, flag, flag, TEMPLATE, today.toString());
     }
 }
