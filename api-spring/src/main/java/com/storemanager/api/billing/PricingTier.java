@@ -30,11 +30,22 @@ public final class PricingTier {
         return PRICES_KRW[PRICES_KRW.length - 1];
     }
 
-    public static int vat(int unitPriceKrw) {
+    /** 선택형 요금(VAT 포함, 2026-10-19): 배달앱 1개 25,000 / 2개 29,000 / 3개 33,000. */
+    public static PriceQuote tieredQuote(int platformCount) {
+        return switch (platformCount) {
+            case 1 -> PriceQuote.ofTotal(25000);
+            case 2 -> PriceQuote.ofTotal(29000);
+            case 3 -> PriceQuote.ofTotal(33000);
+            default -> throw new IllegalArgumentException("platformCount " + platformCount);
+        };
+    }
+
+    /** ★ {@link PriceQuote} 안에서만 쓴다. */
+    static int vat(int unitPriceKrw) {
         return unitPriceKrw / 10;
     }
 
-    public static int total(int unitPriceKrw) {
+    static int total(int unitPriceKrw) {
         return unitPriceKrw + vat(unitPriceKrw);
     }
 }

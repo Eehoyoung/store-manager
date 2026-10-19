@@ -97,7 +97,7 @@ public class TrialConversionNoticeService {
      */
     String body(Store store, Subscription sub) {
         String day = sub.getTrialEndsAt().atZone(KST).format(DATE);
-        int total = PricingTier.total(brandPricingService.unitPriceFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST))));
+        int total = brandPricingService.quoteFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST)), sub).total();
         return store.getName() + " 매장의 30일 무료체험이 " + day + "에 끝납니다.\n\n"
                 + "- 유료 전환일(첫 결제일): " + day + "\n"
                 + "- 결제 금액: 월 " + String.format("%,d", total) + "원(부가세 포함). "

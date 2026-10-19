@@ -100,6 +100,18 @@ public class Subscription {
     @Column(name = "renewal_failures", nullable = false)
     private int renewalFailures = 0;
 
+    /** 지금 적용 중인 배달앱 선택 명단(V50). null = 3개 상품(현재 의미). TIERED_PRICING_ENABLED 꺼짐이면 읽지 않는다. */
+    @Column(name = "active_delivery_platforms")
+    private String[] activeDeliveryPlatforms;
+
+    /** 다음 결제부터 적용될 명단(V50, PR5 에서 사용). null = 대기 없음. */
+    @Column(name = "pending_delivery_platforms")
+    private String[] pendingDeliveryPlatforms;
+
+    /** 마지막 상품 변경 요청 시각(V50, PR5 월 1회 판정용). */
+    @Column(name = "plan_changed_at")
+    private Instant planChangedAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -107,6 +119,11 @@ public class Subscription {
     @Builder.Default
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
+
+    /** 선택한 배달앱 수. 명단이 없으면(null, 기존 행·체험 중 미선택) 3개다. */
+    public int selectedDeliveryCount() {
+        return activeDeliveryPlatforms == null ? 3 : Math.min(Math.max(activeDeliveryPlatforms.length, 1), 3);
+    }
 
     /** 결제예정일(D)이 지나도 D+2 23:59:59(KST)까지 서비스하고 D+3 00:00부터 막는다(소담한판과 동일). */
     public static final int GRACE_DAYS = 2;
