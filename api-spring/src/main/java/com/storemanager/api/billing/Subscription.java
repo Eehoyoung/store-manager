@@ -100,6 +100,18 @@ public class Subscription {
     @Column(name = "renewal_failures", nullable = false)
     private int renewalFailures = 0;
 
+    /** 지금 적용 중인 배달앱 선택 명단(V50). null = 3개 상품(현재 의미). TIERED_PRICING_ENABLED 꺼짐이면 읽지 않는다. */
+    @Column(name = "active_delivery_platforms")
+    private String[] activeDeliveryPlatforms;
+
+    /** 다음 결제부터 적용될 명단(V50, PR5 에서 사용). null = 대기 없음. */
+    @Column(name = "pending_delivery_platforms")
+    private String[] pendingDeliveryPlatforms;
+
+    /** 마지막 상품 변경 요청 시각(V50, PR5 월 1회 판정용). */
+    @Column(name = "plan_changed_at")
+    private Instant planChangedAt;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
