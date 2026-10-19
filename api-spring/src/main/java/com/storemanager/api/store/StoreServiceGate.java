@@ -1,7 +1,10 @@
 package com.storemanager.api.store;
 
+import com.storemanager.api.agreement.TieredPricingFlag;
 import com.storemanager.api.billing.SubscriptionRepository;
 import java.time.Instant;
+import java.util.Arrays;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,10 +27,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class StoreServiceGate {
 
-    private final SubscriptionRepository subscriptionRepository;
+    private static final java.util.Set<String> DELIVERY_PLATFORMS = java.util.Set.of("BAEMIN", "COUPANGEATS", "YOGIYO");
 
+    private final SubscriptionRepository subscriptionRepository;
+    private final TieredPricingFlag tieredPricingFlag;
+
+    /** 기존 생성자 — 선택형 요금 플래그 꺼짐과 같다(플랫폼 판정은 항상 통과). */
     public StoreServiceGate(SubscriptionRepository subscriptionRepository) {
+        this(subscriptionRepository, new TieredPricingFlag("false"));
+    }
+
+    @Autowired
+    public StoreServiceGate(SubscriptionRepository subscriptionRepository, TieredPricingFlag tieredPricingFlag) {
         this.subscriptionRepository = subscriptionRepository;
+        this.tieredPricingFlag = tieredPricingFlag;
     }
 
     /** 매장 자체가 다뤄도 되는 상태인가(계약·삭제·정지). 비용 판단은 포함하지 않는다. */
@@ -49,5 +62,34 @@ public class StoreServiceGate {
     /** 수집·생성·게시가 물어야 할 질문. 계약과 구독을 모두 만족해야 한다. */
     public boolean isServiceable(Store store) {
         return isCredentialConsentActive(store) && isSubscriptionServiceable(store == null ? null : store.getId());
+    }
+
+    /**
+     * 배달 플랫폼 단위 질문 — 매장 판정에 더해, 그 플랫폼이 회원이 고른 상품 안에 있는가(선택형 요금 D38).
+     * 수집 적재·초안·승인·게시·보류 재개는 리뷰의 플랫폼을 아는 곳에서 이 오버로드를 쓴다.
+     */
+    public boolean isServiceable(Store store, String platform) {
+        return isServiceable(store) && isPlatformSelected(store.getId(), platform);
+    }
+
+    /**
+     * 판정 순서(고정, 계획서 4.2): 플래그 꺼짐 → 통과 / 정확히 NAVER → 통과(모든 상품 포함) /
+     * 배달 3사가 아니면(null·알 수 없음) 차단 / 선택 명단 null → 통과(3개 상품) / 명단에 포함 → 통과(fail-closed).
+     * 구독 행이 없으면 차단한다(매장 판정과 같은 fail-closed).
+     */
+    public boolean isPlatformSelected(Long storeId, String platform) {
+        if (!tieredPricingFlag.enabled()) {
+            return true;
+        }
+        if ("NAVER".equals(platform)) {
+            return true;
+        }
+        if (storeId == null || platform == null || !DELIVERY_PLATFORMS.contains(platform)) {
+            return false; // null·알 수 없는 플랫폼·소문자는 명단 유무와 관계없이 차단
+        }
+        return subscriptionRepository.findByStoreIdAndStatusNot(storeId, "CANCELED")
+                .map(sub -> sub.getActiveDeliveryPlatforms() == null
+                        || Arrays.asList(sub.getActiveDeliveryPlatforms()).contains(platform))
+                .orElse(false);
     }
 }

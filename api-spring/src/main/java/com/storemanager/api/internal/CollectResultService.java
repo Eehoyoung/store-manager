@@ -151,7 +151,8 @@ public class CollectResultService {
             }
 
             Store store = storeRepository.findById(link.getStoreId()).orElse(null);
-            if (!serviceGate.isServiceable(store)) {
+            // 선택형 요금(D38): 고르지 않은 배달앱 몫은 적재하지 않는다(같은 계정의 다른 매장은 그대로).
+            if (!serviceGate.isServiceable(store, req.platform())) {
                 // 자격증명 위탁 미동의 또는 구독 미활성 매장.
                 // ★ 여기서 막지 않으면 미납·해지 매장의 리뷰를 계속 적재하고, 그 뒤 생성 스케줄러가
                 //   LLM 비용까지 태운다. 이미 호출은 나갔으므로 적재만 건너뛴다.
@@ -339,7 +340,7 @@ public class CollectResultService {
             return null;
         }
         Store store = storeRepository.findById(account.getIntendedStoreId()).orElse(null);
-        if (!serviceGate.isServiceable(store) || !store.getOwnerId().equals(account.getOwnerId())) {
+        if (!serviceGate.isServiceable(store, platform) || !store.getOwnerId().equals(account.getOwnerId())) {
             return null;
         }
         boolean alreadyLinked = storePlatformLinkRepository.findByAccountIdOrderByCreatedAtAsc(requestAccountId)

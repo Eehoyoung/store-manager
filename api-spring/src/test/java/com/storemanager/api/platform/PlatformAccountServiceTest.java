@@ -121,6 +121,8 @@ class PlatformAccountServiceTest {
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
         when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
         when(serviceGate.isSubscriptionServiceable(2L)).thenReturn(true);
+        // 선택형 요금 게이트(D38) — 목은 기본 false 라 통과로 둔다(플래그 꺼짐 운영 동작과 같다).
+        when(serviceGate.isPlatformSelected(org.mockito.ArgumentMatchers.eq(2L), anyString())).thenReturn(true);
         when(credentialService.save(1L, "BAEMIN", "ownerid", "pw", 2L)).thenReturn(account);
         when(linkRepository.findByAccountIdOrderByCreatedAtAsc(3L)).thenReturn(java.util.List.of());
 
@@ -195,5 +197,28 @@ class PlatformAccountServiceTest {
         service.revoke(ownerPublicId, accountPublicId, "127.0.0.1", "test");
 
         verify(credentialService).revoke(account);
+    }
+
+    @Test
+    void registerUnselectedRejectedBeforeCredentialSave() {
+        // 선택형 요금(D38): 고르지 않은 배달앱은 자격증명을 암호화·저장하기 전에 거절한다.
+        UUID ownerPublicId = UUID.randomUUID();
+        AppUser owner = mock(AppUser.class);
+        when(owner.getId()).thenReturn(1L);
+        when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
+        UUID storePublicId = UUID.randomUUID();
+        Store store = Store.builder().id(10L).ownerId(1L).name("가게").build();
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(store));
+        when(serviceGate.isSubscriptionServiceable(10L)).thenReturn(true);
+        when(serviceGate.isPlatformSelected(10L, "YOGIYO")).thenReturn(false);
+
+        var request = new RegisterPlatformAccountRequest("YOGIYO", "yogi-id", "pw", storePublicId, true,
+                AgreementService.CURRENT_VERSION);
+
+        assertThatThrownBy(() -> service.register(ownerPublicId, request, null, null))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
+        verify(credentialService, never()).save(anyLong(), anyString(), anyString(), anyString(), any());
     }
 }
