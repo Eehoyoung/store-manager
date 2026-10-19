@@ -5,6 +5,7 @@ import com.storemanager.api.common.ErrorCode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,6 +19,8 @@ public class AgreementService {
      * 과거 동의가 가리키는 문서다.
      */
     public static final String CURRENT_VERSION = "2026-09-30";
+    /** 선택형 요금 약관 버전. 시행일 미정 - 대표가 정하면 디렉터리명·부칙 날짜와 함께 교체. 플래그가 켜진 때만 쓴다. */
+    public static final String TIERED_VERSION = "2026-11-01";
     public static final String TERMS = "TERMS_OF_SERVICE";
     public static final String PRIVACY = "PRIVACY_POLICY";
     public static final String HQ = "HQ_DATA_SHARING";
@@ -32,21 +35,34 @@ public class AgreementService {
     public static final String BILLING_AUTO_PAYMENT = "BILLING_AUTO_PAYMENT";
 
     private final UserAgreementRepository repository;
+    private final TieredPricingFlag tieredPricing;
 
+    /** 플래그 없이 만들면 꺼짐(현행 버전). */
     public AgreementService(UserAgreementRepository repository) {
+        this(repository, new TieredPricingFlag("false"));
+    }
+
+    @Autowired
+    public AgreementService(UserAgreementRepository repository, TieredPricingFlag tieredPricing) {
         this.repository = repository;
+        this.tieredPricing = tieredPricing;
+    }
+
+    /** 제공·검증·저장되는 약관 버전은 항상 이 접근자로만 읽는다(상수 직접 참조 금지 - 테스트가 막는다). */
+    public String currentVersion() {
+        return tieredPricing.enabled() ? TIERED_VERSION : CURRENT_VERSION;
     }
 
     public void requireCurrentVersion(String version) {
-        if (!CURRENT_VERSION.equals(version)) {
+        if (!currentVersion().equals(version)) {
             throw new ApiException(ErrorCode.CONSENT_VERSION_MISMATCH,
-                    Map.of("currentVersion", CURRENT_VERSION));
+                    Map.of("currentVersion", currentVersion()));
         }
     }
 
     public void record(Long userId, Long storeId, String code, boolean agreed, String ip, String userAgent) {
         repository.save(UserAgreement.builder()
-                .userId(userId).storeId(storeId).agreementCode(code).docVersion(CURRENT_VERSION)
+                .userId(userId).storeId(storeId).agreementCode(code).docVersion(currentVersion())
                 .agreed(agreed).agreedAt(Instant.now()).ip(toAddress(ip)).userAgent(trim(userAgent, 300)).build());
     }
 

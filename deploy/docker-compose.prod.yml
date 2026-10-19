@@ -143,6 +143,8 @@ services:
       BUSINESS_INFO_REQUIRED: ${BUSINESS_INFO_REQUIRED:-false}
       # 카카오 알림톡(솔라피). ★ ALIMTALK_ENABLED 기본 false — 알림톡은 되돌릴 수 없다.
       ALIMTALK_ENABLED: ${ALIMTALK_ENABLED:-false}
+      # 선택형 요금(약관 새 버전 포함). ★ 기본 false — 정확히 "true" 일 때만 켜진다.
+      TIERED_PRICING_ENABLED: ${TIERED_PRICING_ENABLED:-false}
       SOLAPI_API_KEY: ${SOLAPI_API_KEY:-}
       SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
       SOLAPI_PF_ID: ${SOLAPI_PF_ID:-}

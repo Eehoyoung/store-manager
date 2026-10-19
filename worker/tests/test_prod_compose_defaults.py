@@ -35,6 +35,7 @@ LOCKED = {
     "RETENTION_SCHEDULER_ENABLED": "true",
     "CREDENTIAL_REQUIRE_KMS": "false",
     "GOLDENSET_EVAL_ENABLED": "false",
+    "TIERED_PRICING_ENABLED": "false",
 }
 
 
