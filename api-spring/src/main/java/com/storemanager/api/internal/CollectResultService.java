@@ -68,7 +68,7 @@ public class CollectResultService {
     // ★ DATAAPI_WRITE_DISABLED 는 여기 없다 — 그건 리뷰나 답글 문제가 아니라 우리 운영 스위치다.
     //   BLOCKED 로 종결하면 재생성 대상에서도 빠져 초안이 영구 사망한다. 스위치를 켜면 다시 나가야 한다.
     private static final Set<String> NON_RETRYABLE_PUBLISH_GUARDS = Set.of(
-            RISK_LEVEL_TOO_HIGH_REASON, "STORE_INACTIVE");
+            RISK_LEVEL_TOO_HIGH_REASON, "STORE_INACTIVE", "PLATFORM_NOT_SELECTED");
 
     private final StorePlatformLinkRepository storePlatformLinkRepository;
     private final StoreRepository storeRepository;

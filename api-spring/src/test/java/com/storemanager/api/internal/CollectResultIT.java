@@ -444,6 +444,20 @@ class CollectResultIT {
     }
 
     @Test
+    void publishFailPlatformNotSelectedIsBlockedNotRetried() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-pns@example.com", "rv-pub-pns");
+
+        // 워커가 Redis 차단 키를 보고 게시 직전에 거절한 경우 - 재시도하지 않고 별도 표식으로 종결한다.
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", null, null, "PLATFORM_NOT_SELECTED"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("BLOCKED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 0);
+        assertThat(after.getFailCode()).isEqualTo("PLATFORM_NOT_SELECTED");
+        assertThat(after.getGuardrailFlags()).containsExactly("PLATFORM_NOT_SELECTED");
+    }
+
+    @Test
     void 위험도차단은_재시도하지_않고_BLOCKED_로_종결된다() throws Exception {
         게시픽스처 f = 게시대기_초안을_만든다("pub4@example.com", "rv-pub-4");
 

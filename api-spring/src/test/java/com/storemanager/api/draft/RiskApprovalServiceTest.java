@@ -77,6 +77,8 @@ class RiskApprovalServiceTest {
         when(unifiedReviewRepository.findById(10L)).thenReturn(Optional.of(review));
         when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
         when(serviceGate.isServiceable(store)).thenReturn(true);
+        // 선택형 요금 플래그 꺼짐 운영 동작 재현 - 플랫폼 판정은 항상 통과(기존 테스트 기대값 불변).
+        org.mockito.Mockito.lenient().when(serviceGate.isPlatformSelected(any(), any())).thenReturn(true);
         when(reviewAnalysisRepository.findById(10L)).thenReturn(Optional.of(
                 ReviewAnalysis.builder().reviewId(10L).category("COMPLAINT").sentiment(-1f)
                         .riskLevel((short) 3).model("claude-opus-5").promptVersion("v1.5").build()));
@@ -284,5 +286,24 @@ class RiskApprovalServiceTest {
 
         assertThatThrownBy(() -> service.cancelScheduled(ownerPublicId, draftPublicId))
                 .isInstanceOf(ApiException.class);
+    }
+
+    // ── 선택형 요금: 미선택 배달앱은 두 진입점 모두 승인 불가 ───────────────
+
+    @Test
+    void riskApprovalBothPathsBlocked() {
+        ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
+        when(serviceGate.isPlatformSelected(100L, "BAEMIN")).thenReturn(false);
+        Store store = storeRepository.findById(100L).orElseThrow();
+
+        ApiException loginPath = assertThrows(ApiException.class,
+                () -> service.approve(ownerPublicId, draftPublicId, true, null));
+        ApiException linkPath = assertThrows(ApiException.class,
+                () -> service.approveForLink(store, d, true, null));
+
+        assertThat(loginPath.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
+        assertThat(linkPath.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+        assertThat(d.isHumanApproved()).isFalse();
     }
 }

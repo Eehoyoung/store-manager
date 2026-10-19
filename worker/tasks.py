@@ -465,6 +465,10 @@ def _run_publish_job(payload, rc, client, account_loader, sleep, now, rand, leas
             return publish.blocked_result(payload, "STORE_INACTIVE")
         if os.environ.get(WRITE_ENABLED_ENV, "false").lower() != "true":
             return publish.blocked_result(payload, "DATAAPI_WRITE_DISABLED")
+        # 선택형 요금: Spring 이 하향 시 쓴 차단 키. 조회 예외는 아래 except 로 가
+        # INTERNAL_ERROR 보고(게시 안 함, fail-closed) — 스로틀 등 다른 Redis 의존과 같은 관례.
+        if rc.get(f"publish:blocked:draft:{payload['draftId']}"):
+            return publish.blocked_result(payload, "PLATFORM_NOT_SELECTED")
         account = account_loader(str(payload["accountId"]))
         publish.throttle(rc, str(payload["accountId"]), PUBLISH_RATE_LIMIT_SECONDS,
                          PUBLISH_JITTER_MAX_SECONDS, sleep, now, rand)

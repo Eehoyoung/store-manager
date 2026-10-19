@@ -34,23 +34,40 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
      *   조건은 Subscription.isServiceableAt 과 같아야 한다 - 함께 바꿀 것(자동결제 전환, 2026-09-29).
      *   ★ :now 를 바인딩한다. CLAUDE.md 의 JPQL 함정은 `(:param IS NULL OR ...)` 패턴이라
      *     여기(단순 비교)는 해당하지 않지만, 스케줄러 호출부와 같은 시각을 쓰도록 파라미터로 받는다.
+     * ★ 선택형 요금의 배열 포함 조건(active_delivery_platforms)은 JPQL 에서 안정적으로 표현되지 않아(array_contains 가
+     *   text[] @> varchar 로 풀려 실패) 네이티브로 쓴다. Pageable 은 LIMIT/OFFSET 으로 적용된다.
      */
-    @Query("""
-            SELECT r FROM UnifiedReview r
-             WHERE r.hasOwnerReply = false
-               AND NOT EXISTS (SELECT 1 FROM ReplyDraft d
-                                WHERE d.reviewId = r.id AND d.status <> 'FAILED')
-               AND (SELECT COUNT(f) FROM ReplyDraft f WHERE f.reviewId = r.id) < 3
-               AND EXISTS (SELECT 1 FROM Store s
-                            WHERE s.id = r.storeId AND s.deletedAt IS NULL AND s.activatedAt IS NOT NULL)
-               AND EXISTS (SELECT 1 FROM StorePersona p WHERE p.storeId = r.storeId)
-               AND EXISTS (SELECT 1 FROM Subscription sub
-                            WHERE sub.storeId = r.storeId
+    @Query(value = """
+            SELECT r.* FROM unified_review r
+             WHERE r.has_owner_reply = false
+               AND NOT EXISTS (SELECT 1 FROM reply_draft d
+                                WHERE d.review_id = r.id AND d.status <> 'FAILED')
+               AND (SELECT COUNT(*) FROM reply_draft f WHERE f.review_id = r.id) < 3
+               AND EXISTS (SELECT 1 FROM store s
+                            WHERE s.id = r.store_id AND s.deleted_at IS NULL AND s.activated_at IS NOT NULL)
+               AND EXISTS (SELECT 1 FROM store_persona p WHERE p.store_id = r.store_id)
+               AND EXISTS (SELECT 1 FROM subscription sub
+                            WHERE sub.store_id = r.store_id
                               AND sub.status NOT IN ('SUSPENDED', 'CANCELED')
-                              AND sub.serviceUntil > :now)
-             ORDER BY r.collectedAt ASC
-            """)
-    List<UnifiedReview> findNeedingDraft(@Param("now") java.time.Instant now, Pageable pageable);
+                              AND sub.service_until > :now)
+               AND (:tiered = false OR r.platform = 'NAVER'
+                    OR EXISTS (SELECT 1 FROM subscription psub
+                                WHERE psub.store_id = r.store_id AND psub.status <> 'CANCELED'
+                                  AND (psub.active_delivery_platforms IS NULL
+                                       OR r.platform = ANY(psub.active_delivery_platforms))))
+             ORDER BY r.collected_at ASC
+            """, nativeQuery = true)
+    List<UnifiedReview> findNeedingDraft(@Param("now") java.time.Instant now, @Param("tiered") boolean tiered,
+            Pageable pageable);
+
+    /**
+     * 선택형 요금 플랫폼 조건(위 마지막 AND)은 StoreServiceGate.isPlatformSelected 및 DailyBriefingService 의
+     * SQL 복제와 같아야 한다 - 함께 바꿀 것. tiered=false(기능 플래그 꺼짐)면 그 조건은 항상 참이다.
+     * 이 2-인자 형태는 플래그 꺼짐과 같다(기존 호출·테스트 호환).
+     */
+    default List<UnifiedReview> findNeedingDraft(java.time.Instant now, Pageable pageable) {
+        return findNeedingDraft(now, false, pageable);
+    }
 
     /**
      * 보유기간이 지난 리뷰 id 를 파기 예정일 오름차순으로 최대 batchSize 건 뽑는다 (DataRetentionScheduler).

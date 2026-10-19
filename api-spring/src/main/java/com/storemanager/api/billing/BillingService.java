@@ -14,6 +14,8 @@ import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.draft.ReplyDraft;
 import com.storemanager.api.draft.ReplyDraftRepository;
+import com.storemanager.api.review.UnifiedReview;
+import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.store.StoreServiceGate;
@@ -78,6 +80,7 @@ public class BillingService {
     private final EntityManager entityManager;
     private final TransactionTemplate writes;
     private final ReplyDraftRepository replyDrafts;
+    private final UnifiedReviewRepository unifiedReviews;
     private final AuditLogRepository auditLogs;
     private final StoreServiceGate serviceGate;
     private final BrandPricingService brandPricingService;
@@ -92,7 +95,8 @@ public class BillingService {
             PaymentRepository payments, StoreRepository stores, AppUserRepository users,
             AgreementService agreementService, EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            ReplyDraftRepository replyDrafts, AuditLogRepository auditLogs, StoreServiceGate serviceGate,
+            ReplyDraftRepository replyDrafts, UnifiedReviewRepository unifiedReviews, AuditLogRepository auditLogs,
+            StoreServiceGate serviceGate,
             BrandPricingService brandPricingService,
             @Value("${app.promotion.code:}") String promotionCode,
             @Value("${app.promotion.limit:30}") int promotionLimit) {
@@ -105,6 +109,7 @@ public class BillingService {
         this.entityManager = entityManager;
         this.writes = new TransactionTemplate(transactionManager);
         this.replyDrafts = replyDrafts;
+        this.unifiedReviews = unifiedReviews;
         this.auditLogs = auditLogs;
         this.serviceGate = serviceGate;
         this.brandPricingService = brandPricingService;
@@ -269,7 +274,7 @@ public class BillingService {
         if (!serviceGate.isServiceable(store)) {
             throw new ApiException(ErrorCode.SUBSCRIPTION_PAYMENT_REQUIRED);
         }
-        List<ReplyDraft> held = heldReplies(store.getId());
+        List<ReplyDraft> held = heldRepliesRaw(store.getId());
         List<ReplyDraft> targets = held;
         if (draftIds != null && !draftIds.isEmpty()) {
             Map<UUID, ReplyDraft> byPublicId = held.stream().collect(Collectors.toMap(ReplyDraft::getPublicId, d -> d));
@@ -283,20 +288,50 @@ public class BillingService {
                 targets.add(d);
             }
         }
+        Map<Long, String> platformByReview = platformsByReviewId(targets);
+        int resumed = 0;
         for (ReplyDraft d : targets) {
+            // ★ 선택하지 않은 배달앱의 보류 답글은 되살리지 않는다. 결제가 회복돼도 PublishScheduler 가
+            //   다시 막을 것이므로 여기서 별도 표식으로 옮겨 '보류' 목록·건수에서 빼 둔다(플래그 꺼짐이면 항상 선택됨).
+            if (!serviceGate.isPlatformSelected(store.getId(), platformByReview.get(d.getReviewId()))) {
+                d.markPlatformNotSelected();
+                replyDrafts.save(d);
+                auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
+                        .action("DRAFT_RESUME_SKIPPED_PLATFORM_NOT_SELECTED").targetType("REPLY_DRAFT")
+                        .targetId(d.getId()).build());
+                continue;
+            }
             d.resumeAfterReactivation(owner.getId());
             replyDrafts.save(d);
             auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
                     .action("DRAFT_RESUMED_BY_OWNER").targetType("REPLY_DRAFT").targetId(d.getId()).build());
+            resumed++;
         }
-        return new HeldReplyResumeResponse(targets.size(), view(owner, store));
+        return new HeldReplyResumeResponse(resumed, view(owner, store));
     }
 
-    /** BLOCKED 이고 STORE_INACTIVE 단독으로 막힌 답글만 '보류 답글' 이다. */
-    private List<ReplyDraft> heldReplies(Long storeId) {
+    /** BLOCKED 이고 STORE_INACTIVE 단독으로 막힌 답글 전부(플랫폼 선택 여부 무관). */
+    private List<ReplyDraft> heldRepliesRaw(Long storeId) {
         return replyDrafts.findByStoreIdAndStatus(storeId, "BLOCKED").stream()
                 .filter(BillingService::isHeldReply)
                 .toList();
+    }
+
+    /** 사장님에게 보이는 '보류 답글' - 선택하지 않은 배달앱의 것은 뺀다(PLATFORM_NOT_SELECTED 와 섞이지 않게). */
+    private List<ReplyDraft> heldReplies(Long storeId) {
+        List<ReplyDraft> raw = heldRepliesRaw(storeId);
+        Map<Long, String> platformByReview = platformsByReviewId(raw);
+        return raw.stream()
+                .filter(d -> serviceGate.isPlatformSelected(storeId, platformByReview.get(d.getReviewId())))
+                .toList();
+    }
+
+    private Map<Long, String> platformsByReviewId(List<ReplyDraft> drafts) {
+        if (drafts.isEmpty()) {
+            return Map.of();
+        }
+        return unifiedReviews.findAllById(drafts.stream().map(ReplyDraft::getReviewId).distinct().toList()).stream()
+                .collect(Collectors.toMap(UnifiedReview::getId, UnifiedReview::getPlatform));
     }
 
     private static boolean isHeldReply(ReplyDraft d) {
