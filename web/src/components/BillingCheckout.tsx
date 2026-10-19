@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card } from "./Card";
 import { Button } from "./Button";
+import { PlanPicker } from "./PlanPicker";
 import { billingApi, billingErrorMessage, type BillingResponse } from "../api/billing";
+import { EMPTY_SELECTION, PLAN_PRICE_KRW, canCheckout, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
 
 interface BillingCheckoutProps {
   storeId: string;
@@ -11,6 +13,14 @@ interface BillingCheckoutProps {
 
 function consentKey(storeId: string) {
   return `billing-consent:${storeId}`;
+}
+
+/**
+ * 선택형 요금(서버가 tiered 를 내려줄 때만)에서 새로 카드를 등록하는 경우에만 상품을 고른다.
+ * 이미 카드가 있는 교체는 현재 명단을 그대로 보낸다(상품 변경은 결제관리의 별도 흐름).
+ */
+function needsPicker(billing: BillingResponse): boolean {
+  return !!billing.tiered && (!billing.hasCard || billing.serviceState === "UNPAID");
 }
 
 function krw(amount: number): string {
@@ -27,10 +37,11 @@ function addDays(days: number): Date {
   return d;
 }
 
-/** 상태별 청구 시점 안내 — 카드를 등록하면 정확히 언제·얼마가 결제되는지 먼저 말한다. */
-function stateNotice(billing: BillingResponse): string {
+/** 상태별 청구 시점 안내 — 카드를 등록하면 정확히 언제·얼마가 결제되는지 먼저 말한다. amount 가 null 이면 금액을 말하지 않는다. */
+function stateNotice(billing: BillingResponse, amount: number | null): string {
   if (billing.trialPending) {
-    return `카드를 등록하면 오늘부터 ${billing.trialDays}일 무료체험이 시작되고, 체험이 끝나는 날 ${krw(billing.amountKrw)}이 결제돼요. 체험 중에는 요금이 청구되지 않아요.`;
+    const when = amount === null ? "체험이 끝나는 날 월 이용료가" : `체험이 끝나는 날 ${krw(amount)}이`;
+    return `카드를 등록하면 오늘부터 ${billing.trialDays}일 무료체험이 시작되고, ${when} 결제돼요. 체험 중에는 요금이 청구되지 않아요.`;
   }
   if (billing.serviceState === "GRACE") {
     const lastDay = billing.restrictedFrom
@@ -38,6 +49,7 @@ function stateNotice(billing: BillingResponse): string {
       : "곧";
     return `결제가 확인되지 않았어요. 결제하지 않으면 ${lastDay}까지만 이용할 수 있어요.`;
   }
+  if (billing.tiered) return amount === null ? "카드를 등록하면 바로 시작돼요." : `지금 ${krw(amount)} 결제 후 바로 시작돼요.`;
   return `지금 ${krw(billing.chargeNowKrw)} 결제 후 바로 시작돼요.`;
 }
 
@@ -51,6 +63,19 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const pick = needsPicker(billing);
+  // 아무것도 미리 고르지 않는다.
+  const [selection, setSelection] = useState<PlanSelection>(EMPTY_SELECTION);
+  const platforms = billing.tiered ? (pick ? selectedPlatforms(selection) : billing.tiered.current.deliveryPlatforms) : undefined;
+  // 서버가 준 가격이 유효해야 결제를 연다. 카드 교체는 서버 현재 가격, 신규는 고른 상품의 안내 가격이다.
+  const quoteReady = !billing.tiered || (Number.isFinite(billing.tiered.current.totalKrw) && billing.tiered.current.totalKrw > 0);
+  const amount: number | null = !billing.tiered
+    ? billing.amountKrw
+    : pick
+      ? selection.count === null
+        ? null
+        : PLAN_PRICE_KRW[selection.count]
+      : billing.tiered.current.totalKrw;
 
   // 약관 제9조의4 제3항 — 자동화된 결제 시작에 앞서 기준·시점·금액·해지 방법을 동의 전에 명시한다.
   const trialEndDate = billing.trialPending ? addDays(billing.trialDays) : billing.trialEndsAt ? new Date(billing.trialEndsAt) : null;
@@ -68,14 +93,20 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
     }
     const raw = sessionStorage.getItem(consentKey(storeId));
     sessionStorage.removeItem(consentKey(storeId));
-    const consentVersion = raw ? (JSON.parse(raw) as { version: string }).version : null;
+    const saved = raw ? (JSON.parse(raw) as { version: string; deliveryPlatforms?: string[] }) : null;
+    const consentVersion = saved?.version ?? null;
     if (!billingKey || !consentVersion) {
       setMessage("자동결제 동의를 다시 확인해 주세요.");
       return;
     }
     setBusy(true);
     billingApi
-      .checkout(storeId, { billingKey, billingConsentAgreed: true, billingConsentVersion: consentVersion })
+      .checkout(storeId, {
+        billingKey,
+        billingConsentAgreed: true,
+        billingConsentVersion: consentVersion,
+        ...(saved?.deliveryPlatforms ? { deliveryPlatforms: saved.deliveryPlatforms } : {}),
+      })
       .then((next) => {
         onSuccess(next);
         setMessage("결제수단이 등록됐어요.");
@@ -91,10 +122,14 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       setMessage("자동결제 동의 항목을 확인해 주세요.");
       return;
     }
+    if (billing.tiered && !platforms) {
+      setMessage("이용할 상품을 먼저 골라 주세요.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {
-      sessionStorage.setItem(consentKey(storeId), JSON.stringify({ version: billing.consentVersion }));
+      sessionStorage.setItem(consentKey(storeId), JSON.stringify({ version: billing.consentVersion, deliveryPlatforms: platforms }));
       const PortOne = await import("@portone/browser-sdk/v2");
       const result = await PortOne.requestIssueBillingKey({
         storeId: billing.portoneStoreId,
@@ -102,7 +137,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         billingKeyMethod: "CARD",
         issueId: `bk${storeId}t${Date.now()}`,
         issueName: "소담리뷰 월 정기결제",
-        displayAmount: billing.chargeNowKrw,
+        displayAmount: billing.tiered && amount !== null ? amount : billing.chargeNowKrw,
         currency: "KRW",
         // KG이니시스 모바일은 제공 기간이, PC는 이름·연락처·이메일이 없으면 결제창이 열리지 않는다.
         offerPeriod: { interval: "1m" },
@@ -124,6 +159,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         billingKey: result.billingKey,
         billingConsentAgreed: true,
         billingConsentVersion: billing.consentVersion,
+        ...(platforms ? { deliveryPlatforms: platforms } : {}),
       });
       onSuccess(next);
       setMessage("결제수단이 등록됐어요.");
@@ -137,9 +173,17 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   return (
     <Card className="billing-checkout">
       <p className="billing-page__eyebrow">KG이니시스 · 포트원 결제창</p>
-      <p className="billing-checkout__notice">{stateNotice(billing)}</p>
+      <p className="billing-checkout__notice">{stateNotice(billing, amount)}</p>
+      {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} /> : null}
+      {billing.tiered && !pick ? <p className="field__hint">현재 상품: {planLabel(billing.tiered.current.deliveryPlatforms)}</p> : null}
       <p className="billing-checkout__price">
-        월 {krw(billing.amountKrw)} <small>(VAT 포함)</small>
+        {amount === null ? (
+          "상품을 고르면 금액이 보여요"
+        ) : (
+          <>
+            월 {krw(amount)} <small>(VAT 포함)</small>
+          </>
+        )}
       </p>
       <p className="field__hint">
         카드번호·유효기간·CVC는 결제대행사 화면에서만 입력해요. 소담리뷰는 이 정보를 받거나 저장하지 않아요.
@@ -159,7 +203,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
             </tr>
             <tr>
               <th>결제금액</th>
-              <td>월 {krw(billing.amountKrw)} (VAT 포함)</td>
+              <td>{amount === null ? "상품을 고른 뒤 확인할 수 있어요" : `월 ${krw(amount)} (VAT 포함)`}</td>
             </tr>
             <tr>
               <th>결제방법</th>
@@ -176,7 +220,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         무료체험 종료 또는 결제주기 도래 시 등록한 카드로 월 이용료가 자동결제되는 데 동의합니다. (필수)
       </label>
-      <Button type="button" disabled={busy || !agreed} loading={busy} onClick={register}>
+      <Button type="button" disabled={!canCheckout({ selection: pick ? selection : null, quoteReady, agreed, busy })} loading={busy} onClick={register}>
         {billing.hasCard ? "카드 다시 등록하기" : "카드 등록하고 시작하기"}
       </Button>
       {message && (

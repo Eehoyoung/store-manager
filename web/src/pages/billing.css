@@ -34,3 +34,28 @@
 .billing-page__banner--danger {
   border-color: var(--color-danger);
 }
+
+/* 선택형 요금 — 상품 선택. 터치 영역 44px 이상, 색은 토큰만. */
+.plan-picker { border: 0; padding: 0; margin: 0; min-width: 0; }
+.plan-picker__legend { font-weight: 700; font-size: var(--font-size-h2); padding: 0; margin-bottom: var(--space-2); }
+.plan-picker__options { display: grid; gap: var(--space-2); }
+.plan-picker__option,
+.plan-picker__platform {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-control);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.plan-picker__option--on { border-color: var(--color-primary); background: var(--color-primary-bg); }
+.plan-picker__option input,
+.plan-picker__platform input { width: 20px; height: 20px; flex: none; }
+.plan-picker__text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.plan-picker__platforms { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.plan-picker__option:focus-within,
+.plan-picker__platform:focus-within { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+.plan-summary { display: grid; gap: var(--space-1); }
+.plan-summary__next { color: var(--color-text-muted); }

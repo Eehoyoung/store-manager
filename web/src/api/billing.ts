@@ -17,6 +17,22 @@ export interface BillingPayment {
   failureReason: string | null;
 }
 
+/** 선택형 요금(D38) 한 시점의 명단과 서버가 계산한 가격. */
+export interface PlanPrice {
+  deliveryPlatforms: string[];
+  supplyKrw: number;
+  vatKrw: number;
+  totalKrw: number;
+}
+
+/** 서버 플래그가 켜져 있을 때만 응답에 나온다. 키가 없으면 기존 요금제 화면 그대로. */
+export interface TieredPlan {
+  current: PlanPrice;
+  /** 다음 결제부터 적용될 변경 예약. 없으면 키 자체가 없다. */
+  next?: PlanPrice;
+  changedThisMonth: boolean;
+}
+
 export interface BillingResponse {
   enabled: boolean;
   portoneStoreId: string;
@@ -42,6 +58,7 @@ export interface BillingResponse {
   payments: BillingPayment[];
   /** 이용 중지로 게시되지 않은 채 BLOCKED(STORE_INACTIVE) 로 남은 예약 답글 수. */
   heldReplyCount: number;
+  tiered?: TieredPlan;
 }
 
 export interface ResumeHeldRepliesResponse {
@@ -51,8 +68,18 @@ export interface ResumeHeldRepliesResponse {
 
 export const billingApi = {
   get: (storeId: string) => apiRequest<BillingResponse>(`/stores/${storeId}/billing`),
-  checkout: (storeId: string, payload: { billingKey: string; billingConsentAgreed: true; billingConsentVersion: string }) =>
+  checkout: (storeId: string, payload: {
+      billingKey: string;
+      billingConsentAgreed: true;
+      billingConsentVersion: string;
+      /** 선택형 요금이 켜져 있으면 필수. 카드 교체는 현재 명단 그대로 보낸다. */
+      deliveryPlatforms?: string[];
+    },
+  ) =>
     apiRequest<BillingResponse>(`/stores/${storeId}/billing/checkout`, { method: "POST", body: payload }),
+  /** 다음 결제부터 적용할 상품 변경(또는 현재 명단을 다시 보내 예약 취소). 금액은 보내지 않는다. */
+  changePlan: (storeId: string, deliveryPlatforms: string[]) =>
+    apiRequest<BillingResponse>(`/stores/${storeId}/billing/plan`, { method: "PUT", body: { deliveryPlatforms } }),
   setAutoRenew: (storeId: string, on: boolean) =>
     apiRequest<BillingResponse>(`/stores/${storeId}/billing/auto-renew`, { method: "PUT", body: { on } }),
   /** draftIds 를 생략하면 이용 중지로 보류된 답글 전부를 게시 예약한다. */
@@ -88,6 +115,12 @@ export function billingErrorMessage(e: unknown): string {
         return "자동결제 동의가 필요해요.";
       case "CONSENT_VERSION_MISMATCH":
         return "약관이 갱신됐어요. 새로고침한 뒤 다시 시도해 주세요.";
+      case "PLAN_CHANGE_LIMIT":
+        return "상품은 한 달에 한 번만 바꿀 수 있어요. 다음 달에 다시 바꿔 주세요.";
+      case "PLAN_CHANGE_NOT_ALLOWED":
+        return "지금은 상품을 바꿀 수 없는 상태예요. 결제 상태를 확인해 주세요.";
+      case "VALIDATION_FAILED":
+        return "선택한 상품을 다시 확인해 주세요.";
       case "SERVICE_UNAVAILABLE":
         return "지금은 결제를 받을 수 없어요. 잠시 후 다시 시도해 주세요.";
       default:

@@ -115,6 +115,8 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // 선택형 요금: 이 매장 상품에 없는 배달앱이면 카드 등록이 아니라 상품 변경으로 안내한다.
+  const [notSelectedStoreId, setNotSelectedStoreId] = useState<string | null>(null);
   // 결제 안내 팝업. autoRetry 는 팝업을 이 세션에서 직접 열었을 때만 true — 모바일 리다이렉트로
   // 페이지가 새로고침되면 입력값과 함께 사라지므로, 그때는 자동 재시도 대신 안내만 한다.
   const [payment, setPayment] = useState<{ storeId: string; billing: BillingResponse | null; autoRetry: boolean } | null>(null);
@@ -159,6 +161,10 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
       setForm((current) => ({ ...current, loginId: "", password: "", agreedCredentialEntrust: false }));
       return true;
     } catch (e) {
+      if (e instanceof ApiError && e.code === "PLATFORM_NOT_SELECTED") {
+        setNotSelectedStoreId(payload.storeId);
+        return false;
+      }
       if (isPaymentRequiredError(e)) {
         openPaymentModal(payload.storeId, true);
         return false;
@@ -174,6 +180,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
     e.preventDefault();
     setError(null);
     setNotice(null);
+    setNotSelectedStoreId(null);
     if (!form.loginId.trim() || !form.password) return setError("아이디와 비밀번호를 입력해 주세요.");
     if (!form.agreedCredentialEntrust) return setError("배달앱 로그인 정보 처리 위탁에 동의해 주세요.");
     await register(form);
@@ -217,6 +224,12 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
         <Field label="배달앱 아이디" required value={form.loginId} onChange={update("loginId")} autoComplete="username" />
         <Field label="배달앱 비밀번호" required type="password" value={form.password} onChange={update("password")} autoComplete="current-password" hint="화면에 다시 표시하지 않으며 서버에서 봉투암호화해요." />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+        {notSelectedStoreId ? (
+          <p className="auth-card__error" role="alert">
+            이 배달앱은 지금 이용 중인 상품에 포함돼 있지 않아요. 카드를 다시 등록할 필요는 없고, 상품을 바꾸면 연동할 수 있어요.{" "}
+            <Link to={`/stores/${notSelectedStoreId}/billing`}>상품 변경하러 가기</Link>
+          </p>
+        ) : null}
         {notice ? <p role="status" className="field__hint">{notice}</p> : null}
         <Button type="submit" loading={loading} disabled={!form.docVersion}>암호화 저장 및 플랫폼 매장 조회 대기</Button>
       </form>

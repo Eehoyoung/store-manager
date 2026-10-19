@@ -7,6 +7,7 @@ import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { Skeleton } from "../components/Skeleton";
 import { BillingCheckout } from "../components/BillingCheckout";
+import { PlanManager } from "../components/PlanManager";
 import { billingApi, billingErrorMessage, type BillingResponse, type BillingServiceState } from "../api/billing";
 import { useShellStore } from "../layout/AppShell";
 
@@ -141,6 +142,9 @@ export function BillingPage() {
   const displayCardForm = showCardForm || mustRegisterNow;
   const canToggleAutoRenew = billing.hasCard && billing.serviceState !== "RESTRICTED" && billing.serviceState !== "SUSPENDED";
   const isServiceable = billing.serviceState === "TRIAL" || billing.serviceState === "ACTIVE" || billing.serviceState === "GRACE";
+  // 선택형 요금이 켜져 있으면 금액은 서버가 계산한 값만 쓴다. 변경 예약이 있으면 다음 결제 금액은 그 값이다.
+  const monthly = billing.tiered?.current.totalKrw ?? billing.amountKrw;
+  const upcoming = billing.tiered?.next?.totalKrw ?? monthly;
 
   return (
     <div className="billing-page">
@@ -149,7 +153,7 @@ export function BillingPage() {
       <Card className="billing-page__card">
         <Badge tone={STATE_TONE[billing.serviceState]}>{STATE_LABEL[billing.serviceState]}</Badge>
         <p className="billing-page__price">
-          월 {billing.amountKrw.toLocaleString("ko-KR")}원 <small>(VAT 포함)</small>
+          월 {monthly.toLocaleString("ko-KR")}원 <small>(VAT 포함)</small>
         </p>
         {billing.brandPaidStoreCount != null ? (
           <p className="field__hint">가맹 브랜드 유료 이용 {billing.brandPaidStoreCount}곳 기준 단가예요.</p>
@@ -177,7 +181,7 @@ export function BillingPage() {
             {billing.nextBillingAt && billing.hasCard && billing.autoRenew ? (
               <tr>
                 <th>결제 예정 금액</th>
-                <td>{billing.amountKrw.toLocaleString("ko-KR")}원</td>
+                <td>{upcoming.toLocaleString("ko-KR")}원</td>
               </tr>
             ) : null}
             <tr>
@@ -208,7 +212,7 @@ export function BillingPage() {
           && new Date(billing.trialEndsAt).getTime() - Date.now() <= TRIAL_NOTICE_MS ? (
           // 유료 전환 사전고지(약관 9.4조 4항) — 이메일과 같은 내용을 화면에도 띄운다.
           <p role="status" className="billing-page__warning">
-            무료체험이 {fmtDate(billing.trialEndsAt)}에 끝나고, 그날 등록한 카드로 월 {billing.amountKrw.toLocaleString("ko-KR")}원(VAT 포함)이
+            무료체험이 {fmtDate(billing.trialEndsAt)}에 끝나고, 그날 등록한 카드로 월 {upcoming.toLocaleString("ko-KR")}원(VAT 포함)이
             자동결제돼요. 원하지 않으시면 체험이 끝나기 전에 아래에서 자동결제를 해지해 주세요.
           </p>
         ) : null}
@@ -223,6 +227,8 @@ export function BillingPage() {
           </p>
         ) : null}
       </Card>
+
+      {billing.tiered && !mustRegisterNow ? <PlanManager storeId={storeId} tiered={billing.tiered} onChanged={setBilling} /> : null}
 
       {billing.heldReplyCount > 0 ? (
         <Card>
