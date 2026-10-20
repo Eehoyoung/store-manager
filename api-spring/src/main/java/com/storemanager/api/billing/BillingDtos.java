@@ -47,8 +47,9 @@ final class BillingDtos {
     }
 
     /** 선택형 요금(D38) 현재/다음 결제 명단과 서버 산정 가격. 켜짐일 때만 응답에 나온다. */
+    /** optionTotalsKrw: 배달앱 1·2·3개 상품의 월 요금(VAT 포함) - 결제 전 상품표·동의 금액용. canChange: 지금 변경 예약 가능. */
     record TieredPlanView(PlanPrice current, @JsonInclude(JsonInclude.Include.NON_NULL) PlanPrice next,
-            boolean changedThisMonth) {}
+            boolean changedThisMonth, List<Integer> optionTotalsKrw, boolean canChange) {}
 
     record PlanPrice(List<String> deliveryPlatforms, int supplyKrw, int vatKrw, int totalKrw) {}
 

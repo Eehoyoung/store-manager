@@ -60,6 +60,9 @@ jobs:
       - name: 빌드
         working-directory: web
         run: npm run build
+      - name: 단위 테스트
+        working-directory: web
+        run: npm test
 
   # 네이버 크롬 확장 + 셀렉터 스펙.
   # ★ 이 잡의 핵심은 빌드가 아니라 extension/src/security.test.ts 다 —
