@@ -303,7 +303,7 @@ describe("선택형 요금 화면", () => {
       tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: /배달앱 3개/ }));
-    expect(screen.getByText(/지금 33,000원\(VAT 포함\)이 결제되고 바로 시작돼요. 이후 매월 \d+일에 자동결제되며, 결제관리에서 언제든 해지할 수 있어요/)).toBeTruthy();
+    expect(screen.getByText(/지금 33,000원\(VAT 포함\)이 결제되고 바로 시작돼요. 이후 매월 결제예정일에 자동결제되며, 결제예정일 확인과 해지는 결제관리에서 언제든 할 수 있어요/)).toBeTruthy();
     cleanup();
     // 꺼짐(tiered 없음): 새 문구와 상품 행이 없다.
     render(<BillingCheckout storeId="s1" billing={view({ hasCard: false, serviceState: "UNPAID" })} onSuccess={() => {}} />);

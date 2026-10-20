@@ -53,7 +53,7 @@ function stateNotice(billing: BillingResponse, amount: number | null, productNam
   }
   if (billing.tiered) {
     if (amount === null) return "카드를 등록하면 바로 시작돼요.";
-    return `지금 ${krw(amount)}(VAT 포함)이 결제되고 바로 시작돼요. 이후 매월 ${new Date().getDate()}일에 자동결제되며, 결제관리에서 언제든 해지할 수 있어요.`;
+    return `지금 ${krw(amount)}(VAT 포함)이 결제되고 바로 시작돼요. 이후 매월 결제예정일에 자동결제되며, 결제예정일 확인과 해지는 결제관리에서 언제든 할 수 있어요.`;
   }
   return `지금 ${krw(billing.chargeNowKrw)} 결제 후 바로 시작돼요.`;
 }
