@@ -35,4 +35,22 @@ public interface ReplyDraftRepository extends JpaRepository<ReplyDraft, Long> {
      * privacy.md 7장 "리뷰·분석·답글 및 그 복제·파생 데이터".
      */
     long deleteByReviewIdIn(Collection<Long> reviewIds);
+
+    /** 선택형 요금 하향 승격 - 빠진 배달앱의 SCHEDULED 초안. */
+    @Query(value = """
+            SELECT d.* FROM reply_draft d JOIN unified_review r ON r.id = d.review_id
+             WHERE d.store_id = :storeId AND d.status = 'SCHEDULED' AND r.platform IN (:platforms)
+            """, nativeQuery = true)
+    List<ReplyDraft> findScheduledByStoreAndPlatforms(@Param("storeId") Long storeId,
+            @Param("platforms") Collection<String> platforms);
+
+    /** 선택형 요금 재선택 승격 - 다시 열린 배달앱의 SCHEDULED 초안과 PLATFORM_NOT_SELECTED 로 막힌 초안. */
+    @Query(value = """
+            SELECT d.* FROM reply_draft d JOIN unified_review r ON r.id = d.review_id
+             WHERE d.store_id = :storeId AND r.platform IN (:platforms)
+               AND (d.status = 'SCHEDULED'
+                    OR (d.status = 'BLOCKED' AND 'PLATFORM_NOT_SELECTED' = ANY(d.guardrail_flags)))
+            """, nativeQuery = true)
+    List<ReplyDraft> findReselectCandidates(@Param("storeId") Long storeId,
+            @Param("platforms") Collection<String> platforms);
 }

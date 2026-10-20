@@ -2,6 +2,10 @@ package com.storemanager.api.billing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.storemanager.api.agreement.AgreementService;
+import com.storemanager.api.agreement.TieredPricingFlag;
+import com.storemanager.api.draft.PlatformSelectionDraftEffects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.billing.BillingDtos.AutoRenewRequest;
@@ -34,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,7 +67,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class BillingService {
 
+    private static final Logger log = LoggerFactory.getLogger(BillingService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    /** 상품 변경·갱신이 같이 쓰는 advisory 잠금의 첫 번째 키(두 번째 키 = store_id). */
+    private static final int PLAN_LOCK_CLASS = 5001;
     private static final int TRIAL_DAYS = 30;
     private static final Duration LOCK = Duration.ofMinutes(2);
     /** 코드 문자열은 여기 상수로만 둔다 — AgreementService 는 다른 담당자 소유다. */
@@ -84,6 +92,8 @@ public class BillingService {
     private final AuditLogRepository auditLogs;
     private final StoreServiceGate serviceGate;
     private final BrandPricingService brandPricingService;
+    private final TieredPricingFlag tieredPricing;
+    private final PlatformSelectionDraftEffects draftEffects;
     /**
      * 무료체험 쿠폰번호(2026-09-28). 개별 전달하는 비공개 코드라 저장소에 적지 않고 env 로만 준다.
      * ★ 비어 있으면 어떤 코드도 받지 않는다(fail-closed). 코드가 곧 DataAPI·LLM 비용이다.
@@ -98,6 +108,7 @@ public class BillingService {
             ReplyDraftRepository replyDrafts, UnifiedReviewRepository unifiedReviews, AuditLogRepository auditLogs,
             StoreServiceGate serviceGate,
             BrandPricingService brandPricingService,
+            TieredPricingFlag tieredPricing, PlatformSelectionDraftEffects draftEffects,
             @Value("${app.promotion.code:}") String promotionCode,
             @Value("${app.promotion.limit:30}") int promotionLimit) {
         this.portOneClient = portOneClient;
@@ -113,6 +124,8 @@ public class BillingService {
         this.auditLogs = auditLogs;
         this.serviceGate = serviceGate;
         this.brandPricingService = brandPricingService;
+        this.tieredPricing = tieredPricing;
+        this.draftEffects = draftEffects;
         this.promotionCode = promotionCode == null ? "" : promotionCode.trim().toUpperCase(java.util.Locale.ROOT);
         this.promotionLimit = promotionLimit;
     }
@@ -165,6 +178,10 @@ public class BillingService {
         if (!portOneClient.enabled()) {
             throw PortOneClient.unavailable();
         }
+        // 선택형 요금 켜짐: 보낸 명단은 동의 기록 전에 검증한다. 필수 여부는 분기마다 다르다 - 체험 시작·청구는 필수,
+        // 카드만 교체(TRIAL/ACTIVE)는 받지도 적용하지도 않는다(변경은 PUT billing/plan 으로만). 꺼짐이면 필드를 무시한다.
+        Set<String> chosen = tieredPricing.enabled() && req.deliveryPlatforms() != null
+                ? parsePlatforms(req.deliveryPlatforms()) : null;
         agreementService.requireCurrentVersion(req.billingConsentVersion());
         agreementService.record(owner.getId(), store.getId(), BILLING_CONSENT_CODE, req.billingConsentAgreed(), ip,
                 userAgent);
@@ -180,10 +197,15 @@ public class BillingService {
             String oldKey = sub.getBillingKey();
 
             if (isTrialPending(sub)) {
+                requireSelection(chosen);
                 Instant trialEnd = now.plus(TRIAL_DAYS, ChronoUnit.DAYS);
                 writes.executeWithoutResult(status -> {
                     Subscription row = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED").orElseThrow();
                     row.beginTrial(now, trialEnd, req.billingKey(), channelKey);
+                    if (chosen != null) {
+                        advisoryLock(store.getId());
+                        applyActivePlatforms(row, chosen);
+                    }
                     subscriptions.save(row);
                 });
                 discardReplacedKey(oldKey, req.billingKey());
@@ -203,11 +225,19 @@ public class BillingService {
             }
 
             // UNPAID · GRACE · RESTRICTED — 지금 청구한다.
+            requireSelection(chosen);
+            // ★ 킬 스위치(갱신과 같은 조건): 꺼졌는데 3개 미만 명단이면 꺼짐 가격(3개)으로 청구하지 않는다.
+            if (!tieredPricing.enabled() && sub.hasSelectionBelowThree()) {
+                log.error("선택형 요금이 꺼져 있어 3개 미만 명단 구독의 재결제를 거부합니다 storeId={}", store.getId());
+                throw new ApiException(ErrorCode.SERVICE_UNAVAILABLE);
+            }
             boolean grace = "GRACE".equals(state);
             Instant periodStart = grace ? sub.getNextBillingAt() : now;
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
             // ★ 청구 대상 월: 유예 중 재결제는 원래 결제예정일의 연월, 그 외(신규 청구)는 오늘의 연월.
-            PriceQuote quote = brandPricingService.quoteFor(store, YearMonth.from(periodStart.atZone(KST)), sub);
+            YearMonth payMonth = YearMonth.from(periodStart.atZone(KST));
+            PriceQuote quote = chosen == null ? brandPricingService.quoteFor(store, payMonth, sub)
+                    : brandPricingService.quoteFor(store, payMonth, sub, chosen.size());
             String paymentId = "sub-" + store.getId() + "-" + randomToken();
             PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", req.billingKey(),
                     customer(store, owner), quote.supply(), quote.vat());
@@ -221,6 +251,10 @@ public class BillingService {
             writes.executeWithoutResult(status -> {
                 Subscription row = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED").orElseThrow();
                 row.chargeSucceeded(periodStart, periodEnd, req.billingKey(), channelKey);
+                if (chosen != null) {
+                    advisoryLock(store.getId());
+                    applyActivePlatforms(row, chosen);
+                }
                 subscriptions.save(row);
             });
             discardReplacedKey(oldKey, req.billingKey());
@@ -256,6 +290,99 @@ public class BillingService {
             portOneClient.deleteBillingKey(oldKey[0]);
         }
         return view(owner, store);
+    }
+
+    // ── 선택형 요금(D38) 상품 변경 ───────────────────────────────────────
+
+    /**
+     * 상품 변경 예약(다음 결제부터 적용, 월 1회). pending 만 쓴다 - 현재 명단과 같은 값을 다시 보내면 대기를 비운다(취소).
+     * 꺼짐이면 404(없는 엔드포인트처럼). 결제 실패·유예·미납·결과 모름(PENDING) 중에는 거절한다.
+     */
+    @Transactional
+    public BillingView changePlan(UUID ownerPublicId, UUID storePublicId, List<String> platforms) {
+        if (!tieredPricing.enabled()) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        AppUser owner = resolveUser(ownerPublicId);
+        Store store = loadOwnedStore(owner, storePublicId);
+        Set<String> requested = parsePlatforms(platforms);
+        advisoryLock(store.getId());
+        Subscription sub = subscriptions.findActiveForUpdate(store.getId())
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        Instant now = Instant.now();
+        if (sub.getBillingLockUntil() != null && sub.getBillingLockUntil().isAfter(now)) {
+            throw new ApiException(ErrorCode.BILLING_BUSY); // 갱신·결제가 진행 중
+        }
+        String state = sub.serviceStateAt(now);
+        // 자동결제가 꺼졌거나 카드가 없으면 다음 결제가 없어 예약이 영영 적용되지 않는다 - 받지 않는다.
+        if (!("TRIAL".equals(state) || "ACTIVE".equals(state)) || sub.getRenewalFailures() > 0
+                || !sub.isAutoRenew() || sub.getBillingKey() == null
+                || payments.existsBySubscriptionIdAndStatus(sub.getId(), "PENDING")) {
+            throw new ApiException(ErrorCode.PLAN_CHANGE_NOT_ALLOWED);
+        }
+        boolean cancel = sub.getPendingDeliveryPlatforms() != null && requested.equals(sub.effectivePlatforms());
+        if (!cancel) {
+            if (requested.equals(sub.nextPlatforms())) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "바뀐 내용이 없어요."));
+            }
+            if (changedInMonth(subscriptions.findLastPlanChangedAt(store.getId()), now)) {
+                throw new ApiException(ErrorCode.PLAN_CHANGE_LIMIT);
+            }
+        }
+        sub.reservePlan(requested, now);
+        subscriptions.save(sub);
+        // 명단만 남긴다(비밀값·결제수단 없음).
+        auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
+                .action(cancel ? "PLAN_CHANGE_CANCELED" : "PLAN_CHANGE_RESERVED").targetType("SUBSCRIPTION")
+                .targetId(sub.getId())
+                .detail("{\"platforms\":[" + requested.stream().map(p -> "\"" + p + "\"")
+                        .collect(Collectors.joining(",")) + "]}")
+                .build());
+        return view(owner, store);
+    }
+
+    /** KST 달력 월 기준 같은 달인가(월말 23:59:59 와 익월 00:00:00 이 갈린다). 테스트가 직접 부른다. */
+    static boolean changedInMonth(Instant last, Instant now) {
+        return last != null && YearMonth.from(last.atZone(KST)).equals(YearMonth.from(now.atZone(KST)));
+    }
+
+    /** 켜짐에서 명단이 필요한 분기(체험 시작·청구)인데 보내지 않았으면 거절. 꺼짐이면 통과. */
+    private void requireSelection(Set<String> chosen) {
+        if (tieredPricing.enabled() && chosen == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "배달앱을 1개에서 3개까지 골라 주세요."));
+        }
+    }
+
+    /** 1~3개, BAEMIN/COUPANGEATS/YOGIYO, 중복 없음. 정규 순서(TreeSet)로 돌려준다. */
+    private static Set<String> parsePlatforms(List<String> platforms) {
+        if (platforms == null || platforms.isEmpty() || platforms.size() > 3 || platforms.stream().anyMatch(java.util.Objects::isNull)
+                // ★ List.of() 의 contains·containsAll 은 null 에서 NPE(500) - 스트림으로 먼저 거른다.
+                || !Subscription.DELIVERY_PLATFORMS.containsAll(platforms)
+                || new java.util.HashSet<>(platforms).size() != platforms.size()) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED,
+                    Map.of("reason", "배달앱을 1개에서 3개까지 골라 주세요."));
+        }
+        return new java.util.TreeSet<>(platforms);
+    }
+
+    /** 변경·갱신이 같은 키로 직렬화된다(pg_advisory_xact_lock). 호출자의 트랜잭션이 끝날 때 풀린다. */
+    private void advisoryLock(Long storeId) {
+        entityManager.createNativeQuery("select pg_advisory_xact_lock(?1, ?2)")
+                .setParameter(1, PLAN_LOCK_CLASS)
+                .setParameter(2, storeId.intValue())
+                .getSingleResult();
+    }
+
+    /** 현재 명단 확정 + 빠진/다시 들어온 배달앱의 초안·큐 처리(환불 없음). 호출자 트랜잭션 안에서만. */
+    private void applyActivePlatforms(Subscription row, Set<String> platforms) {
+        Set<String> before = row.effectivePlatforms();
+        row.applyActivePlatforms(platforms);
+        Set<String> removed = new java.util.TreeSet<>(before);
+        removed.removeAll(platforms);
+        Set<String> added = new java.util.TreeSet<>(platforms);
+        added.removeAll(before);
+        draftEffects.onRemoved(row.getStoreId(), removed);
+        draftEffects.onReselected(row.getStoreId(), added);
     }
 
     // ── 보류 답글 재개(결제 재개 후 사람 확인) ──────────────────────────
@@ -378,6 +505,29 @@ public class BillingService {
             if (!sub.isAutoRenew() || sub.getBillingKey() == null || !portOneClient.enabled()) {
                 return;
             }
+            // ★ 킬 스위치: 꺼졌는데 3개 미만 명단이 있는 구독은 갱신하지 않는다(1개 고객에게 33,000원이 청구되는 사고 방지).
+            //   3개 명단은 꺼짐 가격과 같으므로 그대로 갱신한다. ERROR 로 남겨 운영 경보에 걸리게 한다.
+            // ponytail: 매일 같은 ERROR 가 반복된다 - 관리자 알림이 필요하면 그때 추가.
+            if (!tieredPricing.enabled() && sub.hasSelectionBelowThree()) {
+                log.error("선택형 요금이 꺼져 있어 3개 미만 명단 구독의 갱신을 거부합니다 storeId={}", storeId);
+                return;
+            }
+            // 켜짐: 잠금 아래에서 대기(pending)를 한 번만 읽고 그 값으로 청구한다. 변경은 이 갱신이 끝날 때까지
+            // billing_lock_until 로 거절되므로 읽은 뒤 바뀌지 않는다. 승격은 결제 성공 때만.
+            String[] pendingAtCharge = null;
+            Integer chargeCount = null;
+            if (tieredPricing.enabled()) {
+                Subscription locked = writes.execute(status -> {
+                    advisoryLock(storeId);
+                    return subscriptions.findByStoreIdAndStatusNot(storeId, "CANCELED").orElse(null);
+                });
+                if (locked == null) {
+                    return;
+                }
+                sub = locked;
+                pendingAtCharge = locked.getPendingDeliveryPlatforms();
+                chargeCount = locked.nextPlatforms().size();
+            }
             int failures = sub.getRenewalFailures();
             // 같은 예정일·같은 시도 번호면 같은 id다. 스케줄러가 두 번 돌아도 포트원이 ALREADY_PAID 로 막는다.
             String paymentId = "renew-" + storeId + "-" + sub.getNextBillingAt().getEpochSecond() + "-" + failures;
@@ -385,16 +535,27 @@ public class BillingService {
             AppUser owner = users.findById(store.getOwnerId()).orElse(null);
             Map<String, Object> customer = owner == null ? Map.of("id", customerId(store)) : customer(store, owner);
             // ★ 정기 갱신은 결제예정일(nextBillingAt)의 KST 연월 단가를 쓴다.
-            PriceQuote quote = brandPricingService.quoteFor(store, YearMonth.from(sub.getNextBillingAt().atZone(KST)),
-                    sub);
+            YearMonth chargeMonth = YearMonth.from(sub.getNextBillingAt().atZone(KST));
+            PriceQuote quote = chargeCount == null ? brandPricingService.quoteFor(store, chargeMonth, sub)
+                    : brandPricingService.quoteFor(store, chargeMonth, sub, chargeCount);
+            final String[] promote = pendingAtCharge;
             PortOneClient.Charge charge = charge(sub.getId(), paymentId, "소담리뷰 월 이용료", sub.getBillingKey(), customer,
                     quote.supply(), quote.vat());
             Instant periodStart = sub.getNextBillingAt();
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
             switch (charge.outcome()) {
                 case PAID -> writes.executeWithoutResult(status -> {
+                    if (promote != null) {
+                        advisoryLock(storeId);
+                    }
                     Subscription row = subscriptions.findByStoreIdAndStatusNot(storeId, "CANCELED").orElseThrow();
                     row.chargeSucceeded(periodStart, periodEnd, row.getBillingKey(), row.getBillingChannelKey());
+                    // 같은 트랜잭션에서 승격: 읽어 둔 대기 명단이 그대로일 때만(결제한 금액과 명단이 같아야 한다).
+                    if (promote != null && java.util.Arrays.equals(promote, row.getPendingDeliveryPlatforms())) {
+                        applyActivePlatforms(row, new java.util.TreeSet<>(java.util.Arrays.asList(promote)));
+                    } else if (promote != null) {
+                        log.warn("갱신 중 대기 명단이 바뀌어 승격하지 않았습니다(다음 갱신에서 새 대기로 청구) storeId={}", storeId);
+                    }
                     subscriptions.save(row);
                 });
                 case DECLINED -> writes.executeWithoutResult(status -> {
@@ -548,7 +709,28 @@ public class BillingService {
                 subOpt.map(Subscription::isAutoRenew).orElse(false),
                 subOpt.map(Subscription::getRenewalFailures).orElse(0),
                 total, chargeNow, agreementService.currentVersion(), items, heldReplies(store.getId()).size(),
-                unit, brandPaidStoreCount);
+                unit, brandPaidStoreCount, tieredView(store, subOpt.orElse(null), chargeMonth, quote, now));
+    }
+
+    /** 켜짐일 때만 값이 있다(꺼짐이면 null → JSON 에서 키가 빠진다). 가격은 전부 서버 산정. */
+    private BillingDtos.TieredPlanView tieredView(Store store, Subscription sub, YearMonth month, PriceQuote current,
+            Instant now) {
+        if (!tieredPricing.enabled()) {
+            return null;
+        }
+        Set<String> cur = sub == null ? new java.util.TreeSet<>(Subscription.DELIVERY_PLATFORMS)
+                : sub.effectivePlatforms();
+        BillingDtos.PlanPrice next = null;
+        if (sub != null && sub.getPendingDeliveryPlatforms() != null) {
+            Set<String> pending = sub.nextPlatforms();
+            next = planPrice(pending, brandPricingService.quoteFor(store, month, sub, pending.size()));
+        }
+        boolean changed = changedInMonth(subscriptions.findLastPlanChangedAt(store.getId()), now);
+        return new BillingDtos.TieredPlanView(planPrice(cur, current), next, changed);
+    }
+
+    private static BillingDtos.PlanPrice planPrice(Set<String> platforms, PriceQuote q) {
+        return new BillingDtos.PlanPrice(List.copyOf(platforms), q.supply(), q.vat(), q.total());
     }
 
     private static PaymentItem toItem(Payment p) {

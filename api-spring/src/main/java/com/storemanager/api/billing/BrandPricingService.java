@@ -77,8 +77,12 @@ public class BrandPricingService {
      * @param sub 구독 행. null 이면(아직 행이 없는 UNPAID) 3개로 본다.
      */
     public PriceQuote quoteFor(Store store, YearMonth month, Subscription sub) {
+        return quoteFor(store, month, sub, sub == null ? 3 : sub.selectedDeliveryCount());
+    }
+
+    /** 명단 수를 직접 받는 형태 - 다음 결제(pending) 가격 산정용. 꺼짐이면 count 는 쓰이지 않는다. */
+    public PriceQuote quoteFor(Store store, YearMonth month, Subscription sub, int count) {
         if (tieredPricing.enabled()) {
-            int count = sub == null ? 3 : sub.selectedDeliveryCount();
             boolean franchise = store.getBrandName() != null && !store.getBrandName().isBlank();
             if (count < 3 || !franchise) {
                 return PricingTier.tieredQuote(count);

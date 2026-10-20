@@ -43,6 +43,12 @@ public class BillingController {
                 request.getHeader("User-Agent"));
     }
 
+    /** 선택형 요금(D38) 상품 변경 예약 - 다음 결제부터 적용. 기능 플래그 꺼짐이면 404. */
+    @PutMapping("/plan")
+    public BillingView changePlan(@PathVariable UUID storeId, @RequestBody BillingDtos.PlanChangeRequest body) {
+        return billingService.changePlan(CurrentUser.publicId(), storeId, body.deliveryPlatforms());
+    }
+
     @PutMapping("/auto-renew")
     public BillingView autoRenew(@PathVariable UUID storeId, @RequestBody AutoRenewRequest body,
             HttpServletRequest request) {

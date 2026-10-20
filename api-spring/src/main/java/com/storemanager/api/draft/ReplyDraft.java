@@ -282,6 +282,26 @@ public class ReplyDraft {
         this.updatedAt = Instant.now();
     }
 
+    /**
+     * 배달앱이 다시 선택 상품에 들어왔을 때 PLATFORM_NOT_SELECTED 단독으로 막혀 있던 초안을 재생성 가능한 상태로 돌린다.
+     * ★ 가장 보수적인 전이: BLOCKED → FAILED(게시 실패와 같은 취급 - findNeedingDraft 가 새로 만든다).
+     * 절대 SCHEDULED 로 되돌리지 않는다 - 자동 재게시 금지(재생성 뒤 정상 안전 검사를 다시 거친다).
+     * 그 외 사유(위험도·사장님 취소 등)로 막힌 초안은 건드리지 않는다.
+     *
+     * @return 전이했으면 true
+     */
+    public boolean releaseForRedraftAfterReselect() {
+        if (!"BLOCKED".equals(this.status) || this.guardrailFlags == null || this.guardrailFlags.length != 1
+                || !"PLATFORM_NOT_SELECTED".equals(this.guardrailFlags[0])) {
+            return false;
+        }
+        this.status = "FAILED";
+        this.failCode = "PLATFORM_RESELECTED";
+        this.failReason = "배달앱이 다시 선택돼 답글을 새로 만들어요.";
+        this.updatedAt = Instant.now();
+        return true;
+    }
+
     /** 실 모델이 아닌 결과는 무인 게시할 수 없으므로 운영 화면에서 식별 가능한 BLOCKED로 남긴다. */
     public void blockForAutomationUnavailable() {
         requireStatus("DRAFT");
