@@ -136,6 +136,12 @@ echo '*/5 * * * * root /opt/storemanager/deploy/auto-deploy.sh >> /var/log/store
 tail -f /var/log/storemanager-deploy.log     # 배포 기록
 ```
 
+- **로컬 CI 관문(2026-10-21, D76·D79)**: GitHub Actions 를 쓸 수 없을 때는 PC 에서 `bash deploy/local-ci.sh --record` 를
+  돌린다. ci.yml 과 같은 단계(spring·ai-python·worker·web·extension + deploy 셸 테스트)가 전부 통과하면 그 커밋에 커밋 상태
+  `local-ci=success` 를 기록하고, auto-deploy.sh 가 `deploy/ci_gate.py` 판정으로 이를 check-runs 와 함께 인정한다.
+  작업 트리가 깨끗하고 origin 에 푸시된 커밋만 기록한다. Actions 의 실패 결과는 로컬 증명으로 덮지 않는다.
+  순서: 브랜치에서 `--record` 통과 → master 머지 → master 를 당긴 뒤 `bash deploy/local-ci.sh --attest-merge <검사한 커밋>`
+  (상태는 커밋 단위라 머지 커밋에 따로 필요하다. 트리가 검사한 커밋과 같을 때만 기록하고, 다르면 `--record` 로 다시 검사).
 - 막혔을 때 진단: `sudo bash /opt/storemanager/deploy/preflight.sh` — 읽기 전용. env 키 누락·DataAPI 개발계·등록 false 명시·cron·HEAD·git status·사업자 정보를 PASS/FAIL 로 낸다(비밀값은 출력하지 않는다). 테스트: `bash deploy/tests/preflight_test.sh`
 - 끄기: `sudo rm /etc/cron.d/storemanager-deploy`. 되돌리기는 `git revert` 후 master 에 병합 — 그것도 자동으로 나간다.
 - **env 변경은 자동으로 반영되지 않는다.** env 는 저장소 밖이다. 바꾸면 여전히 `dc up -d <서비스>` 를 친다.
