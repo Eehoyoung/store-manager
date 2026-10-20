@@ -12,5 +12,7 @@ public interface StorePlatformLinkRepository extends JpaRepository<StorePlatform
 
     boolean existsByPlatformAndPlatformStoreId(String platform, String platformStoreId);
 
+    List<StorePlatformLink> findByStoreIdAndPlatformIn(Long storeId, java.util.Collection<String> platforms);
+
     void deleteByAccountId(Long accountId);
 }

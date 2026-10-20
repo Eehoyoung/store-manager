@@ -13,5 +13,10 @@ public interface PlatformAccountRepository extends JpaRepository<PlatformAccount
 
     Optional<PlatformAccount> findByIdAndOwnerIdAndRevokedAtIsNull(Long id, Long ownerId);
 
+    List<PlatformAccount> findByIntendedStoreIdAndPlatformInAndRevokedAtIsNull(Long storeId,
+            java.util.Collection<String> platforms);
+
+    Optional<PlatformAccount> findByIdAndRevokedAtIsNull(Long id);
+
     boolean existsByPlatformAndLoginIdAndRevokedAtIsNull(String platform, String loginId);
 }
