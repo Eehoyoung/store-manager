@@ -226,7 +226,7 @@ function PlatformAccountForm({ stores, onRegistered }: { stores: StoreResponse[]
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
         {notSelectedStoreId ? (
           <p className="auth-card__error" role="alert">
-            이 배달앱은 지금 이용 중인 상품에 포함돼 있지 않아요. 카드를 다시 등록할 필요는 없고, 상품을 바꾸면 연동할 수 있어요.{" "}
+            이 배달앱은 지금 이용 중인 상품에 포함돼 있지 않아요. 카드를 다시 등록할 필요는 없어요. 상품을 바꾸면 연동할 수 있어요 — 체험 중에는 바로, 유료 이용 중에는 다음 결제일부터 적용돼요.{" "}
             <Link to={`/stores/${notSelectedStoreId}/billing`}>상품 변경하러 가기</Link>
           </p>
         ) : null}

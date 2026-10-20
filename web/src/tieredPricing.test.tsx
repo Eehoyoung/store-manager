@@ -206,7 +206,7 @@ describe("선택형 요금 화면", () => {
     renderPage(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } }));
     await screen.findByText("이용 상품");
     expect((screen.getByRole("button", { name: "상품 변경" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(/이번 달에는 이미 상품을 바꿨어요/)).toBeTruthy();
+    expect(screen.getByText(/이번 달\(\d+월\)에는 이미 상품을 바꿨어요.*\d+월 1일부터 다시 바꿀 수 있어요/)).toBeTruthy();
   });
   it("selectionUsesServerOptionTable", () => {
     // 가맹 매장: 3개 상품이 구간 단가(31,000원). 상품표·동의 금액이 화면 상수가 아니라 서버 값이어야 한다.
@@ -224,5 +224,90 @@ describe("선택형 요금 화면", () => {
     expect((screen.getByRole("button", { name: "상품 변경" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "변경 예약 취소" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/자동결제와 결제 상태를 먼저 확인해 주세요/)).toBeTruthy();
+  });
+
+  async function openConfirm(b: BillingResponse, pick: RegExp) {
+    renderPage(b);
+    await screen.findByText("이용 상품");
+    fireEvent.click(screen.getByRole("button", { name: "상품 변경" }));
+    fireEvent.click(screen.getByRole("radio", { name: pick }));
+    return screen;
+  }
+
+  it("paidUpgradeConfirmShowsBillingDateAndNoRefund", async () => {
+    await openConfirm(view({ tiered: { current: price(["BAEMIN"], 25000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } }), /배달앱 3개/);
+    fireEvent.click(screen.getByRole("button", { name: /다음 결제부터 이 상품으로 바꾸기/ }));
+    const d = within(screen.getByRole("dialog")).getByText(/결제일부터 적용돼요/);
+    expect(d.textContent).toContain("그날까지는 지금 상품(배달앱 1개 (배달의민족))이 그대로 유지돼요");
+    expect(d.textContent).toContain("월 33,000원(VAT 포함)");
+    expect(d.textContent).toContain("일할로 돌려드리거나 더 받지는 않아요");
+    expect(screen.queryByText(/연동 정보는/)).toBeNull();
+  });
+
+  it("paidDowngradeConfirmListsRemovedApps", async () => {
+    await openConfirm(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } }), /배달앱 1개/);
+    fireEvent.click(screen.getByRole("checkbox", { name: "배달의민족" }));
+    fireEvent.click(screen.getByRole("button", { name: /다음 결제부터 이 상품으로 바꾸기/ }));
+    const d = within(screen.getByRole("dialog")).getByText(/연동 정보는/);
+    expect(d.textContent).toContain("빠지는 배달앱(쿠팡이츠, 요기요)");
+    expect(d.textContent).toContain("새 리뷰는 더 이상 처리하지 않아요");
+  });
+
+  it("trialChangeIsImmediateAndUnlimited", async () => {
+    const b = view({ serviceState: "TRIAL", trialEndsAt: "2026-11-05T00:00:00Z",
+      tiered: { current: price(ALL3, 33000), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } });
+    await openConfirm(b, /배달앱 2개/);
+    // 이번 달 변경 이력이 있어도 체험 중에는 막지 않는다.
+    expect(screen.queryByText(/이미 상품을 바꿨어요/)).toBeNull();
+    expect(screen.getByText("체험 중에는 상품을 바꾸면 바로 적용되고 횟수 제한도 없어요.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "배달의민족" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "쿠팡이츠" }));
+    fireEvent.click(screen.getByRole("button", { name: "이 상품으로 바꾸기" }));
+    const d = within(screen.getByRole("dialog")).getByText(/바로 적용되고/);
+    expect(d.textContent).toContain("체험이 끝나는 2026. 11. 5.에 바꾼 상품 기준으로 월 29,000원(VAT 포함)이 결제돼요");
+  });
+
+  it("validationFailedShowsServerReason", async () => {
+    const b = view({ tiered: { current: price(["BAEMIN"], 25000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
+    await openConfirm(b, /배달앱 1개/);
+    fireEvent.click(screen.getByRole("checkbox", { name: "배달의민족" }));
+    api.changePlan.mockRejectedValueOnce(new ApiError(400, { code: "VALIDATION_FAILED", message: "x", details: { reason: "바뀐 내용이 없어요." } }));
+    fireEvent.click(screen.getByRole("button", { name: /다음 결제부터 이 상품으로 바꾸기/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "바꾸기" }));
+    await screen.findByText("바뀐 내용이 없어요.");
+  });
+
+  it("validationFailedFallbackAndPlanErrorCopies", async () => {
+    const { billingErrorMessage } = await import("./api/billing");
+    expect(billingErrorMessage(new ApiError(409, { code: "PLAN_CHANGE_LIMIT", message: "x" }))).toBe("상품 변경은 한 달에 한 번만 할 수 있어요. 잘못 신청됐거나 연동에 문제가 있다면 고객센터로 알려 주세요.");
+    expect(billingErrorMessage(new ApiError(409, { code: "PLAN_CHANGE_NOT_ALLOWED", message: "x" }))).toBe("지금은 상품을 바꿀 수 없어요. 결제 상태를 먼저 확인해 주세요.");
+  });
+
+  it("trialStartNoticeAndConsentProductRow", () => {
+    const b = view({ hasCard: false, serviceState: "UNPAID", trialPending: true, nextBillingAt: null,
+      tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
+    render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
+    // 상품 미선택: 상품·금액 부분 생략, 동의 표 상품 행은 안내.
+    expect(screen.getByText(/체험이 끝나는 .*에 첫 결제되고, 이후 매월 같은 날 자동으로 결제돼요/)).toBeTruthy();
+    expect(screen.getAllByText("상품을 고른 뒤 확인할 수 있어요")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("radio", { name: /배달앱 3개/ }));
+    const n = screen.getByText(/무료체험이 시작돼요/).textContent!;
+    expect(n).toContain("배달앱 3개 (배달의민족, 쿠팡이츠, 요기요) 월 33,000원(VAT 포함)이 첫 결제되고");
+    expect(n).toContain("체험이 끝나기 전에 해지하면 결제되지 않아요");
+    expect(screen.getByRole("radio", { name: /배달의민족·쿠팡이츠·요기요/ })).toBeTruthy();
+    expect(screen.getByText("상품").closest("tr")?.textContent).toContain("배달앱 3개 (배달의민족, 쿠팡이츠, 요기요)");
+  });
+
+  it("firstChargeNoticeAndOffByDefault", () => {
+    const b = view({ hasCard: false, serviceState: "UNPAID",
+      tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
+    render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: /배달앱 3개/ }));
+    expect(screen.getByText(/지금 33,000원\(VAT 포함\)이 결제되고 바로 시작돼요. 이후 매월 \d+일에 자동결제되며, 결제관리에서 언제든 해지할 수 있어요/)).toBeTruthy();
+    cleanup();
+    // 꺼짐(tiered 없음): 새 문구와 상품 행이 없다.
+    render(<BillingCheckout storeId="s1" billing={view({ hasCard: false, serviceState: "UNPAID" })} onSuccess={() => {}} />);
+    expect(screen.queryByText("상품")).toBeNull();
+    expect(screen.queryByText(/결제관리에서 언제든 해지/)).toBeNull();
   });
 });

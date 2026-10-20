@@ -37,14 +37,14 @@ export function PlanPicker({ value, onChange, disabled, name = "plan-count", pri
   return (
     <fieldset className="plan-picker" disabled={disabled}>
       <legend className="plan-picker__legend">이용할 상품을 골라 주세요</legend>
-      <p className="field__hint">네이버 스마트플레이스는 모든 상품에 포함돼요. 금액은 VAT 포함이에요.</p>
+      <p className="field__hint">네이버 스마트플레이스는 모든 상품에 포함돼요. 크롬 확장으로 답글 초안을 받고, 등록은 사장님이 직접 해요. 금액은 VAT 포함이에요.</p>
       <div className="plan-picker__options">
         {COUNTS.map((n) => (
           <label key={n} className={`plan-picker__option${value.count === n ? " plan-picker__option--on" : ""}`}>
             <input type="radio" name={name} checked={value.count === n} onChange={() => setCount(n)} />
             <span className="plan-picker__text">
               <strong>
-                배달앱 {n}개{n === 3 ? " (전체)" : ""}
+                배달앱 {n}개{n === 3 ? " (배달의민족·쿠팡이츠·요기요)" : ""}
               </strong>
               <span>{optionPrice(prices, n) === null ? "금액 확인 중" : `월 ${optionPrice(prices, n)!.toLocaleString("ko-KR")}원`}</span>
             </span>

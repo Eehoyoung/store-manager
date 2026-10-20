@@ -228,7 +228,7 @@ export function BillingPage() {
         ) : null}
       </Card>
 
-      {billing.tiered && !mustRegisterNow ? <PlanManager storeId={storeId} tiered={billing.tiered} onChanged={setBilling} /> : null}
+      {billing.tiered && !mustRegisterNow ? <PlanManager storeId={storeId} tiered={billing.tiered} serviceState={billing.serviceState} nextBillingAt={billing.nextBillingAt} trialEndsAt={billing.trialEndsAt} onChanged={setBilling} /> : null}
 
       {billing.heldReplyCount > 0 ? (
         <Card>
