@@ -113,7 +113,9 @@ public class TrialConversionNoticeService {
      */
     String body(Store store, Subscription sub) {
         String day = sub.getTrialEndsAt().atZone(KST).format(DATE);
-        int total = brandPricingService.quoteFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST)), sub).total();
+        // 상품 줄(nextPlatforms)과 같은 명단으로 금액을 낸다. 꺼짐이면 4-인자 quoteFor 도 개수를 쓰지 않아 기존 금액과 같다.
+        int total = brandPricingService.quoteFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST)), sub,
+                sub.nextPlatforms().size()).total();
         return store.getName() + " 매장의 30일 무료체험이 " + day + "에 끝납니다.\n\n"
                 + "- 유료 전환일(첫 결제일): " + day + "\n"
                 + productLine(sub)

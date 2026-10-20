@@ -250,6 +250,7 @@ describe("선택형 요금 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: /다음 결제부터 이 상품으로 바꾸기/ }));
     const d = within(screen.getByRole("dialog")).getByText(/연동 정보는/);
     expect(d.textContent).toContain("빠지는 배달앱(쿠팡이츠, 요기요)");
+    expect(d.textContent).toContain("변경이 적용될 때(");  // 결제가 실패하면 승격·삭제가 없으므로 날짜로 단정하지 않는다
     expect(d.textContent).toContain("새 리뷰는 더 이상 처리하지 않아요");
   });
 
@@ -265,6 +266,7 @@ describe("선택형 요금 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: "이 상품으로 바꾸기" }));
     const d = within(screen.getByRole("dialog")).getByText(/바로 적용되고/);
     expect(d.textContent).toContain("체험이 끝나는 2026. 11. 5.에 바꾼 상품 기준으로 월 29,000원(VAT 포함)이 결제돼요");
+    expect(d.textContent).toContain("빠지는 배달앱(요기요)의 연동 정보는 지금 바로 삭제돼요");
   });
 
   it("validationFailedShowsServerReason", async () => {

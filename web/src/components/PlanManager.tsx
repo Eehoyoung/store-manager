@@ -134,6 +134,8 @@ export function PlanManager({ storeId, tiered, serviceState, nextBillingAt, tria
             체험 중에는 바로 적용되고 횟수 제한도 없어요.
             {trialEndsAt ? ` 체험이 끝나는 ${fmtDate(trialEndsAt)}에` : " 체험이 끝나면"} 바꾼 상품 기준으로
             {pickedTotal !== null ? ` 월 ${krw(pickedTotal)}(VAT 포함)이` : " 월 이용료가"} 결제돼요.
+            {/* 체험 중에는 즉시 적용이라 빠지는 앱의 연동 정보도 바로 삭제된다(약관 9.4 제2항·9.1의3 제6항). */}
+            {removed.length > 0 ? ` 빠지는 배달앱(${removed.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")})의 연동 정보는 지금 바로 삭제돼요.` : ""}
           </p>
         ) : (
           <>
@@ -143,7 +145,7 @@ export function PlanManager({ storeId, tiered, serviceState, nextBillingAt, tria
             </p>
             {removed.length > 0 ? (
               <p>
-                빠지는 배달앱({removed.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")})의 연동 정보는 {nextBillingAt ? fmtDate(nextBillingAt) : "적용일"}에 삭제되고, 그 앱의 새 리뷰는 더 이상 처리하지 않아요.
+                빠지는 배달앱({removed.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")})의 연동 정보는 변경이 적용될 때({nextBillingAt ? `${fmtDate(nextBillingAt)} 결제가 끝나면` : "다음 결제가 끝나면"}) 삭제되고, 그 앱의 새 리뷰는 더 이상 처리하지 않아요.
               </p>
             ) : null}
           </>

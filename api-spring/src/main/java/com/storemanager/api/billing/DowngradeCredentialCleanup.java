@@ -8,7 +8,6 @@ import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.review.StorePlatformLink;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.store.StoreRepository;
-import com.storemanager.api.store.StoreServiceGate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,17 +30,17 @@ public class DowngradeCredentialCleanup {
     private final PlatformAccountRepository accounts;
     private final CredentialService credentialService;
     private final StoreRepository stores;
-    private final StoreServiceGate serviceGate;
+    private final SubscriptionRepository subscriptions;
     private final AuditLogRepository auditLogs;
 
     public DowngradeCredentialCleanup(StorePlatformLinkRepository links, PlatformAccountRepository accounts,
-            CredentialService credentialService, StoreRepository stores, StoreServiceGate serviceGate,
+            CredentialService credentialService, StoreRepository stores, SubscriptionRepository subscriptions,
             AuditLogRepository auditLogs) {
         this.links = links;
         this.accounts = accounts;
         this.credentialService = credentialService;
         this.stores = stores;
-        this.serviceGate = serviceGate;
+        this.subscriptions = subscriptions;
         this.auditLogs = auditLogs;
     }
 
@@ -58,10 +57,14 @@ public class DowngradeCredentialCleanup {
             targets.putIfAbsent(a.getId(), a);
         }
         for (PlatformAccount a : targets.values()) {
+            // 처리방침 2.2 "그 플랫폼을 고른 다른 매장이 쓰면 그 매장의 이용이 끝날 때까지 보관": 지금 서비스 가능한지가
+            // 아니라 계약이 살아 있는지(해지·삭제 아님)와 선택 명단으로 본다 - 미납으로 잠시 제한된 매장의 계정을 지우지 않게.
             boolean usedElsewhere = links.findByAccountIdOrderByCreatedAtAsc(a.getId()).stream()
-                    .filter(l -> !l.getStoreId().equals(storeId))
-                    .anyMatch(l -> stores.findById(l.getStoreId())
-                            .map(s -> serviceGate.isServiceable(s, a.getPlatform())).orElse(false));
+                    .map(StorePlatformLink::getStoreId)
+                    .filter(id -> !id.equals(storeId))
+                    .anyMatch(id -> stores.findById(id).filter(s -> s.getDeletedAt() == null).isPresent()
+                            && subscriptions.findByStoreIdAndStatusNot(id, "CANCELED")
+                                    .map(sub -> sub.effectivePlatforms().contains(a.getPlatform())).orElse(false));
             if (usedElsewhere) {
                 continue;
             }

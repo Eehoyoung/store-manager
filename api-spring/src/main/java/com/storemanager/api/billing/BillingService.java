@@ -377,7 +377,8 @@ public class BillingService {
         String day = due == null ? "다음 결제예정일" : due.atZone(KST).format(NOTICE_DATE);
         String product = TrialConversionNoticeService.productLabel(next);
         String head = switch (kind) {
-            case "TRIAL" -> store.getName() + " 매장의 상품이 바뀌었습니다. 무료체험 기간 중이라 바로 적용됩니다.\n\n";
+            case "TRIAL" -> store.getName() + " 매장의 상품이 바뀌었습니다. 무료체험 기간 중이라 바로 적용됩니다. "
+                    + "상품에서 뺀 배달앱이 있으면 그 연동 정보는 바로 삭제됩니다.\n\n";
             case "CANCEL" -> store.getName() + " 매장의 상품 변경 예약이 취소되었습니다. 지금 상품이 그대로 이어집니다.\n\n";
             default -> store.getName() + " 매장의 상품 변경 신청이 접수되었습니다.\n\n";
         };

@@ -184,6 +184,10 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       <p className="billing-page__eyebrow">KG이니시스 · 포트원 결제창</p>
       <p className="billing-checkout__notice">{stateNotice(billing, amount, productName, trialEndDate)}</p>
       {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} prices={billing.tiered?.optionTotalsKrw ?? []} /> : null}
+      {/* 첫 청구(UNPAID)는 이미 연동한 앱이 있을 수 있다 - 고르지 않은 앱의 연동 정보는 결제 후 삭제된다(약관 9.1의3 제6항). */}
+      {pick && !billing.trialPending ? (
+        <p className="field__hint">이미 연동한 배달앱 중 고르지 않은 앱의 연동 정보는 결제가 끝나면 삭제돼요.</p>
+      ) : null}
       {billing.tiered && !pick ? <p className="field__hint">현재 상품: {planLabel(billing.tiered.current.deliveryPlatforms)}</p> : null}
       <p className="billing-checkout__price">
         {amount === null ? (
