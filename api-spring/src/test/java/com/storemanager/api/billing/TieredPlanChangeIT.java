@@ -685,4 +685,19 @@ class TieredPlanChangeIT {
         변경(s, "YOGIYO"); // 이번 달 변경권은 남아 있다
         assertThat(다시읽기(s).getPendingDeliveryPlatforms()).containsExactly("YOGIYO");
     }
+    @Test
+    void viewCarriesServerOptionTableAndCanChange() {
+        Store s = 매장();
+        구독(s, "ACTIVE", new String[] {"BAEMIN"});
+        BillingView v = billingService.view(owner(s), s.getPublicId());
+        assertThat(v.tiered().optionTotalsKrw()).containsExactly(25000, 29000, 33000);
+        assertThat(v.tiered().canChange()).isTrue();
+
+        Store off = 매장();
+        Subscription sub = Subscription.builder().storeId(off.getId()).priceKrw(new BigDecimal("30000"))
+                .status("ACTIVE").billingKey("bk-" + off.getId()).billingChannelKey("ch-test").autoRenew(false).build();
+        sub.changeNextBillingAt(dueLaterToday());
+        subscriptions.save(sub);
+        assertThat(billingService.view(owner(off), off.getPublicId()).tiered().canChange()).isFalse(); // changePlan 과 같은 판정
+    }
 }

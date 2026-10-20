@@ -3,7 +3,7 @@ import { Card } from "./Card";
 import { Button } from "./Button";
 import { PlanPicker } from "./PlanPicker";
 import { billingApi, billingErrorMessage, type BillingResponse } from "../api/billing";
-import { EMPTY_SELECTION, PLAN_PRICE_KRW, canCheckout, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
+import { EMPTY_SELECTION, optionPrice, canCheckout, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
 
 interface BillingCheckoutProps {
   storeId: string;
@@ -16,11 +16,12 @@ function consentKey(storeId: string) {
 }
 
 /**
- * 선택형 요금(서버가 tiered 를 내려줄 때만)에서 새로 카드를 등록하는 경우에만 상품을 고른다.
- * 이미 카드가 있는 교체는 현재 명단을 그대로 보낸다(상품 변경은 결제관리의 별도 흐름).
+ * 선택형 요금(서버가 tiered 를 내려줄 때만)에서 서버가 명단을 적용하는 등록 - 체험 시작(trialPending)과
+ * 첫 청구(UNPAID) - 에서만 상품을 고른다. 그 밖(카드 교체·유예·제한 재결제)은 현재 명단을 그대로 보낸다
+ * (상품 변경은 결제관리의 별도 흐름).
  */
 function needsPicker(billing: BillingResponse): boolean {
-  return !!billing.tiered && (!billing.hasCard || billing.serviceState === "UNPAID");
+  return !!billing.tiered && (billing.trialPending || billing.serviceState === "UNPAID");
 }
 
 function krw(amount: number): string {
@@ -67,15 +68,17 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   // 아무것도 미리 고르지 않는다.
   const [selection, setSelection] = useState<PlanSelection>(EMPTY_SELECTION);
   const platforms = billing.tiered ? (pick ? selectedPlatforms(selection) : billing.tiered.current.deliveryPlatforms) : undefined;
-  // 서버가 준 가격이 유효해야 결제를 연다. 카드 교체는 서버 현재 가격, 신규는 고른 상품의 안내 가격이다.
-  const quoteReady = !billing.tiered || (Number.isFinite(billing.tiered.current.totalKrw) && billing.tiered.current.totalKrw > 0);
+  // 금액은 전부 서버 값이다. 신규는 서버 상품표(optionTotalsKrw)에서 고른 상품, 그 밖은 서버 현재 가격.
   const amount: number | null = !billing.tiered
     ? billing.amountKrw
     : pick
       ? selection.count === null
         ? null
-        : PLAN_PRICE_KRW[selection.count]
+        : optionPrice(billing.tiered.optionTotalsKrw, selection.count)
       : billing.tiered.current.totalKrw;
+  // 서버 금액이 유효해야 결제를 연다(상품을 아직 안 골랐으면 선택 검사가 따로 막는다).
+  const quoteReady = !billing.tiered || (pick && selection.count === null)
+    || (typeof amount === "number" && Number.isFinite(amount) && amount > 0);
 
   // 약관 제9조의4 제3항 — 자동화된 결제 시작에 앞서 기준·시점·금액·해지 방법을 동의 전에 명시한다.
   const trialEndDate = billing.trialPending ? addDays(billing.trialDays) : billing.trialEndsAt ? new Date(billing.trialEndsAt) : null;
@@ -174,7 +177,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
     <Card className="billing-checkout">
       <p className="billing-page__eyebrow">KG이니시스 · 포트원 결제창</p>
       <p className="billing-checkout__notice">{stateNotice(billing, amount)}</p>
-      {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} /> : null}
+      {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} prices={billing.tiered?.optionTotalsKrw ?? []} /> : null}
       {billing.tiered && !pick ? <p className="field__hint">현재 상품: {planLabel(billing.tiered.current.deliveryPlatforms)}</p> : null}
       <p className="billing-checkout__price">
         {amount === null ? (

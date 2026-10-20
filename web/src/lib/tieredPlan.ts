@@ -1,5 +1,7 @@
 import type { DeliveryPlatform } from "../api/types";
 
+export type PlanCount = 1 | 2 | 3;
+
 export const ALL_PLATFORMS: DeliveryPlatform[] = ["BAEMIN", "COUPANGEATS", "YOGIYO"];
 
 export const PLATFORM_LABEL: Record<string, string> = {
@@ -8,13 +10,11 @@ export const PLATFORM_LABEL: Record<string, string> = {
   YOGIYO: "요기요",
 };
 
-/**
- * 상품별 월 요금(VAT 포함) — 결제 전 '안내용' 표시값이다. 실제 청구액은 서버가 계산한다.
- * 서버 PricingTier 와 같이 바꿀 것. 결제 후·변경 후에는 서버 응답 값(tiered.*.totalKrw)만 보여준다.
- */
-export const PLAN_PRICE_KRW: Record<1 | 2 | 3, number> = { 1: 25000, 2: 29000, 3: 33000 };
-
-export type PlanCount = 1 | 2 | 3;
+/** 서버 상품표(tiered.optionTotalsKrw, 1·2·3개 순)에서 n개 상품 요금. 값이 없거나 이상하면 null - 결제를 열지 않는다. */
+export function optionPrice(totals: number[] | undefined, n: PlanCount): number | null {
+  const v = totals?.[n - 1];
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+}
 
 export interface PlanSelection {
   /** 아무것도 미리 고르지 않는다 — null 이 처음 상태. */

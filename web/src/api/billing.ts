@@ -31,6 +31,10 @@ export interface TieredPlan {
   /** 다음 결제부터 적용될 변경 예약. 없으면 키 자체가 없다. */
   next?: PlanPrice;
   changedThisMonth: boolean;
+  /** 배달앱 1·2·3개 상품의 월 요금(VAT 포함, 서버 산정). 결제 전 상품표·동의 금액은 이 값만 쓴다. */
+  optionTotalsKrw: number[];
+  /** 지금 상품 변경 예약을 받을 수 있는 결제 상태인지(서버 changePlan 과 같은 판정). */
+  canChange: boolean;
 }
 
 export interface BillingResponse {

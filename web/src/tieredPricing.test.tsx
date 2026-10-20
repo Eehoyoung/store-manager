@@ -57,6 +57,7 @@ function view(over: Partial<BillingResponse> = {}): BillingResponse {
 }
 
 const ALL3 = ["BAEMIN", "COUPANGEATS", "YOGIYO"];
+const OPT = [25000, 29000, 33000];
 
 function renderPage(b: BillingResponse) {
   api.get.mockResolvedValue(b);
@@ -93,7 +94,7 @@ describe("선택형 요금 화면", () => {
   });
 
   it("selectionRequiredNoPreselect", () => {
-    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false } });
+    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     for (const r of screen.getAllByRole("radio")) expect((r as HTMLInputElement).checked).toBe(false);
     fireEvent.click(screen.getByRole("checkbox", { name: /자동결제되는 데 동의/ }));
@@ -106,7 +107,7 @@ describe("선택형 요금 화면", () => {
   });
 
   it("recommendBadgeOnThreePlatforms", () => {
-    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false } });
+    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     const badges = screen.getAllByText("추천");
     expect(badges).toHaveLength(1);
@@ -115,13 +116,13 @@ describe("선택형 요금 화면", () => {
 
   it("selectionShowsServerPrice", async () => {
     // 표준 가격이 아닌 값(28,900)으로 화면이 서버 값을 그대로 쓰는지 확인한다.
-    const b = view({ tiered: { current: price(["BAEMIN"], 24500), next: price(["BAEMIN", "YOGIYO"], 28900), changedThisMonth: false } });
+    const b = view({ tiered: { current: price(["BAEMIN"], 24500), next: price(["BAEMIN", "YOGIYO"], 28900), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     renderPage(b);
     await screen.findByText("이용 상품");
     expect(screen.getAllByText(/월 28,900원/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/월 24,500원/).length).toBeGreaterThan(0);
     // 변경 직후 응답의 서버 값도 그대로 보인다.
-    api.changePlan.mockResolvedValue(view({ tiered: { current: price(["BAEMIN"], 24500), next: price(ALL3, 31700), changedThisMonth: true } }));
+    api.changePlan.mockResolvedValue(view({ tiered: { current: price(["BAEMIN"], 24500), next: price(ALL3, 31700), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } }));
     fireEvent.click(screen.getByRole("button", { name: "상품 변경" }));
     fireEvent.click(screen.getByRole("radio", { name: /배달앱 3개/ }));
     fireEvent.click(screen.getByRole("button", { name: /다음 결제부터 이 상품으로 바꾸기/ }));
@@ -134,8 +135,8 @@ describe("선택형 요금 화면", () => {
     expect(canCheckout({ selection: EMPTY_SELECTION, quoteReady: true, agreed: true, busy: false })).toBe(false);
     expect(canCheckout({ selection: { count: 3, platforms: [] }, quoteReady: false, agreed: true, busy: false })).toBe(false);
     expect(canCheckout({ selection: { count: 3, platforms: [] }, quoteReady: true, agreed: true, busy: false })).toBe(true);
-    // 서버 가격이 유효하지 않으면 상품을 다 골라도 결제 버튼이 닫혀 있다.
-    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 0), changedThisMonth: false } });
+    // 서버 상품표가 아직 없으면 상품을 다 골라도 결제 버튼이 닫혀 있다.
+    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: [], canChange: true } });
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: /배달앱 3개/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /자동결제되는 데 동의/ }));
@@ -143,7 +144,7 @@ describe("선택형 요금 화면", () => {
   });
 
   it("checkoutSendsSelectedPlatforms", async () => {
-    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false } });
+    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     api.checkout.mockResolvedValue(b);
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: /배달앱 2개/ }));
@@ -158,7 +159,7 @@ describe("선택형 요금 화면", () => {
   });
 
   it("cardReplacementSendsCurrentList", async () => {
-    const b = view({ tiered: { current: price(["YOGIYO"], 25000), changedThisMonth: false } });
+    const b = view({ tiered: { current: price(["YOGIYO"], 25000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     api.checkout.mockResolvedValue(b);
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
@@ -189,22 +190,39 @@ describe("선택형 요금 화면", () => {
   });
 
   it("nextBillingLabelShownWhenPending", async () => {
-    renderPage(view({ tiered: { current: price(ALL3, 33000), next: price(["BAEMIN"], 25000), changedThisMonth: true } }));
+    renderPage(view({ tiered: { current: price(ALL3, 33000), next: price(["BAEMIN"], 25000), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } }));
     await screen.findByText("이용 상품");
     expect(screen.getByText("현재 상품")).toBeTruthy();
     expect(screen.getByText("다음 결제부터")).toBeTruthy();
     expect(screen.getByRole("button", { name: "변경 예약 취소" })).toBeTruthy();
     // 취소는 현재 명단을 다시 보낸다.
-    api.changePlan.mockResolvedValue(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: true } }));
+    api.changePlan.mockResolvedValue(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } }));
     fireEvent.click(screen.getByRole("button", { name: "변경 예약 취소" }));
     await waitFor(() => expect(api.changePlan).toHaveBeenCalledWith("s1", ALL3));
     await waitFor(() => expect(screen.queryByText("다음 결제부터")).toBeNull());
   });
 
   it("changeDisabledWhenChangedThisMonth", async () => {
-    renderPage(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: true } }));
+    renderPage(view({ tiered: { current: price(ALL3, 33000), changedThisMonth: true, optionTotalsKrw: OPT, canChange: true } }));
     await screen.findByText("이용 상품");
     expect((screen.getByRole("button", { name: "상품 변경" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/이번 달에는 이미 상품을 바꿨어요/)).toBeTruthy();
+  });
+  it("selectionUsesServerOptionTable", () => {
+    // 가맹 매장: 3개 상품이 구간 단가(31,000원). 상품표·동의 금액이 화면 상수가 아니라 서버 값이어야 한다.
+    const b = view({ hasCard: false, serviceState: "UNPAID",
+      tiered: { current: price(ALL3, 31000), changedThisMonth: false, optionTotalsKrw: [25000, 29000, 31000], canChange: true } });
+    render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
+    expect(screen.getByRole("radio", { name: /배달앱 3개/ }).closest("label")?.textContent).toContain("31,000원");
+    expect(screen.queryByText(/33,000원/)).toBeNull();
+  });
+
+  it("changeDisabledWhenServerSaysNotAllowed", async () => {
+    renderPage(view({ tiered: { current: price(ALL3, 33000), next: price(["BAEMIN"], 25000), changedThisMonth: false,
+      optionTotalsKrw: OPT, canChange: false } }));
+    await screen.findByText("이용 상품");
+    expect((screen.getByRole("button", { name: "상품 변경" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "변경 예약 취소" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/자동결제와 결제 상태를 먼저 확인해 주세요/)).toBeTruthy();
   });
 });

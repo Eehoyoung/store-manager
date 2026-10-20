@@ -313,11 +313,7 @@ public class BillingService {
         if (sub.getBillingLockUntil() != null && sub.getBillingLockUntil().isAfter(now)) {
             throw new ApiException(ErrorCode.BILLING_BUSY); // 갱신·결제가 진행 중
         }
-        String state = sub.serviceStateAt(now);
-        // 자동결제가 꺼졌거나 카드가 없으면 다음 결제가 없어 예약이 영영 적용되지 않는다 - 받지 않는다.
-        if (!("TRIAL".equals(state) || "ACTIVE".equals(state)) || sub.getRenewalFailures() > 0
-                || !sub.isAutoRenew() || sub.getBillingKey() == null
-                || payments.existsBySubscriptionIdAndStatus(sub.getId(), "PENDING")) {
+        if (!planChangeAllowed(sub, now)) {
             throw new ApiException(ErrorCode.PLAN_CHANGE_NOT_ALLOWED);
         }
         boolean cancel = sub.getPendingDeliveryPlatforms() != null && requested.equals(sub.effectivePlatforms());
@@ -726,7 +722,20 @@ public class BillingService {
             next = planPrice(pending, brandPricingService.quoteFor(store, month, sub, pending.size()));
         }
         boolean changed = changedInMonth(subscriptions.findLastPlanChangedAt(store.getId()), now);
-        return new BillingDtos.TieredPlanView(planPrice(cur, current), next, changed);
+        // 상품표(1·2·3개)도 서버가 산정한다 - 가맹 매장은 3개가 구간 단가라 화면 상수로는 동의 금액이 어긋난다.
+        List<Integer> totals = List.of(1, 2, 3).stream()
+                .map(n -> brandPricingService.quoteFor(store, month, sub, n).total()).toList();
+        boolean canChange = sub != null && planChangeAllowed(sub, now);
+        return new BillingDtos.TieredPlanView(planPrice(cur, current), next, changed, totals, canChange);
+    }
+
+    /** 상품 변경을 받을 수 있는 결제 상태인가. changePlan 과 화면(canChange)이 같은 판정을 쓴다. */
+    private boolean planChangeAllowed(Subscription sub, Instant now) {
+        String state = sub.serviceStateAt(now);
+        // 자동결제가 꺼졌거나 카드가 없으면 다음 결제가 없어 예약이 영영 적용되지 않는다 - 받지 않는다.
+        return ("TRIAL".equals(state) || "ACTIVE".equals(state)) && sub.getRenewalFailures() == 0
+                && sub.isAutoRenew() && sub.getBillingKey() != null
+                && !payments.existsBySubscriptionIdAndStatus(sub.getId(), "PENDING");
     }
 
     private static BillingDtos.PlanPrice planPrice(Set<String> platforms, PriceQuote q) {

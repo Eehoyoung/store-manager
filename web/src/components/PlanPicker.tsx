@@ -1,7 +1,7 @@
 import { Badge } from "./Badge";
 import {
   ALL_PLATFORMS,
-  PLAN_PRICE_KRW,
+  optionPrice,
   PLATFORM_LABEL,
   isSelectionComplete,
   type PlanCount,
@@ -15,12 +15,14 @@ interface PlanPickerProps {
   disabled?: boolean;
   /** radio name 충돌 방지용 */
   name?: string;
+  /** 서버 상품표(tiered.optionTotalsKrw). */
+  prices: number[];
 }
 
 const COUNTS: PlanCount[] = [1, 2, 3];
 
 /** 상품 선택 — 배달앱 1·2·3개. 네이버는 모든 상품에 포함이라 고르지 않는다. 처음엔 아무것도 골라져 있지 않다. */
-export function PlanPicker({ value, onChange, disabled, name = "plan-count" }: PlanPickerProps) {
+export function PlanPicker({ value, onChange, disabled, name = "plan-count", prices }: PlanPickerProps) {
   const setCount = (count: PlanCount) =>
     // 개수를 바꾸면 이전에 고른 배달앱이 새 개수를 넘을 수 있어 잘라낸다.
     onChange({ count, platforms: count === 3 ? [] : value.platforms.slice(0, count) });
@@ -44,7 +46,7 @@ export function PlanPicker({ value, onChange, disabled, name = "plan-count" }: P
               <strong>
                 배달앱 {n}개{n === 3 ? " (전체)" : ""}
               </strong>
-              <span>월 {PLAN_PRICE_KRW[n].toLocaleString("ko-KR")}원</span>
+              <span>{optionPrice(prices, n) === null ? "금액 확인 중" : `월 ${optionPrice(prices, n)!.toLocaleString("ko-KR")}원`}</span>
             </span>
             {n === 3 ? <Badge tone="info">추천</Badge> : null}
           </label>

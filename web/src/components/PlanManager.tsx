@@ -28,7 +28,7 @@ export function PlanManager({ storeId, tiered, onChanged }: PlanManagerProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  const { current, next, changedThisMonth } = tiered;
+  const { current, next, changedThisMonth, canChange } = tiered;
   const picked = selectedPlatforms(selection);
 
   async function send(platforms: string[], done: string) {
@@ -63,7 +63,7 @@ export function PlanManager({ storeId, tiered, onChanged }: PlanManagerProps) {
 
       {editing ? (
         <>
-          <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-change-${storeId}`} />
+          <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-change-${storeId}`} prices={tiered.optionTotalsKrw} />
           <div className="billing-page__actions">
             <Button type="button" variant="secondary" disabled={busy} onClick={() => setEditing(false)}>
               취소
@@ -75,18 +75,20 @@ export function PlanManager({ storeId, tiered, onChanged }: PlanManagerProps) {
         </>
       ) : (
         <div className="billing-page__actions">
-          <Button type="button" variant="secondary" disabled={busy || changedThisMonth} onClick={() => setEditing(true)}>
+          <Button type="button" variant="secondary" disabled={busy || changedThisMonth || !canChange} onClick={() => setEditing(true)}>
             상품 변경
           </Button>
           {next ? (
-            <Button type="button" variant="secondary" disabled={busy} loading={busy} onClick={() => void send(current.deliveryPlatforms, "상품 변경 예약을 취소했어요.")}>
+            <Button type="button" variant="secondary" disabled={busy || !canChange} loading={busy} onClick={() => void send(current.deliveryPlatforms, "상품 변경 예약을 취소했어요.")}>
               변경 예약 취소
             </Button>
           ) : null}
         </div>
       )}
       <p className="field__hint">
-        {changedThisMonth
+        {!canChange
+          ? "지금은 상품을 바꿀 수 없어요. 자동결제와 결제 상태를 먼저 확인해 주세요."
+          : changedThisMonth
           ? "이번 달에는 이미 상품을 바꿨어요. 상품은 한 달에 한 번만 바꿀 수 있어서 다음 달에 다시 바꿀 수 있어요."
           : "상품은 한 달에 한 번 바꿀 수 있고, 다음 결제부터 적용돼요."}
       </p>
