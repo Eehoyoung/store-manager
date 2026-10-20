@@ -156,4 +156,32 @@ class TieredPlanChangeFlagOffIT {
         assertThat(json).doesNotContain("tiered").doesNotContain("deliveryPlatforms");
         assertThat(json).contains("\"brandPaidStoreCount\":null"); // 기존 null 키는 그대로 나간다(바이트 동일)
     }
+
+    // ── 리뷰 반영: 킬 스위치 범위(3개 미만만)와 카드 등록 경로 ─────────────
+
+    @Test
+    void renewalWithThreeSelectionProceedsWhenFlagOff() {
+        Store s = 매장();
+        구독(s, new String[] {"BAEMIN", "COUPANGEATS", "YOGIYO"}, null); // 3개 = 꺼짐 가격과 같다
+        billingService.renew(s.getId());
+        ArgumentCaptor<Long> amount = ArgumentCaptor.forClass(Long.class);
+        verify(portOne).pay(anyString(), anyString(), anyString(), amount.capture(), anyMap());
+        assertThat(amount.getValue()).isEqualTo(33000L);
+    }
+
+    @Test
+    void checkoutRefusedWhenFlagOffAndSelectionBelowThree() throws Exception {
+        Store s = 매장();
+        // UNPAID(결제 이력 없음) + 1개 명단 - 꺼짐 가격 33,000원으로 청구하면 안 된다.
+        subscriptions.save(Subscription.builder().storeId(s.getId()).priceKrw(new BigDecimal("30000"))
+                .activeDeliveryPlatforms(new String[] {"YOGIYO"}).build());
+        JsonNode info = JSON.readTree("{\"status\":\"ISSUED\",\"customer\":{\"id\":\"store-" + s.getPublicId()
+                + "\"},\"channels\":[{\"key\":\"ch-test\"}]}");
+        when(portOne.billingKey("k-kill")).thenReturn(info);
+
+        assertThatThrownBy(() -> billingService.checkout(owner(s), s.getPublicId(),
+                new CheckoutRequest("k-kill", true, agreements.currentVersion()), "127.0.0.1", "junit"))
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE));
+        verify(portOne, never()).pay(anyString(), anyString(), anyString(), anyLong(), anyMap());
+    }
 }

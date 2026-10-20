@@ -178,8 +178,10 @@ public class BillingService {
         if (!portOneClient.enabled()) {
             throw PortOneClient.unavailable();
         }
-        // 선택형 요금 켜짐: 카드 등록에 배달앱 선택이 필수(없으면 동의 기록 전에 거절). 꺼짐이면 필드를 무시한다.
-        Set<String> chosen = tieredPricing.enabled() ? parsePlatforms(req.deliveryPlatforms()) : null;
+        // 선택형 요금 켜짐: 보낸 명단은 동의 기록 전에 검증한다. 필수 여부는 분기마다 다르다 - 체험 시작·청구는 필수,
+        // 카드만 교체(TRIAL/ACTIVE)는 받지도 적용하지도 않는다(변경은 PUT billing/plan 으로만). 꺼짐이면 필드를 무시한다.
+        Set<String> chosen = tieredPricing.enabled() && req.deliveryPlatforms() != null
+                ? parsePlatforms(req.deliveryPlatforms()) : null;
         agreementService.requireCurrentVersion(req.billingConsentVersion());
         agreementService.record(owner.getId(), store.getId(), BILLING_CONSENT_CODE, req.billingConsentAgreed(), ip,
                 userAgent);
@@ -195,6 +197,7 @@ public class BillingService {
             String oldKey = sub.getBillingKey();
 
             if (isTrialPending(sub)) {
+                requireSelection(chosen);
                 Instant trialEnd = now.plus(TRIAL_DAYS, ChronoUnit.DAYS);
                 writes.executeWithoutResult(status -> {
                     Subscription row = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED").orElseThrow();
@@ -222,6 +225,12 @@ public class BillingService {
             }
 
             // UNPAID · GRACE · RESTRICTED — 지금 청구한다.
+            requireSelection(chosen);
+            // ★ 킬 스위치(갱신과 같은 조건): 꺼졌는데 3개 미만 명단이면 꺼짐 가격(3개)으로 청구하지 않는다.
+            if (!tieredPricing.enabled() && sub.hasSelectionBelowThree()) {
+                log.error("선택형 요금이 꺼져 있어 3개 미만 명단 구독의 재결제를 거부합니다 storeId={}", store.getId());
+                throw new ApiException(ErrorCode.SERVICE_UNAVAILABLE);
+            }
             boolean grace = "GRACE".equals(state);
             Instant periodStart = grace ? sub.getNextBillingAt() : now;
             Instant periodEnd = periodStart.atZone(KST).plusMonths(1).toInstant();
@@ -305,7 +314,9 @@ public class BillingService {
             throw new ApiException(ErrorCode.BILLING_BUSY); // 갱신·결제가 진행 중
         }
         String state = sub.serviceStateAt(now);
+        // 자동결제가 꺼졌거나 카드가 없으면 다음 결제가 없어 예약이 영영 적용되지 않는다 - 받지 않는다.
         if (!("TRIAL".equals(state) || "ACTIVE".equals(state)) || sub.getRenewalFailures() > 0
+                || !sub.isAutoRenew() || sub.getBillingKey() == null
                 || payments.existsBySubscriptionIdAndStatus(sub.getId(), "PENDING")) {
             throw new ApiException(ErrorCode.PLAN_CHANGE_NOT_ALLOWED);
         }
@@ -335,9 +346,17 @@ public class BillingService {
         return last != null && YearMonth.from(last.atZone(KST)).equals(YearMonth.from(now.atZone(KST)));
     }
 
+    /** 켜짐에서 명단이 필요한 분기(체험 시작·청구)인데 보내지 않았으면 거절. 꺼짐이면 통과. */
+    private void requireSelection(Set<String> chosen) {
+        if (tieredPricing.enabled() && chosen == null) {
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "배달앱을 1개에서 3개까지 골라 주세요."));
+        }
+    }
+
     /** 1~3개, BAEMIN/COUPANGEATS/YOGIYO, 중복 없음. 정규 순서(TreeSet)로 돌려준다. */
     private static Set<String> parsePlatforms(List<String> platforms) {
-        if (platforms == null || platforms.isEmpty() || platforms.size() > 3
+        if (platforms == null || platforms.isEmpty() || platforms.size() > 3 || platforms.stream().anyMatch(java.util.Objects::isNull)
+                // ★ List.of() 의 contains·containsAll 은 null 에서 NPE(500) - 스트림으로 먼저 거른다.
                 || !Subscription.DELIVERY_PLATFORMS.containsAll(platforms)
                 || new java.util.HashSet<>(platforms).size() != platforms.size()) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED,
@@ -486,10 +505,11 @@ public class BillingService {
             if (!sub.isAutoRenew() || sub.getBillingKey() == null || !portOneClient.enabled()) {
                 return;
             }
-            // ★ 킬 스위치: 꺼졌는데 선택 명단이 있는 구독은 갱신하지 않는다(1개 고객에게 33,000원이 청구되는 사고 방지).
-            if (!tieredPricing.enabled()
-                    && (sub.getActiveDeliveryPlatforms() != null || sub.getPendingDeliveryPlatforms() != null)) {
-                log.warn("선택형 요금이 꺼져 있어 선택 명단이 있는 구독의 갱신을 거부합니다 storeId={}", storeId);
+            // ★ 킬 스위치: 꺼졌는데 3개 미만 명단이 있는 구독은 갱신하지 않는다(1개 고객에게 33,000원이 청구되는 사고 방지).
+            //   3개 명단은 꺼짐 가격과 같으므로 그대로 갱신한다. ERROR 로 남겨 운영 경보에 걸리게 한다.
+            // ponytail: 매일 같은 ERROR 가 반복된다 - 관리자 알림이 필요하면 그때 추가.
+            if (!tieredPricing.enabled() && sub.hasSelectionBelowThree()) {
+                log.error("선택형 요금이 꺼져 있어 3개 미만 명단 구독의 갱신을 거부합니다 storeId={}", storeId);
                 return;
             }
             // 켜짐: 잠금 아래에서 대기(pending)를 한 번만 읽고 그 값으로 청구한다. 변경은 이 갱신이 끝날 때까지
@@ -533,6 +553,8 @@ public class BillingService {
                     // 같은 트랜잭션에서 승격: 읽어 둔 대기 명단이 그대로일 때만(결제한 금액과 명단이 같아야 한다).
                     if (promote != null && java.util.Arrays.equals(promote, row.getPendingDeliveryPlatforms())) {
                         applyActivePlatforms(row, new java.util.TreeSet<>(java.util.Arrays.asList(promote)));
+                    } else if (promote != null) {
+                        log.warn("갱신 중 대기 명단이 바뀌어 승격하지 않았습니다(다음 갱신에서 새 대기로 청구) storeId={}", storeId);
                     }
                     subscriptions.save(row);
                 });

@@ -200,7 +200,8 @@ class TieredPlanChangeIT {
         Store s = 매장();
         구독(s, "ACTIVE", null);
         for (List<String> bad : List.of(List.<String>of(), List.of("BAEMIN", "BAEMIN"), List.of("NAVER"),
-                List.of("baemin"), List.of("BAEMIN", "YOGIYO", "COUPANGEATS", "BAEMIN"))) {
+                List.of("baemin"), List.of("BAEMIN", "YOGIYO", "COUPANGEATS", "BAEMIN"),
+                java.util.Arrays.asList("BAEMIN", null))) {
             assertThatThrownBy(() -> billingService.changePlan(owner(s), s.getPublicId(), bad))
                     .satisfies(e -> assertThat(code(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
         }
@@ -566,7 +567,8 @@ class TieredPlanChangeIT {
 
         // 다음 달: 월 1회 초기화, 다시 3개 선택, 다음 결제일 도래
         Subscription row = 다시읽기(s);
-        row.reservePlan(new java.util.TreeSet<>(List.of("BAEMIN")), Instant.now().minus(Duration.ofDays(40)));
+        // 지난달 변경 기록을 만든다(현재 명단과 다른 값 - 같은 값은 취소라 기록이 남지 않는다).
+        row.reservePlan(new java.util.TreeSet<>(List.of("YOGIYO")), Instant.now().minus(Duration.ofDays(40)));
         row.changeNextBillingAt(dueLaterToday());
         subscriptions.save(row);
         변경(s, "BAEMIN", "COUPANGEATS", "YOGIYO");
@@ -633,5 +635,54 @@ class TieredPlanChangeIT {
         assertThat(row.getStatus()).isEqualTo("ACTIVE");
         assertThat(row.getActiveDeliveryPlatforms()).isNull(); // 명단 null = 3개 간주
         assertThat(row.selectedDeliveryCount()).isEqualTo(3);
+    }
+
+    // ── 리뷰 반영 ─────────────────────────────────────────────────────────
+
+    @Test
+    void cardSwapNeedsNoSelectionAndIgnoresIt() throws Exception {
+        Store s = 매장();
+        구독(s, "ACTIVE", new String[] {"BAEMIN"});
+        billingKeyOk(s, "k-swap");
+        billingKeyOk(s, "k-swap2");
+
+        billingService.checkout(owner(s), s.getPublicId(),
+                new CheckoutRequest("k-swap", true, agreements.currentVersion()), "127.0.0.1", "junit");
+        billingService.checkout(owner(s), s.getPublicId(),
+                new CheckoutRequest("k-swap2", true, agreements.currentVersion(), List.of("YOGIYO")), "127.0.0.1", "junit");
+
+        verify(portOne, never()).pay(anyString(), anyString(), anyString(), anyLong(), anyMap());
+        assertThat(다시읽기(s).getActiveDeliveryPlatforms()).containsExactly("BAEMIN"); // 카드 교체는 명단을 바꾸지 않는다
+        assertThat(다시읽기(s).getPendingDeliveryPlatforms()).isNull();
+    }
+
+    @Test
+    void changeRejectedWhenAutoRenewOff() {
+        Store s = 매장();
+        Subscription sub = Subscription.builder().storeId(s.getId()).priceKrw(new BigDecimal("30000"))
+                .status("ACTIVE").billingKey("bk-" + s.getId()).billingChannelKey("ch-test").autoRenew(false).build();
+        sub.changeNextBillingAt(dueLaterToday());
+        subscriptions.save(sub);
+
+        assertThatThrownBy(() -> 변경(s, "BAEMIN"))
+                .satisfies(e -> assertThat(code(e)).isEqualTo(ErrorCode.PLAN_CHANGE_NOT_ALLOWED));
+    }
+
+    @Test
+    void cancelDoesNotConsumeMonthlyChange() {
+        Store s = 매장();
+        // 지난달 예약이 대기 중인 상태에서 이번 달 취소.
+        Instant lastMonth = LocalDate.now(KST).withDayOfMonth(1).atStartOfDay(KST).minusDays(1).toInstant();
+        Subscription sub = Subscription.builder().storeId(s.getId()).priceKrw(new BigDecimal("30000"))
+                .status("ACTIVE").billingKey("bk-" + s.getId()).billingChannelKey("ch-test").autoRenew(true)
+                .pendingDeliveryPlatforms(new String[] {"BAEMIN"}).planChangedAt(lastMonth).build();
+        sub.changeNextBillingAt(dueLaterToday());
+        subscriptions.save(sub);
+
+        변경(s, "BAEMIN", "COUPANGEATS", "YOGIYO"); // 취소
+        assertThat(다시읽기(s).getPlanChangedAt()).isEqualTo(lastMonth);
+
+        변경(s, "YOGIYO"); // 이번 달 변경권은 남아 있다
+        assertThat(다시읽기(s).getPendingDeliveryPlatforms()).containsExactly("YOGIYO");
     }
 }

@@ -144,10 +144,23 @@ public class Subscription {
      * 호출자가 월 1회·미납 검사를 끝낸 뒤 부른다.
      */
     public void reservePlan(java.util.Set<String> requested, Instant now) {
-        this.pendingDeliveryPlatforms = requested.equals(effectivePlatforms()) ? null
-                : requested.toArray(new String[0]);
-        this.planChangedAt = now;
+        boolean cancel = requested.equals(effectivePlatforms());
+        this.pendingDeliveryPlatforms = cancel ? null : requested.toArray(new String[0]);
+        // 취소는 월 1회를 소모하지 않는다(9/30 예약 → 10/1 취소가 10월 변경권을 먹지 않게).
+        // 같은 달 예약 → 취소 → 재예약은 첫 예약 시각으로 여전히 막힌다.
+        if (!cancel) {
+            this.planChangedAt = now;
+        }
         this.updatedAt = now;
+    }
+
+    /**
+     * 킬 스위치 조건: 3개 미만 명단(현재 또는 대기)이 있는가. 꺼짐 가격은 3개 상품과 같으므로
+     * 3개 명단은 꺼짐에서도 그대로 청구해도 된다.
+     */
+    public boolean hasSelectionBelowThree() {
+        return (activeDeliveryPlatforms != null && activeDeliveryPlatforms.length < 3)
+                || (pendingDeliveryPlatforms != null && pendingDeliveryPlatforms.length < 3);
     }
 
     /** 새 명단을 현재 명단으로 확정하고 대기를 비운다. 승격(갱신 성공)·카드 등록 결제에서 쓴다. */
