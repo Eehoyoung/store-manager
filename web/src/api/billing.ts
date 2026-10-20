@@ -119,8 +119,6 @@ export function billingErrorMessage(e: unknown): string {
         return "상품은 한 달에 한 번만 바꿀 수 있어요. 다음 달에 다시 바꿔 주세요.";
       case "PLAN_CHANGE_NOT_ALLOWED":
         return "지금은 상품을 바꿀 수 없는 상태예요. 결제 상태를 확인해 주세요.";
-      case "VALIDATION_FAILED":
-        return "선택한 상품을 다시 확인해 주세요.";
       case "SERVICE_UNAVAILABLE":
         return "지금은 결제를 받을 수 없어요. 잠시 후 다시 시도해 주세요.";
       default:

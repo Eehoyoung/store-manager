@@ -4,6 +4,7 @@ import { Button } from "./Button";
 import { Modal } from "./Modal";
 import { PlanPicker } from "./PlanPicker";
 import { billingApi, billingErrorMessage, type BillingResponse, type TieredPlan } from "../api/billing";
+import { ApiError } from "../api/client";
 import { EMPTY_SELECTION, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
 
 interface PlanManagerProps {
@@ -39,7 +40,8 @@ export function PlanManager({ storeId, tiered, onChanged }: PlanManagerProps) {
       setEditing(false);
       setSelection(EMPTY_SELECTION);
     } catch (e) {
-      setMessage(billingErrorMessage(e));
+      // VALIDATION_FAILED 문구는 여기서만 - 공용 billingErrorMessage 에 넣으면 꺼짐 화면 문구가 바뀐다.
+      setMessage(e instanceof ApiError && e.code === "VALIDATION_FAILED" ? "선택한 상품을 다시 확인해 주세요." : billingErrorMessage(e));
     } finally {
       setBusy(false);
       setConfirm(false);
