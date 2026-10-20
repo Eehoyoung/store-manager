@@ -32,8 +32,8 @@ NEW=$($G rev-parse origin/master)
 #   Actions 한도 초과 우회. 판정 규칙은 deploy/ci_gate.py 한 곳에 있다(Actions 실패는 로컬 증명으로 덮지 않는다).
 GATE_TMP=$(mktemp -d)
 CI=$(curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/check-runs?per_page=100" >"$GATE_TMP/runs.json" \
-  && curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/status" >"$GATE_TMP/status.json" \
-  && python3 deploy/ci_gate.py "$GATE_TMP/runs.json" "$GATE_TMP/status.json") \
+  && curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/statuses?per_page=100" >"$GATE_TMP/status.json" \
+  && python3 deploy/ci_gate.py "$GATE_TMP/runs.json" "$GATE_TMP/status.json" "${REPO%%/*}") \
   || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; }
 rm -rf "$GATE_TMP"
 

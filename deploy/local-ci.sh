@@ -21,7 +21,9 @@ if [ "${1:-}" = "--attest-merge" ]; then
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
   [ -z "$(git status --porcelain)" ] || { echo "작업 트리가 깨끗하지 않다"; exit 2; }
   [ "$(git rev-parse "$SHA^{tree}")" = "$(git rev-parse "$TESTED^{tree}")" ]     || { echo "트리가 다르다 — 머지 커밋에서 --record 로 다시 검사할 것"; exit 1; }
-  STATE=$(gh api "repos/$REPO/commits/$TESTED/status" -q '[.statuses[] | select(.context=="local-ci")][0].state')
+  OWNER=${REPO%%/*}
+  # 전체 목록(최신순)에서 소유자 계정이 쓴 local-ci 만 본다 - ci_gate.py 와 같은 기준.
+  STATE=$(gh api "repos/$REPO/commits/$TESTED/statuses?per_page=100"     -q "[.[] | select(.context==\"local-ci\" and .creator.login==\"$OWNER\")][0].state")
   [ "$STATE" = success ] || { echo "검사한 커밋에 local-ci=success 가 없다($STATE)"; exit 1; }
   gh api "repos/$REPO/statuses/$SHA" -f state=success -f context=local-ci     -f description="local ci: same tree as ${TESTED:0:7}" >/dev/null && echo "커밋 상태 기록: local-ci=success (트리 동일 ${TESTED:0:7})"
   exit $?
