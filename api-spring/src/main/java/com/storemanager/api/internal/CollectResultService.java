@@ -352,6 +352,10 @@ public class CollectResultService {
         }
         link.reassignAccount(requestAccountId);
         storePlatformLinkRepository.save(link);
+        // 연동 행의 계정이 바뀌는 보안 관련 변경 - 앱 로그보다 오래 남는 감사 로그로(계정 id 만, 비밀값 없음).
+        auditLogRepository.save(AuditLog.builder().actorType("SYSTEM").action("LINK_REASSIGNED_FROM_REVOKED")
+                .targetType("STORE_PLATFORM_LINK").targetId(link.getId())
+                .detail("{\"fromAccountId\":" + old.getId() + ",\"toAccountId\":" + requestAccountId + "}").build());
         log.info("파기된 계정의 연동을 재등록 계정으로 옮김 linkId={} accountId={}", link.getId(), requestAccountId);
     }
 
