@@ -89,7 +89,7 @@ describe("선택형 요금 화면", () => {
     renderPage(view());
     await screen.findByText("구독 결제");
     expect(screen.queryByText("이용 상품")).toBeNull();
-    expect(screen.queryByText("추천")).toBeNull();
+    expect(screen.queryByText("3사 모두 이용")).toBeNull();
     expect(screen.getByText(/월 33,000원/)).toBeTruthy();
   });
 
@@ -109,7 +109,7 @@ describe("선택형 요금 화면", () => {
   it("recommendBadgeOnThreePlatforms", () => {
     const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
     render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
-    const badges = screen.getAllByText("추천");
+    const badges = screen.getAllByText("3사 모두 이용");
     expect(badges).toHaveLength(1);
     expect(badges[0].closest("label")?.textContent).toContain("배달앱 3개");
   });

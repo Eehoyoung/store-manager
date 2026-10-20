@@ -48,7 +48,8 @@ export function PlanPicker({ value, onChange, disabled, name = "plan-count", pri
               </strong>
               <span>{optionPrice(prices, n) === null ? "금액 확인 중" : `월 ${optionPrice(prices, n)!.toLocaleString("ko-KR")}원`}</span>
             </span>
-            {n === 3 ? <Badge tone="info">추천</Badge> : null}
+            {/* D66: 근거 없는 '추천' 대신 사실 문구(가장 비싼 상품 유인 표시 방지). 미리 선택은 여전히 없다. */}
+            {n === 3 ? <Badge tone="info">3사 모두 이용</Badge> : null}
           </label>
         ))}
       </div>
