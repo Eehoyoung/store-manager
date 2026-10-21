@@ -23,7 +23,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Instant findLastPlanChangedAt(@Param("storeId") Long storeId);
 
     /** 해지(자동결제 꺼짐)했고 이용 유예(service_until)까지 끝난 구독 - 자격증명 파기 대상. */
-    @Query("select s from Subscription s where s.autoRenew = false and s.status <> 'CANCELED' "
+    @Query("select s from Subscription s where s.cancellationRequestedAt is not null and s.autoRenew = false "
+            + "and s.status not in ('CANCELED', 'SUSPENDED') "
             + "and s.serviceUntil is not null and s.serviceUntil <= :now")
     List<Subscription> findCancelEnded(@Param("now") Instant now);
 

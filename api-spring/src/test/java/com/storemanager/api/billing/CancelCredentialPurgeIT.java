@@ -64,11 +64,22 @@ class CancelCredentialPurgeIT {
     }
 
     /** nextBilling 을 기준으로 serviceUntil 이 정해진다(D+3 00:00 KST). */
-    private Store store(AppUser o, PlatformAccount a, boolean autoRenew, Instant nextBilling) {
+    private Store store(AppUser o, PlatformAccount a, String mode, Instant nextBilling) {
         Store st = stores.save(Store.builder().ownerId(o.getId()).name("매장" + (++seq)).build());
+        boolean autoRenew = mode.equals("RENEW");
         Subscription s = Subscription.builder().storeId(st.getId()).priceKrw(new BigDecimal("30000"))
                 .status("ACTIVE").autoRenew(autoRenew).billingKey(autoRenew ? "k" : null).build();
         s.changeNextBillingAt(nextBilling);
+        // CANCEL/SUSPENDED/RECARD 는 사장님 해지 경로(disableAutoRenew), OPERATOR 는 자동결제 꺼짐이지만 해지 아님
+        if (mode.equals("CANCEL") || mode.equals("SUSPENDED") || mode.equals("RECARD")) {
+            s.disableAutoRenew();
+        }
+        if (mode.equals("SUSPENDED")) {
+            s.suspend();
+        }
+        if (mode.equals("RECARD")) {
+            s.swapBillingKey("k2", "ch");
+        }
         subscriptions.save(s);
         links.save(StorePlatformLink.builder().storeId(st.getId()).accountId(a.getId()).platform("BAEMIN")
                 .platformStoreId("ps" + seq).build());
@@ -83,7 +94,7 @@ class CancelCredentialPurgeIT {
     void 해지_유예_경과_파기하고_두번째는_멱등() {
         AppUser o = owner();
         PlatformAccount a = account(o);
-        store(o, a, false, Instant.now().minus(Duration.ofDays(10)));
+        store(o, a, "CANCEL", Instant.now().minus(Duration.ofDays(10)));
 
         purge.purgeEnded(Instant.now());
         long audits = auditLogs.count();
@@ -97,7 +108,7 @@ class CancelCredentialPurgeIT {
     void 해지_유예_전이면_유지() {
         AppUser o = owner();
         PlatformAccount a = account(o);
-        store(o, a, false, Instant.now().minus(Duration.ofDays(1)));
+        store(o, a, "CANCEL", Instant.now().minus(Duration.ofDays(1)));
 
         purge.purgeEnded(Instant.now());
 
@@ -108,7 +119,7 @@ class CancelCredentialPurgeIT {
     void 자동갱신_켜진_결제실패_제한은_유지() {
         AppUser o = owner();
         PlatformAccount a = account(o);
-        store(o, a, true, Instant.now().minus(Duration.ofDays(10)));
+        store(o, a, "RENEW", Instant.now().minus(Duration.ofDays(10)));
 
         purge.purgeEnded(Instant.now());
 
@@ -116,11 +127,56 @@ class CancelCredentialPurgeIT {
     }
 
     @Test
+    void 운영자_활성화처럼_해지_기록_없는_자동결제_꺼짐은_유지() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        store(o, a, "OPERATOR", Instant.now().minus(Duration.ofDays(10)));
+
+        purge.purgeEnded(Instant.now());
+
+        assertThat(revoked(a)).isFalse();
+    }
+
+    @Test
+    void SUSPENDED는_해지해도_유지() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        store(o, a, "SUSPENDED", Instant.now().minus(Duration.ofDays(10)));
+
+        purge.purgeEnded(Instant.now());
+
+        assertThat(revoked(a)).isFalse();
+    }
+
+    @Test
+    void 해지_후_카드_재등록하면_유지() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        store(o, a, "RECARD", Instant.now().minus(Duration.ofDays(10)));
+
+        purge.purgeEnded(Instant.now());
+
+        assertThat(revoked(a)).isFalse();
+    }
+
+    @Test
+    void 해지_만료_매장끼리는_서로_보존_사유가_되지_않는다() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        store(o, a, "CANCEL", Instant.now().minus(Duration.ofDays(10)));
+        store(o, a, "CANCEL", Instant.now().minus(Duration.ofDays(10)));
+
+        purge.purgeEnded(Instant.now());
+
+        assertThat(revoked(a)).isTrue();
+    }
+
+    @Test
     void 다른_매장이_쓰는_계정은_보존() {
         AppUser o = owner();
         PlatformAccount a = account(o);
-        store(o, a, false, Instant.now().minus(Duration.ofDays(10)));
-        Store alive = store(o, a, true, Instant.now().plus(Duration.ofDays(10)));
+        store(o, a, "CANCEL", Instant.now().minus(Duration.ofDays(10)));
+        Store alive = store(o, a, "RENEW", Instant.now().plus(Duration.ofDays(10)));
 
         purge.purgeEnded(Instant.now());
 
