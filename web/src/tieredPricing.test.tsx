@@ -131,6 +131,15 @@ describe("선택형 요금 화면", () => {
     expect(api.changePlan).toHaveBeenCalledWith("s1", ALL3);
   });
 
+  it("clearsConsentKeyOnPaymentFailureReturn", () => {
+    sessionStorage.setItem("billing-consent:s1", "{}");
+    window.history.pushState(null, "", "/?code=FAILURE_TYPE_PG&message=x");
+    const b = view({ hasCard: false, serviceState: "UNPAID", tiered: { current: price(ALL3, 33000), changedThisMonth: false, optionTotalsKrw: OPT, canChange: true } });
+    render(<BillingCheckout storeId="s1" billing={b} onSuccess={() => {}} />);
+    expect(sessionStorage.getItem("billing-consent:s1")).toBeNull();
+    expect(api.checkout).not.toHaveBeenCalled();
+  });
+
   it("blocksCheckoutWhileQuoteLoading", () => {
     expect(canCheckout({ selection: EMPTY_SELECTION, quoteReady: true, agreed: true, busy: false })).toBe(false);
     expect(canCheckout({ selection: { count: 3, platforms: [] }, quoteReady: false, agreed: true, busy: false })).toBe(false);

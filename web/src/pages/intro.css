@@ -320,7 +320,7 @@
 .intro-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; padding: 32px 0 44px; border-top: 1px solid var(--color-border); }
 .intro-footer > span { font-weight: 700; }
 .intro-footer nav { display: flex; flex-wrap: wrap; gap: 18px; }
-.intro-footer a { color: var(--color-text-muted); font-size: 16px; }
+.intro-footer a { color: var(--color-text-muted); font-size: 16px; display: inline-flex; align-items: center; min-height: var(--touch-target); }
 
 .intro-sticky { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(16px, env(safe-area-inset-left)) calc(10px + var(--safe-bottom)) max(16px, env(safe-area-inset-right)); border-top: 1px solid var(--color-border); background: rgba(255,255,255,.96); box-shadow: 0 -4px 20px rgba(20,47,55,.09); backdrop-filter: blur(10px); }
 .intro-sticky div { display: flex; flex-direction: column; line-height: 1.25; }
