@@ -120,9 +120,9 @@ export function billingErrorMessage(e: unknown): string {
       case "CONSENT_VERSION_MISMATCH":
         return "약관이 갱신됐어요. 새로고침한 뒤 다시 시도해 주세요.";
       case "PLAN_CHANGE_LIMIT":
-        return "상품은 한 달에 한 번만 바꿀 수 있어요. 다음 달에 다시 바꿔 주세요.";
+        return "상품 변경은 한 달에 한 번만 할 수 있어요. 잘못 신청됐거나 연동에 문제가 있다면 고객센터로 알려 주세요.";
       case "PLAN_CHANGE_NOT_ALLOWED":
-        return "지금은 상품을 바꿀 수 없는 상태예요. 결제 상태를 확인해 주세요.";
+        return "지금은 상품을 바꿀 수 없어요. 결제 상태를 먼저 확인해 주세요.";
       case "SERVICE_UNAVAILABLE":
         return "지금은 결제를 받을 수 없어요. 잠시 후 다시 시도해 주세요.";
       default:

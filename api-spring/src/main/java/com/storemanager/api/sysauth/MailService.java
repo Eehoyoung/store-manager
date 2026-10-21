@@ -69,6 +69,11 @@ public class MailService {
         return send(toEmail, subject, body);
     }
 
+    /** 상품 변경 접수 안내(약관 9.1의3 제5항). 성공 여부를 돌려준다 - 실패해도 변경은 유지된다. */
+    public boolean sendPlanChangeNotice(String toEmail, String subject, String body) {
+        return canSend() && send(toEmail, subject, body);
+    }
+
     /** 관리자 점검 요약 등 내부 안내. 계정이 없으면 조용히 false. */
     public boolean sendAdminNotice(String toEmail, String subject, String body) {
         return canSend() && send(toEmail, subject, body);

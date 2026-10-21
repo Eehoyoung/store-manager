@@ -37,9 +37,17 @@ export function selectedPlatforms(s: PlanSelection): DeliveryPlatform[] | null {
 }
 
 export function planLabel(platforms: string[]): string {
-  return platforms.length >= 3
-    ? "배달앱 3개 (전체)"
-    : `배달앱 ${platforms.length}개 (${platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")})`;
+  return `배달앱 ${platforms.length}개 (${platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")})`;
+}
+
+export function fmtDate(d: Date | string): string {
+  return (typeof d === "string" ? new Date(d) : d).toLocaleDateString("ko-KR");
+}
+
+/** 한국 시간 기준 현재 월과 다음 달(1~12). 월 1회 변경 제한이 한국 시간 달력 월이라 브라우저 시간대와 무관하게 맞춘다. */
+export function kstMonths(now: Date = new Date()): { month: number; nextMonth: number } {
+  const month = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", month: "numeric" }).format(now));
+  return { month, nextMonth: (month % 12) + 1 };
 }
 
 /**

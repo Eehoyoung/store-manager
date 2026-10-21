@@ -3,7 +3,7 @@ import { Card } from "./Card";
 import { Button } from "./Button";
 import { PlanPicker } from "./PlanPicker";
 import { billingApi, billingErrorMessage, type BillingResponse } from "../api/billing";
-import { EMPTY_SELECTION, optionPrice, canCheckout, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
+import { EMPTY_SELECTION, optionPrice, canCheckout, fmtDate, planLabel, selectedPlatforms, type PlanSelection } from "../lib/tieredPlan";
 
 interface BillingCheckoutProps {
   storeId: string;
@@ -28,10 +28,6 @@ function krw(amount: number): string {
   return `${amount.toLocaleString("ko-KR")}원`;
 }
 
-function fmtDate(d: Date | string): string {
-  return (typeof d === "string" ? new Date(d) : d).toLocaleDateString("ko-KR");
-}
-
 function addDays(days: number): Date {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -39,7 +35,12 @@ function addDays(days: number): Date {
 }
 
 /** 상태별 청구 시점 안내 — 카드를 등록하면 정확히 언제·얼마가 결제되는지 먼저 말한다. amount 가 null 이면 금액을 말하지 않는다. */
-function stateNotice(billing: BillingResponse, amount: number | null): string {
+function stateNotice(billing: BillingResponse, amount: number | null, productName: string | null, trialEnd: Date | null): string {
+  if (billing.tiered && billing.trialPending) {
+    const item = amount !== null && productName ? ` ${productName} 월 ${krw(amount)}(VAT 포함)이` : "";
+    const when = trialEnd ? `체험이 끝나는 ${fmtDate(trialEnd)}에` : "체험이 끝나면";
+    return `카드를 등록하면 오늘부터 ${billing.trialDays}일 무료체험이 시작돼요. 체험 중에는 요금이 청구되지 않아요. ${when}${item} 첫 결제되고, 이후 매월 같은 날 자동으로 결제돼요. 결제관리에서 언제든 자동결제를 해지할 수 있고, 체험이 끝나기 전에 해지하면 결제되지 않아요.`;
+  }
   if (billing.trialPending) {
     const when = amount === null ? "체험이 끝나는 날 월 이용료가" : `체험이 끝나는 날 ${krw(amount)}이`;
     return `카드를 등록하면 오늘부터 ${billing.trialDays}일 무료체험이 시작되고, ${when} 결제돼요. 체험 중에는 요금이 청구되지 않아요.`;
@@ -50,7 +51,10 @@ function stateNotice(billing: BillingResponse, amount: number | null): string {
       : "곧";
     return `결제가 확인되지 않았어요. 결제하지 않으면 ${lastDay}까지만 이용할 수 있어요.`;
   }
-  if (billing.tiered) return amount === null ? "카드를 등록하면 바로 시작돼요." : `지금 ${krw(amount)} 결제 후 바로 시작돼요.`;
+  if (billing.tiered) {
+    if (amount === null) return "카드를 등록하면 바로 시작돼요.";
+    return `지금 ${krw(amount)}(VAT 포함)이 결제되고 바로 시작돼요. 이후 매월 결제예정일에 자동결제되며, 결제예정일 확인과 해지는 결제관리에서 언제든 할 수 있어요.`;
+  }
   return `지금 ${krw(billing.chargeNowKrw)} 결제 후 바로 시작돼요.`;
 }
 
@@ -83,6 +87,8 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   // 약관 제9조의4 제3항 — 자동화된 결제 시작에 앞서 기준·시점·금액·해지 방법을 동의 전에 명시한다.
   const trialEndDate = billing.trialPending ? addDays(billing.trialDays) : billing.trialEndsAt ? new Date(billing.trialEndsAt) : null;
   const firstBillingDate = billing.nextBillingAt ? new Date(billing.nextBillingAt) : trialEndDate;
+
+  const productName = billing.tiered ? (pick ? (platforms ? planLabel(platforms) : null) : planLabel(billing.tiered.current.deliveryPlatforms)) : null;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -176,8 +182,12 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
   return (
     <Card className="billing-checkout">
       <p className="billing-page__eyebrow">KG이니시스 · 포트원 결제창</p>
-      <p className="billing-checkout__notice">{stateNotice(billing, amount)}</p>
+      <p className="billing-checkout__notice">{stateNotice(billing, amount, productName, trialEndDate)}</p>
       {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} prices={billing.tiered?.optionTotalsKrw ?? []} /> : null}
+      {/* 첫 청구(UNPAID)는 이미 연동한 앱이 있을 수 있다 - 고르지 않은 앱의 연동 정보는 결제 후 삭제된다(약관 9.1의3 제6항). */}
+      {pick && !billing.trialPending ? (
+        <p className="field__hint">이미 연동한 배달앱 중 고르지 않은 앱의 연동 정보는 결제가 끝나면 삭제돼요.</p>
+      ) : null}
       {billing.tiered && !pick ? <p className="field__hint">현재 상품: {planLabel(billing.tiered.current.deliveryPlatforms)}</p> : null}
       <p className="billing-checkout__price">
         {amount === null ? (
@@ -194,6 +204,12 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
       <div className="consent-table-wrap">
         <table>
           <tbody>
+            {billing.tiered ? (
+              <tr>
+                <th>상품</th>
+                <td>{productName ?? "상품을 고른 뒤 확인할 수 있어요"}</td>
+              </tr>
+            ) : null}
             {trialEndDate ? (
               <tr>
                 <th>체험 종료일</th>

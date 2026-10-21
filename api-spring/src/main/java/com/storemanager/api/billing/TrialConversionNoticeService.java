@@ -1,6 +1,7 @@
 package com.storemanager.api.billing;
 
 import com.storemanager.api.audit.AuditLog;
+import com.storemanager.api.agreement.TieredPricingFlag;
 import com.storemanager.api.audit.AuditLogRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
@@ -44,11 +45,12 @@ public class TrialConversionNoticeService {
     private final TransactionTemplate writes;
     private final String publicOrigin;
     private final BrandPricingService brandPricingService;
+    private final TieredPricingFlag tieredPricing;
 
     public TrialConversionNoticeService(SubscriptionRepository subscriptions, StoreRepository stores,
             AppUserRepository users, AuditLogRepository auditLogs, MailService mail,
             PlatformTransactionManager tx, @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin,
-            BrandPricingService brandPricingService) {
+            BrandPricingService brandPricingService, TieredPricingFlag tieredPricing) {
         this.subscriptions = subscriptions;
         this.stores = stores;
         this.users = users;
@@ -57,6 +59,7 @@ public class TrialConversionNoticeService {
         this.writes = new TransactionTemplate(tx);
         this.publicOrigin = publicOrigin;
         this.brandPricingService = brandPricingService;
+        this.tieredPricing = tieredPricing;
     }
 
     /** 고지 대상을 모두 보낸다. 보낸 건수를 돌려준다. 스케줄러와 테스트가 같은 길을 쓴다. */
@@ -91,15 +94,31 @@ public class TrialConversionNoticeService {
         return "[소담리뷰] 무료체험이 곧 끝나고 유료로 전환됩니다";
     }
 
+    /** 켜짐일 때만 선택 상품 한 줄(약관 9.4 제4항). 꺼짐이면 빈 문자열이라 본문이 기존과 바이트 동일하다. */
+    private String productLine(Subscription sub) {
+        return tieredPricing.enabled() ? "- 선택 상품: " + productLabel(sub.nextPlatforms()) + "\n" : "";
+    }
+
+    /** "배달앱 2개(배달의민족, 요기요)". */
+    static String productLabel(java.util.Set<String> platforms) {
+        java.util.Map<String, String> names = java.util.Map.of("BAEMIN", "배달의민족", "COUPANGEATS", "쿠팡이츠",
+                "YOGIYO", "요기요");
+        return "배달앱 " + platforms.size() + "개(" + platforms.stream().map(p -> names.getOrDefault(p, p))
+                .collect(java.util.stream.Collectors.joining(", ")) + ")";
+    }
+
     /**
      * 고지 필수 항목: 전환 예정일·금액·결제방법·해지 방법(약관 9.4조 3·4항). 금액은 체험 종료일
      * (=첫 결제예정일) 연월의 매장 단가다 — 가맹 브랜드 구간 단가제(V49)라 매장마다 다를 수 있다.
      */
     String body(Store store, Subscription sub) {
         String day = sub.getTrialEndsAt().atZone(KST).format(DATE);
-        int total = brandPricingService.quoteFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST)), sub).total();
+        // 상품 줄(nextPlatforms)과 같은 명단으로 금액을 낸다. 꺼짐이면 4-인자 quoteFor 도 개수를 쓰지 않아 기존 금액과 같다.
+        int total = brandPricingService.quoteFor(store, YearMonth.from(sub.getTrialEndsAt().atZone(KST)), sub,
+                sub.nextPlatforms().size()).total();
         return store.getName() + " 매장의 30일 무료체험이 " + day + "에 끝납니다.\n\n"
                 + "- 유료 전환일(첫 결제일): " + day + "\n"
+                + productLine(sub)
                 + "- 결제 금액: 월 " + String.format("%,d", total) + "원(부가세 포함). "
                 + "가맹 브랜드 매장 수에 따라 매월 달라질 수 있습니다.\n"
                 + "- 결제 방법: 등록하신 카드로 매월 같은 날 자동결제(KG이니시스)\n"

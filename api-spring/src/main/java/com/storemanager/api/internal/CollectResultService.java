@@ -143,6 +143,9 @@ public class CollectResultService {
                 skipped++;
                 continue;
             }
+            if (requestAccountId != null && !requestAccountId.equals(link.getAccountId())) {
+                relinkFromRevoked(link, requestAccountId, req.platform());
+            }
             if (requestAccountId == null || !requestAccountId.equals(link.getAccountId())) {
                 throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
             }
@@ -330,6 +333,32 @@ public class CollectResultService {
      *     → 1계정 N매장(F-7)에서 둘째 매장부터는 어느 매장인지 알 수 없다. 건너뛰고 사람이 매핑한다.
      *   - 매장이 활성화(자격증명 위탁 동의 완료)돼 있을 것
      */
+    /**
+     * 상품에서 뺐다 다시 넣은 배달앱(선택형 요금 D38): 하향 때 자격증명은 파기(revoke)하지만 연동 행은 리뷰 FK 때문에 남는다.
+     * (platform, platform_store_id) 가 UNIQUE 라 재등록한 새 계정으로는 새 행을 만들 수 없으니, 옛 계정이 파기됐고
+     * 새 계정이 같은 사장님·같은 플랫폼이며 그 매장이 이 플랫폼을 쓸 수 있을 때만 행을 새 계정으로 옮긴다.
+     * 그 밖(파기 안 된 남의 계정 등)은 그대로 두어 호출부가 거절한다.
+     */
+    private void relinkFromRevoked(StorePlatformLink link, Long requestAccountId, String platform) {
+        PlatformAccount old = platformAccountRepository.findById(link.getAccountId()).orElse(null);
+        PlatformAccount fresh = platformAccountRepository.findById(requestAccountId).orElse(null);
+        if (old == null || old.getRevokedAt() == null || fresh == null || fresh.getRevokedAt() != null
+                || !platform.equals(fresh.getPlatform()) || !fresh.getOwnerId().equals(old.getOwnerId())) {
+            return;
+        }
+        Store store = storeRepository.findById(link.getStoreId()).orElse(null);
+        if (store == null || !store.getOwnerId().equals(fresh.getOwnerId()) || !serviceGate.isServiceable(store, platform)) {
+            return;
+        }
+        link.reassignAccount(requestAccountId);
+        storePlatformLinkRepository.save(link);
+        // 연동 행의 계정이 바뀌는 보안 관련 변경 - 앱 로그보다 오래 남는 감사 로그로(계정 id 만, 비밀값 없음).
+        auditLogRepository.save(AuditLog.builder().actorType("SYSTEM").action("LINK_REASSIGNED_FROM_REVOKED")
+                .targetType("STORE_PLATFORM_LINK").targetId(link.getId())
+                .detail("{\"fromAccountId\":" + old.getId() + ",\"toAccountId\":" + requestAccountId + "}").build());
+        log.info("파기된 계정의 연동을 재등록 계정으로 옮김 linkId={} accountId={}", link.getId(), requestAccountId);
+    }
+
     private StorePlatformLink autoLink(Long requestAccountId, String platform, StoreBlock storeBlock) {
         if (requestAccountId == null || storeBlock.platformStoreId() == null) {
             return null;

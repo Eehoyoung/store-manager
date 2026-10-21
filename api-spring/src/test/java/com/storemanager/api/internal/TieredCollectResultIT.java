@@ -60,6 +60,7 @@ class TieredCollectResultIT {
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired StorePlatformLinkRepository storePlatformLinkRepository;
     @Autowired UnifiedReviewRepository unifiedReviewRepository;
+    @Autowired com.storemanager.api.crypto.PlatformAccountRepository platformAccountRepository;
 
     private Long store(Long ownerId, String name, String... selected) {
         Long storeId = storeRepository.save(Store.builder().ownerId(ownerId).name(name)
@@ -126,5 +127,49 @@ class TieredCollectResultIT {
 
         assertThat(storePlatformLinkRepository.findByPlatformAndPlatformStoreId("YOGIYO", "tier-yogi-store")).isEmpty();
         assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("YOGIYO", "rv-tier-yogi")).isEmpty();
+    }
+
+    @Test
+    void reselectedPlatformRelinksToReRegisteredAccount() throws Exception {
+        // 하향으로 자격증명이 파기된 뒤(연동 행은 리뷰 FK 로 남음) 다시 고르고 재등록하면 같은 연동 행이 새 계정으로 옮겨져야 한다.
+        AppUser owner = appUserRepository.save(AppUser.builder().email("tier-relink@example.com")
+                .passwordHash("dummy").name("사장").build());
+        Long storeId = store(owner.getId(), "다시 고른 매장", "BAEMIN");
+        PlatformAccount old = credentialService.save(owner.getId(), "BAEMIN", "tier-relink-old", "pw");
+        StorePlatformLink link = storePlatformLinkRepository.save(StorePlatformLink.builder().storeId(storeId)
+                .accountId(old.getId()).platform("BAEMIN").platformStoreId("tier-relink").build());
+        credentialService.revoke(platformAccountRepository.findById(old.getId()).orElseThrow());
+        PlatformAccount fresh = credentialService.save(owner.getId(), "BAEMIN", "tier-relink-new", "pw");
+
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(fresh.getId(), "BAEMIN", "tier-relink", "rv-tier-relink")))
+                .andExpect(status().isOk());
+
+        assertThat(storePlatformLinkRepository.findById(link.getId()).orElseThrow().getAccountId())
+                .isEqualTo(fresh.getId());
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "rv-tier-relink")).isPresent();
+    }
+
+    @Test
+    void relinkRefusedForAnotherOwnersAccount() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("tier-relink-a@example.com")
+                .passwordHash("dummy").name("사장").build());
+        AppUser other = appUserRepository.save(AppUser.builder().email("tier-relink-b@example.com")
+                .passwordHash("dummy").name("남").build());
+        Long storeId = store(owner.getId(), "남의 계정 매장", "BAEMIN");
+        PlatformAccount old = credentialService.save(owner.getId(), "BAEMIN", "tier-relink-x", "pw");
+        StorePlatformLink link = storePlatformLinkRepository.save(StorePlatformLink.builder().storeId(storeId)
+                .accountId(old.getId()).platform("BAEMIN").platformStoreId("tier-relink-x").build());
+        credentialService.revoke(platformAccountRepository.findById(old.getId()).orElseThrow());
+        PlatformAccount foreign = credentialService.save(other.getId(), "BAEMIN", "tier-relink-y", "pw");
+
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(foreign.getId(), "BAEMIN", "tier-relink-x", "rv-tier-relink-x")))
+                .andExpect(status().isNotFound());
+
+        assertThat(storePlatformLinkRepository.findById(link.getId()).orElseThrow().getAccountId())
+                .isEqualTo(old.getId());
     }
 }

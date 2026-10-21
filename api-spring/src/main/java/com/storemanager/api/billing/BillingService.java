@@ -23,6 +23,9 @@ import com.storemanager.api.review.UnifiedReviewRepository;
 import com.storemanager.api.store.Store;
 import com.storemanager.api.store.StoreRepository;
 import com.storemanager.api.store.StoreServiceGate;
+import com.storemanager.api.sysauth.MailService;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import jakarta.persistence.EntityManager;
@@ -69,6 +72,8 @@ public class BillingService {
 
     private static final Logger log = LoggerFactory.getLogger(BillingService.class);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final java.time.format.DateTimeFormatter NOTICE_DATE =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy년 M월 d일");
     /** 상품 변경·갱신이 같이 쓰는 advisory 잠금의 첫 번째 키(두 번째 키 = store_id). */
     private static final int PLAN_LOCK_CLASS = 5001;
     private static final int TRIAL_DAYS = 30;
@@ -94,6 +99,9 @@ public class BillingService {
     private final BrandPricingService brandPricingService;
     private final TieredPricingFlag tieredPricing;
     private final PlatformSelectionDraftEffects draftEffects;
+    private final DowngradeCredentialCleanup credentialCleanup;
+    private final MailService mail;
+    private final String publicOrigin;
     /**
      * 무료체험 쿠폰번호(2026-09-28). 개별 전달하는 비공개 코드라 저장소에 적지 않고 env 로만 준다.
      * ★ 비어 있으면 어떤 코드도 받지 않는다(fail-closed). 코드가 곧 DataAPI·LLM 비용이다.
@@ -109,6 +117,8 @@ public class BillingService {
             StoreServiceGate serviceGate,
             BrandPricingService brandPricingService,
             TieredPricingFlag tieredPricing, PlatformSelectionDraftEffects draftEffects,
+            DowngradeCredentialCleanup credentialCleanup, MailService mail,
+            @Value("${app.public-origin:https://review.sodamlabs.kr}") String publicOrigin,
             @Value("${app.promotion.code:}") String promotionCode,
             @Value("${app.promotion.limit:30}") int promotionLimit) {
         this.portOneClient = portOneClient;
@@ -123,6 +133,9 @@ public class BillingService {
         this.unifiedReviews = unifiedReviews;
         this.auditLogs = auditLogs;
         this.serviceGate = serviceGate;
+        this.credentialCleanup = credentialCleanup;
+        this.mail = mail;
+        this.publicOrigin = publicOrigin;
         this.brandPricingService = brandPricingService;
         this.tieredPricing = tieredPricing;
         this.draftEffects = draftEffects;
@@ -316,25 +329,89 @@ public class BillingService {
         if (!planChangeAllowed(sub, now)) {
             throw new ApiException(ErrorCode.PLAN_CHANGE_NOT_ALLOWED);
         }
-        boolean cancel = sub.getPendingDeliveryPlatforms() != null && requested.equals(sub.effectivePlatforms());
-        if (!cancel) {
-            if (requested.equals(sub.nextPlatforms())) {
+        // 약관 9.4 제2항: 체험 중에는 다음 결제예정일부터 적용 규정과 월 1회 제한을 적용하지 않는다 - 바로 현재 명단으로 확정한다.
+        boolean trial = "TRIAL".equals(sub.serviceStateAt(now));
+        boolean cancel = !trial && sub.getPendingDeliveryPlatforms() != null
+                && requested.equals(sub.effectivePlatforms());
+        if (trial) {
+            if (requested.equals(sub.effectivePlatforms())) {
                 throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "바뀐 내용이 없어요."));
             }
-            if (changedInMonth(subscriptions.findLastPlanChangedAt(store.getId()), now)) {
-                throw new ApiException(ErrorCode.PLAN_CHANGE_LIMIT);
+            applyActivePlatforms(sub, requested); // pending 도 비운다. plan_changed_at 은 기록하지 않는다.
+        } else {
+            if (!cancel) {
+                if (requested.equals(sub.nextPlatforms())) {
+                    throw new ApiException(ErrorCode.VALIDATION_FAILED, Map.of("reason", "바뀐 내용이 없어요."));
+                }
+                if (changedInMonth(subscriptions.findLastPlanChangedAt(store.getId()), now)) {
+                    throw new ApiException(ErrorCode.PLAN_CHANGE_LIMIT);
+                }
             }
+            sub.reservePlan(requested, now);
         }
-        sub.reservePlan(requested, now);
         subscriptions.save(sub);
         // 명단만 남긴다(비밀값·결제수단 없음).
         auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
-                .action(cancel ? "PLAN_CHANGE_CANCELED" : "PLAN_CHANGE_RESERVED").targetType("SUBSCRIPTION")
+                .action(trial ? "PLAN_CHANGE_APPLIED_TRIAL" : cancel ? "PLAN_CHANGE_CANCELED" : "PLAN_CHANGE_RESERVED")
+                .targetType("SUBSCRIPTION")
                 .targetId(sub.getId())
                 .detail("{\"platforms\":[" + requested.stream().map(p -> "\"" + p + "\"")
                         .collect(Collectors.joining(",")) + "]}")
                 .build());
+        notifyPlanChange(owner, store, sub, trial ? "TRIAL" : cancel ? "CANCEL" : "RESERVE");
         return view(owner, store);
+    }
+
+    /**
+     * 약관 9.1의3 제5항: 적용 상품·적용 시작일·변경 후 금액(VAT 포함)을 전자우편으로 알린다.
+     * 커밋 뒤에 보내고, 실패해도 변경은 되돌리지 않는다(로그만 - 수신 주소는 싣지 않는다).
+     */
+    private void notifyPlanChange(AppUser owner, Store store, Subscription sub, String kind) {
+        if (owner.getEmail() == null || owner.getEmail().isBlank()) {
+            return;
+        }
+        Set<String> next = sub.nextPlatforms();
+        Instant due = sub.getNextBillingAt();
+        int total = brandPricingService.quoteFor(store,
+                YearMonth.from((due == null ? Instant.now() : due).atZone(KST)), sub, next.size()).total();
+        String day = due == null ? "다음 결제예정일" : due.atZone(KST).format(NOTICE_DATE);
+        String product = TrialConversionNoticeService.productLabel(next);
+        String head = switch (kind) {
+            case "TRIAL" -> store.getName() + " 매장의 상품이 바뀌었습니다. 무료체험 기간 중이라 바로 적용됩니다. "
+                    + "상품에서 뺀 배달앱이 있으면 그 연동 정보는 바로 삭제됩니다"
+                    + "(같은 계정을 그 앱을 쓰는 다른 매장과 함께 쓰면 남겨 둡니다).\n\n";
+            case "CANCEL" -> store.getName() + " 매장의 상품 변경 예약이 취소되었습니다. 지금 상품이 그대로 이어집니다.\n\n";
+            default -> store.getName() + " 매장의 상품 변경 신청이 접수되었습니다.\n\n";
+        };
+        String startLabel = "TRIAL".equals(kind) ? "적용 시작일: 바로 적용(첫 유료 결제예정일 " + day + ")"
+                : "적용 시작일(결제예정일): " + day;
+        String body = head + "- 적용 상품: " + product + "\n- " + startLabel + "\n- 변경 후 금액: 월 "
+                + String.format("%,d", total) + "원(부가세 포함)\n\n"
+                // D65(법무 수정안): 환불 일반 배제로 읽히지 않게 '상품 변경으로 인한 일할 정산'으로만 좁힌다. 체험·취소는 결제 전이라 뺀다.
+                + ("RESERVE".equals(kind) ? "그날까지는 지금 상품이 그대로 유지됩니다. 상품을 바꾼다고 이미 결제한 기간의 요금을 "
+                        + "일할로 돌려드리거나 더 받지는 않습니다. 상품은 한 달에 한 번 바꿀 수 있습니다.\n\n" : "")
+                + "결제 화면: " + publicOrigin + "/stores/" + store.getPublicId() + "/billing\n";
+        String to = owner.getEmail();
+        Long storeId = store.getId();
+        Runnable send = () -> {
+            try {
+                if (!mail.sendPlanChangeNotice(to, "[소담리뷰] 상품 변경 안내", body)) {
+                    log.warn("상품 변경 안내 메일을 보내지 못했습니다 storeId={}", storeId);
+                }
+            } catch (RuntimeException e) {
+                log.warn("상품 변경 안내 메일 발송 오류 storeId={}", storeId);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send.run();
+                }
+            });
+        } else {
+            send.run();
+        }
     }
 
     /** KST 달력 월 기준 같은 달인가(월말 23:59:59 와 익월 00:00:00 이 갈린다). 테스트가 직접 부른다. */
@@ -378,6 +455,8 @@ public class BillingService {
         Set<String> added = new java.util.TreeSet<>(platforms);
         added.removeAll(before);
         draftEffects.onRemoved(row.getStoreId(), removed);
+        // 약관 9.1의3 제6항: 낮춘 상품에서 빠진 배달앱의 연동·자격증명은 적용일(지금)에 지운다. DB 만 만진다.
+        credentialCleanup.onRemoved(row.getStoreId(), removed);
         draftEffects.onReselected(row.getStoreId(), added);
     }
 

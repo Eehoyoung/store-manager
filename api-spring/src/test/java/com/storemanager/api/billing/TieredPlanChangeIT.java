@@ -94,7 +94,9 @@ class TieredPlanChangeIT {
     @Autowired ReplyDraftRepository drafts;
     @Autowired CredentialService credentialService;
     @Autowired StringRedisTemplate stringRedis;
+    @Autowired com.storemanager.api.crypto.PlatformAccountRepository accounts;
     @MockitoBean PortOneClient portOne;
+    @MockitoBean com.storemanager.api.sysauth.MailService mail;
 
     @BeforeEach
     void setUp() {
@@ -162,6 +164,14 @@ class TieredPlanChangeIT {
                 .accountId(account.getId()).platform("BAEMIN").platformStoreId(id).build());
         return reviews.save(UnifiedReview.builder().storeId(store.getId()).linkId(link.getId()).platform(platform)
                 .platformReviewId(id).rating((short) 5).body("맛있어요").writtenAt(Instant.now()).build());
+    }
+
+    private PlatformAccount 연동(Store store, String platform) {
+        String id = UUID.randomUUID().toString();
+        PlatformAccount account = credentialService.save(store.getOwnerId(), platform, id, "pw", store.getId());
+        links.save(StorePlatformLink.builder().storeId(store.getId()).accountId(account.getId())
+                .platform(platform).platformStoreId(id).build());
+        return account;
     }
 
     private ReplyDraft 예약초안(Store store, UnifiedReview r) {
@@ -368,22 +378,83 @@ class TieredPlanChangeIT {
         assertThat(row.getRenewalFailures()).isEqualTo(1);
     }
 
+    /** 약관 9.4 제2항: 체험 중 변경은 바로 현재 명단이 되고 월 1회 제한을 쓰지 않는다. */
     @Test
-    void changeDuringTrialConfirmsAtTrialEnd() {
+    void changeDuringTrialAppliesImmediatelyWithoutMonthlyLimit() {
         Store s = 매장();
         Subscription sub = 구독(s, "TRIAL", null);
         sub.beginTrial(Instant.now().minus(Duration.ofDays(29)), dueLaterToday(), "bk-trial", "ch-test");
         subscriptions.save(sub);
 
-        변경(s, "BAEMIN", "YOGIYO"); // 체험 중 변경 = pending 에만
-        assertThat(다시읽기(s).getActiveDeliveryPlatforms()).isNull();
-        assertThat(다시읽기(s).getPendingDeliveryPlatforms()).containsExactly("BAEMIN", "YOGIYO");
-
-        billingService.renew(s.getId()); // 체험 종료 첫 결제
-
-        assertThat(lastPaidTotal()).isEqualTo(29000L);
+        변경(s, "BAEMIN", "YOGIYO"); // 체험 중 변경 = 즉시 active
         assertThat(다시읽기(s).getActiveDeliveryPlatforms()).containsExactly("BAEMIN", "YOGIYO");
         assertThat(다시읽기(s).getPendingDeliveryPlatforms()).isNull();
+        assertThat(다시읽기(s).getPlanChangedAt()).isNull(); // 월 1회를 소모하지 않는다
+        변경(s, "BAEMIN"); // 같은 달 두 번째도 거절되지 않는다
+        assertThat(다시읽기(s).getActiveDeliveryPlatforms()).containsExactly("BAEMIN");
+
+        billingService.renew(s.getId()); // 체험 종료 첫 결제 - 그 시점 active 기준
+        assertThat(lastPaidTotal()).isEqualTo(25000L);
+        assertThat(다시읽기(s).getActiveDeliveryPlatforms()).containsExactly("BAEMIN");
+    }
+
+    /** 약관 9.1의3 제6항: 낮춘 상품에서 빠진 배달앱의 자격증명은 적용일(결제 확정)에 파기된다. */
+    @Test
+    void downgradeDeletesCredentialOnEffectiveDate() {
+        Store s = 매장();
+        구독(s, "ACTIVE", null);
+        PlatformAccount account = 연동(s, "BAEMIN");
+
+        변경(s, "YOGIYO");
+        assertThat(accounts.findById(account.getId()).orElseThrow().getRevokedAt()).isNull(); // 적용일 전에는 보존
+
+        billingService.renew(s.getId());
+
+        PlatformAccount after = accounts.findById(account.getId()).orElseThrow();
+        assertThat(after.getRevokedAt()).isNotNull();
+        assertThat(after.getEncPassword()).isEmpty();
+        assertThat(links.findByAccountIdOrderByCreatedAtAsc(account.getId())).hasSize(1); // 기록 FK 보존
+    }
+
+    @Test
+    void sharedAccountKeptWhileAnotherStoreSelects() {
+        Store s = 매장();
+        구독(s, "ACTIVE", null);
+        Store other = 매장();
+        구독(other, "ACTIVE", null); // 명단 null = 3개 상품이라 BAEMIN 선택
+        PlatformAccount account = 연동(s, "BAEMIN");
+        links.save(StorePlatformLink.builder().storeId(other.getId()).accountId(account.getId())
+                .platform("BAEMIN").platformStoreId(UUID.randomUUID().toString()).build());
+
+        변경(s, "YOGIYO");
+        billingService.renew(s.getId());
+
+        assertThat(accounts.findById(account.getId()).orElseThrow().getRevokedAt()).isNull();
+    }
+
+    @Test
+    void planChangeSendsNoticeEmail() {
+        Store s = 매장();
+        구독(s, "ACTIVE", null);
+        when(mail.sendPlanChangeNotice(anyString(), anyString(), anyString())).thenReturn(true);
+
+        변경(s, "BAEMIN", "YOGIYO");
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(mail).sendPlanChangeNotice(anyString(), anyString(), body.capture());
+        assertThat(body.getValue()).contains("배달앱 2개(배달의민족, 요기요)").contains("적용 시작일(결제예정일)")
+                .contains("29,000원(부가세 포함)");
+    }
+
+    @Test
+    void planChangeMailFailureDoesNotRollBack() {
+        Store s = 매장();
+        구독(s, "ACTIVE", null);
+        when(mail.sendPlanChangeNotice(anyString(), anyString(), anyString())).thenThrow(new RuntimeException("smtp"));
+
+        변경(s, "BAEMIN");
+
+        assertThat(다시읽기(s).getPendingDeliveryPlatforms()).containsExactly("BAEMIN");
     }
 
     @Test

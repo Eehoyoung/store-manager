@@ -61,4 +61,9 @@ public class StorePlatformLink {
             this.avgRating = avgRating;
         }
     }
+
+    /** 파기된 계정 → 같은 사장님의 재등록 계정으로 옮긴다(CollectResultService.relinkFromRevoked 만 호출). */
+    public void reassignAccount(Long accountId) {
+        this.accountId = accountId;
+    }
 }
