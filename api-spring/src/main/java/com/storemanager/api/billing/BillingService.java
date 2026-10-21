@@ -350,13 +350,18 @@ public class BillingService {
             sub.reservePlan(requested, now);
         }
         subscriptions.save(sub);
-        // 명단만 남긴다(비밀값·결제수단 없음).
+        // 명단과 변경 후 금액(VAT 포함, 서버 상품표)·적용 시각만 남긴다(비밀값·결제수단 없음).
+        Instant due = sub.getNextBillingAt();
+        int totalKrw = brandPricingService.quoteFor(store,
+                YearMonth.from((due == null ? now : due).atZone(KST)), sub, sub.nextPlatforms().size()).total();
+        Instant appliesAt = trial || due == null ? now : due;
         auditLogs.save(AuditLog.builder().actorId(owner.getId()).actorType("OWNER")
                 .action(trial ? "PLAN_CHANGE_APPLIED_TRIAL" : cancel ? "PLAN_CHANGE_CANCELED" : "PLAN_CHANGE_RESERVED")
                 .targetType("SUBSCRIPTION")
                 .targetId(sub.getId())
                 .detail("{\"platforms\":[" + requested.stream().map(p -> "\"" + p + "\"")
-                        .collect(Collectors.joining(",")) + "]}")
+                        .collect(Collectors.joining(",")) + "],\"totalKrw\":" + totalKrw
+                        + ",\"appliesAt\":\"" + appliesAt + "\"}")
                 .build());
         notifyPlanChange(owner, store, sub, trial ? "TRIAL" : cancel ? "CANCEL" : "RESERVE");
         return view(owner, store);
