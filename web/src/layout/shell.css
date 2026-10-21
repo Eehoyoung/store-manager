@@ -332,3 +332,4 @@
 .legal-footer__copy {
   margin: 0;
 }
+.legal-footer__copy a { display: inline-flex; align-items: center; min-height: 44px; }
