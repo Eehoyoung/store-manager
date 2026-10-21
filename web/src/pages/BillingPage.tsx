@@ -263,6 +263,7 @@ export function BillingPage() {
           onSuccess={(next) => {
             setBilling(next);
             setShowCardForm(false);
+            setMessage("결제수단이 등록됐어요.");
           }}
         />
       ) : (

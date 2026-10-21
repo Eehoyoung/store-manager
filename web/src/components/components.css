@@ -57,7 +57,7 @@
   border-color: var(--color-danger-dark);
 }
 .btn--small {
-  min-height: 38px;
+  min-height: var(--touch-target);
   padding: 0 var(--space-4);
   font-size: var(--font-size-small);
 }

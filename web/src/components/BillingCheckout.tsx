@@ -97,6 +97,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
     if (!billingKey && !code) return;
     window.history.replaceState(null, "", window.location.pathname);
     if (code) {
+      sessionStorage.removeItem(consentKey(storeId));
       setMessage(params.get("message") || "결제수단을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.");
       return;
     }
