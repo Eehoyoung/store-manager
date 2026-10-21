@@ -181,7 +181,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
 
   return (
     <Card className="billing-checkout">
-      <p className="billing-page__eyebrow">KG이니시스 · 포트원 결제창</p>
+      <p className="billing-page__eyebrow">NHN KCP · 포트원 결제창</p>
       <p className="billing-checkout__notice">{stateNotice(billing, amount, productName, trialEndDate)}</p>
       {pick ? <PlanPicker value={selection} onChange={setSelection} disabled={busy} name={`plan-count-${storeId}`} prices={billing.tiered?.optionTotalsKrw ?? []} /> : null}
       {/* 첫 청구(UNPAID)는 이미 연동한 앱이 있을 수 있다 - 고르지 않은 앱의 연동 정보는 결제 후 삭제된다(약관 9.1의3 제6항). */}

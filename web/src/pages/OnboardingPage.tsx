@@ -29,7 +29,7 @@ function billingStep(storeId: string, billing: BillingResponse | null, billingEr
   if (!billing.enabled) {
     return {
       title: "3. 구독 결제",
-      description: "지금은 온라인 결제를 받지 않아요. 정식 출시 때 결제대행사(KG이니시스) 결제창이 열립니다.",
+      description: "지금은 온라인 결제를 받지 않아요. 정식 출시 때 결제대행사(NHN KCP) 결제창이 열립니다.",
       state: "soon",
     };
   }

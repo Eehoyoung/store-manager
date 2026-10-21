@@ -17,9 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.ClassPathResource;
 
-/** 선택형 요금 약관 버전 접근자(PR1). 꺼짐이면 현행 2026-09-30 과 동일해야 한다. */
+/** 선택형 요금 약관 버전 접근자(PR1). 꺼짐이면 현행 2026-10-21 과 동일해야 한다. */
 class TieredAgreementVersionTest {
-    private static final String OLD = "2026-09-30";
+    private static final String OLD = "2026-10-21";
+    private static final String LEGACY = "2026-09-30";
     private static final String NEW = "2026-11-01";
     private static final String[] SLUGS =
             {"terms", "privacy", "hq-data-sharing", "platform-credential", "hq-review-sharing"};
@@ -113,7 +114,7 @@ class TieredAgreementVersionTest {
     /** 기존 디렉터리는 동의의 근거 문서다 - 새 디렉터리를 만들면서 건드리지 않았는지 정체성만 확인. */
     @Test
     void 옛_버전_문서는_결제대행사_표기가_그대로다() throws Exception {
-        String old = new String(new ClassPathResource("agreements/" + OLD + "/terms.md")
+        String old = new String(new ClassPathResource("agreements/" + LEGACY + "/terms.md")
                 .getContentAsByteArray(), StandardCharsets.UTF_8);
         assertThat(old).contains("KG이니시스").doesNotContain("NHN KCP").contains("33,000원");
     }
