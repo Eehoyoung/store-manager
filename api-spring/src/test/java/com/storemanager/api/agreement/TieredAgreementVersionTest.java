@@ -104,7 +104,7 @@ class TieredAgreementVersionTest {
                         "월 1회", "3개 상품으로 보며")
                 .doesNotContain("법무 검토 전 초안");
         assertThat(read("privacy"))
-                .contains("가맹본부 제공에 대한 동의 철회", "사업자등록번호, 개업일자, 대표자명", "빌링키", "NHN KCP㈜", "㈜코리아포트원")
+                .contains("가맹본부 제공에 대한 동의 철회", "사업자등록번호, 개업일자, 대표자명", "빌링키", "엔에이치엔케이씨피 주식회사(NHN KCP)", "㈜코리아포트원")
                 .doesNotContain("㈜케이지이니시스");
         assertThat(read("hq-data-sharing")).contains("본부는 보기만 할 수 있습니다", "동의하지 않으셔도 됩니다");
         assertThat(read("platform-credential")).contains("기웅정보통신(주)", "사장님이 직접 운영하시는 매장의 계정만");
