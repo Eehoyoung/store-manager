@@ -121,7 +121,7 @@ public class TrialConversionNoticeService {
                 + productLine(sub)
                 + "- 결제 금액: 월 " + String.format("%,d", total) + "원(부가세 포함). "
                 + "가맹 브랜드 매장 수에 따라 매월 달라질 수 있습니다.\n"
-                + "- 결제 방법: 등록하신 카드로 매월 같은 날 자동결제(KG이니시스)\n"
+                + "- 결제 방법: 등록하신 카드로 매월 같은 날 자동결제(NHN KCP)\n"
                 + "- 해지 방법: 소담리뷰 결제 화면에서 '자동결제 해지'를 누르면 됩니다. "
                 + "체험 종료 전에 해지하면 결제되지 않습니다.\n\n"
                 + "결제 화면: " + publicOrigin + "/stores/" + store.getPublicId() + "/billing\n";

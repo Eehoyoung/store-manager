@@ -19,7 +19,7 @@ class AgreementDocumentTest {
         assertThat(terms)
                 .contains("답글 게시는 되돌릴 수 없습니다")
                 .contains("포트원 V2")
-                .contains("KG이니시스")
+                .contains("NHN KCP")
                 .contains("빌링키")
                 .contains("30일간")
                 .contains("D+3일 00:00")
@@ -28,7 +28,7 @@ class AgreementDocumentTest {
                 .contains("가맹본부 제공에 대한 동의 철회")
                 .contains("사업자등록번호, 개업일자, 대표자명")
                 .contains("빌링키")
-                .contains("㈜케이지이니시스")
+                .contains("엔에이치엔케이씨피 주식회사(NHN KCP)")
                 .contains("㈜코리아포트원");
         assertThat(hq).contains("본부는 보기만 할 수 있습니다", "동의하지 않으셔도 됩니다");
         assertThat(credential).contains("기웅정보통신(주)", "사장님이 직접 운영하시는 매장의 계정만");

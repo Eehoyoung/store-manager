@@ -18,7 +18,7 @@ public class AgreementService {
      * 문서를 고칠 때는 새 디렉터리를 만들고 여기를 함께 올린다. 옛 디렉터리는 지우지 않는다 —
      * 과거 동의가 가리키는 문서다.
      */
-    public static final String CURRENT_VERSION = "2026-09-30";
+    public static final String CURRENT_VERSION = "2026-10-21";
     /** 선택형 요금 약관 버전. 시행일 미정 - 대표가 정하면 디렉터리명·부칙 날짜와 함께 교체. 플래그가 켜진 때만 쓴다. */
     public static final String TIERED_VERSION = "2026-11-01";
     public static final String TERMS = "TERMS_OF_SERVICE";

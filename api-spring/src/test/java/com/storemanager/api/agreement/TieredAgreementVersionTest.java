@@ -17,9 +17,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.io.ClassPathResource;
 
-/** 선택형 요금 약관 버전 접근자(PR1). 꺼짐이면 현행 2026-09-30 과 동일해야 한다. */
+/** 선택형 요금 약관 버전 접근자(PR1). 꺼짐이면 현행 2026-10-21 과 동일해야 한다. */
 class TieredAgreementVersionTest {
-    private static final String OLD = "2026-09-30";
+    private static final String OLD = "2026-10-21";
+    private static final String LEGACY = "2026-09-30";
     private static final String NEW = "2026-11-01";
     private static final String[] SLUGS =
             {"terms", "privacy", "hq-data-sharing", "platform-credential", "hq-review-sharing"};
@@ -103,7 +104,7 @@ class TieredAgreementVersionTest {
                         "월 1회", "3개 상품으로 보며")
                 .doesNotContain("법무 검토 전 초안");
         assertThat(read("privacy"))
-                .contains("가맹본부 제공에 대한 동의 철회", "사업자등록번호, 개업일자, 대표자명", "빌링키", "NHN KCP㈜", "㈜코리아포트원")
+                .contains("가맹본부 제공에 대한 동의 철회", "사업자등록번호, 개업일자, 대표자명", "빌링키", "엔에이치엔케이씨피 주식회사(NHN KCP)", "㈜코리아포트원")
                 .doesNotContain("㈜케이지이니시스");
         assertThat(read("hq-data-sharing")).contains("본부는 보기만 할 수 있습니다", "동의하지 않으셔도 됩니다");
         assertThat(read("platform-credential")).contains("기웅정보통신(주)", "사장님이 직접 운영하시는 매장의 계정만");
@@ -113,7 +114,7 @@ class TieredAgreementVersionTest {
     /** 기존 디렉터리는 동의의 근거 문서다 - 새 디렉터리를 만들면서 건드리지 않았는지 정체성만 확인. */
     @Test
     void 옛_버전_문서는_결제대행사_표기가_그대로다() throws Exception {
-        String old = new String(new ClassPathResource("agreements/" + OLD + "/terms.md")
+        String old = new String(new ClassPathResource("agreements/" + LEGACY + "/terms.md")
                 .getContentAsByteArray(), StandardCharsets.UTF_8);
         assertThat(old).contains("KG이니시스").doesNotContain("NHN KCP").contains("33,000원");
     }
