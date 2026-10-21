@@ -19,9 +19,11 @@ public class BillingScheduler {
     private final BillingService billingService;
     private final TrialConversionNoticeService trialNotices;
     private final BrandPricingService brandPricingService;
+    private final CancelCredentialPurgeService cancelPurge;
 
     public BillingScheduler(BillingService billingService, TrialConversionNoticeService trialNotices,
-            BrandPricingService brandPricingService) {
+            BrandPricingService brandPricingService, CancelCredentialPurgeService cancelPurge) {
+        this.cancelPurge = cancelPurge;
         this.billingService = billingService;
         this.trialNotices = trialNotices;
         this.brandPricingService = brandPricingService;
@@ -37,6 +39,12 @@ public class BillingScheduler {
         java.time.Instant now = java.time.Instant.now();
         trialNotices.sendDue(now);
         brandPricingService.sendPriceNotices(now);
+    }
+
+    /** 매일 00:20(Asia/Seoul). 해지 후 이용 유예가 끝난 매장의 자격증명을 파기한다(멱등). */
+    @Scheduled(cron = "0 20 0 * * *", zone = "Asia/Seoul")
+    public void purgeCredentialsAfterCancel() {
+        cancelPurge.purgeEnded(java.time.Instant.now());
     }
 
     /** 매일 00:10(Asia/Seoul). 오늘(KST)이 결제예정일인 매장을 모두 청구한다. */

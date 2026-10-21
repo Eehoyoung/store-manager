@@ -201,6 +201,15 @@ public class Subscription {
                 && now.isBefore(this.serviceUntil);
     }
 
+    /**
+     * 자동결제를 끈(해지) 구독의 이용 유예까지 끝났는가 - 자격증명 파기 대상(약관 9.5).
+     * 자동결제가 켜진 채 결제 실패로 제한된 구독은 계약 종료가 아니므로 false.
+     */
+    public boolean isCancelEndedAt(Instant now) {
+        return cancellationRequestedAt != null && !autoRenew && !"CANCELED".equals(status)
+                && !"SUSPENDED".equals(status) && serviceUntil != null && !now.isBefore(serviceUntil);
+    }
+
     /** 화면용 상태. 저장하지 않고 날짜로 계산한다 — 스케줄러가 늦어도 판정이 밀리지 않는다. */
     public String serviceStateAt(Instant now) {
         if ("CANCELED".equals(this.status)) return "CANCELED";
@@ -224,6 +233,7 @@ public class Subscription {
         this.currentPeriodStart = periodStart;
         this.currentPeriodEnd = periodEnd;
         this.canceledAt = null;
+        this.cancellationRequestedAt = null;
         // 자동결제가 없는 수동 활성화도 기간 끝을 결제예정일로 둔다. 유예 뒤 제한되는 것은 같다.
         changeNextBillingAt(periodEnd);
     }
@@ -244,6 +254,7 @@ public class Subscription {
         this.billingKey = billingKey;
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
+        this.cancellationRequestedAt = null;
         changeNextBillingAt(trialEnd);
     }
 
@@ -258,6 +269,7 @@ public class Subscription {
         this.billingKey = billingKey;
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
+        this.cancellationRequestedAt = null;
         this.updatedAt = Instant.now();
     }
 
@@ -269,6 +281,7 @@ public class Subscription {
         this.billingKey = billingKey;
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
+        this.cancellationRequestedAt = null;
         this.renewalFailures = 0;
         changeNextBillingAt(periodEnd);
     }
@@ -294,6 +307,7 @@ public class Subscription {
         this.autoRenew = false;
         this.billingKey = null;
         this.billingChannelKey = null;
+        this.cancellationRequestedAt = Instant.now(); // 사장님 해지 기록 - 자격증명 파기 대상 판정의 유일한 근거
         this.updatedAt = Instant.now();
         return oldKey;
     }

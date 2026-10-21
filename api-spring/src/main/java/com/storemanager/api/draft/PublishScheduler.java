@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.storemanager.api.audit.AuditLog;
 import com.storemanager.api.audit.AuditLogRepository;
+import com.storemanager.api.crypto.PlatformAccountRepository;
 import com.storemanager.api.review.StorePlatformLink;
 import com.storemanager.api.review.StorePlatformLinkRepository;
 import com.storemanager.api.review.UnifiedReview;
@@ -55,13 +56,15 @@ public class PublishScheduler {
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
     private final StoreServiceGate serviceGate;
+    private final PlatformAccountRepository platformAccountRepository;
 
     public PublishScheduler(ReplyDraftRepository replyDraftRepository,
             ReviewAnalysisRepository reviewAnalysisRepository, UnifiedReviewRepository unifiedReviewRepository,
             StorePlatformLinkRepository storePlatformLinkRepository, StoreRepository storeRepository,
             AuditLogRepository auditLogRepository,
             StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper,
-            StoreServiceGate serviceGate) {
+            StoreServiceGate serviceGate, PlatformAccountRepository platformAccountRepository) {
+        this.platformAccountRepository = platformAccountRepository;
         this.replyDraftRepository = replyDraftRepository;
         this.reviewAnalysisRepository = reviewAnalysisRepository;
         this.unifiedReviewRepository = unifiedReviewRepository;
@@ -129,7 +132,9 @@ public class PublishScheduler {
             return;
         }
         StorePlatformLink link = storePlatformLinkRepository.findById(review.getLinkId()).orElse(null);
-        if (link == null || !link.getStoreId().equals(draft.getStoreId())) {
+        // 파기(revoked)된 계정이면 워커가 복호화하지 못해 원인 없는 INTERNAL_ERROR 가 된다 - 미리 막는다.
+        if (link == null || !link.getStoreId().equals(draft.getStoreId())
+                || platformAccountRepository.findByIdAndRevokedAtIsNull(link.getAccountId()).isEmpty()) {
             draft.blockForScheduling("PLATFORM_LINK_INVALID");
             auditBlocked(draft, "DRAFT_BLOCKED_PLATFORM_LINK_INVALID");
             return;

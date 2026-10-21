@@ -45,6 +45,12 @@ public class DowngradeCredentialCleanup {
     }
 
     public void onRemoved(Long storeId, Set<String> removed) {
+        onRemoved(storeId, removed, "CREDENTIAL_REVOKED_ON_DOWNGRADE");
+    }
+
+    /** 감사 action 만 다르다 - 해지 후 이용기간 종료 파기(CancelCredentialPurgeService)가 재사용한다. */
+    public void onRemoved(Long storeId, Set<String> removed, String auditAction) {
+        java.time.Instant now = java.time.Instant.now();
         if (removed.isEmpty()) {
             return;
         }
@@ -64,12 +70,13 @@ public class DowngradeCredentialCleanup {
                     .filter(id -> !id.equals(storeId))
                     .anyMatch(id -> stores.findById(id).filter(s -> s.getDeletedAt() == null).isPresent()
                             && subscriptions.findByStoreIdAndStatusNot(id, "CANCELED")
-                                    .map(sub -> sub.effectivePlatforms().contains(a.getPlatform())).orElse(false));
+                                    .map(sub -> !sub.isCancelEndedAt(now)
+                                    && sub.effectivePlatforms().contains(a.getPlatform())).orElse(false));
             if (usedElsewhere) {
                 continue;
             }
             credentialService.revoke(a);
-            auditLogs.save(AuditLog.builder().actorType("SYSTEM").action("CREDENTIAL_REVOKED_ON_DOWNGRADE")
+            auditLogs.save(AuditLog.builder().actorType("SYSTEM").action(auditAction)
                     .targetType("PLATFORM_ACCOUNT").targetId(a.getId()).build());
         }
     }
