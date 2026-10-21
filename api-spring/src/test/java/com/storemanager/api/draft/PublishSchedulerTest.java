@@ -50,6 +50,7 @@ class PublishSchedulerTest {
     @Mock private ListOperations<String, String> listOperations;
 
     @Mock private StoreServiceGate serviceGate;
+    @Mock private com.storemanager.api.crypto.PlatformAccountRepository platformAccountRepository;
 
     private PublishScheduler scheduler;
 
@@ -57,7 +58,9 @@ class PublishSchedulerTest {
     void setUp() {
         scheduler = new PublishScheduler(replyDraftRepository, reviewAnalysisRepository, unifiedReviewRepository,
                 storePlatformLinkRepository, storeRepository, auditLogRepository, stringRedisTemplate,
-                new ObjectMapper(), serviceGate);
+                new ObjectMapper(), serviceGate, platformAccountRepository);
+        org.mockito.Mockito.lenient().when(platformAccountRepository.findByIdAndRevokedAtIsNull(any()))
+                .thenReturn(Optional.of(com.storemanager.api.crypto.PlatformAccount.builder().id(77L).build()));
         // 일부 테스트는 게이트 이전에 반환하므로 lenient 로 둔다.
         org.mockito.Mockito.lenient().when(serviceGate.isServiceable(any())).thenReturn(true);
         // 선택형 요금 플래그 꺼짐 운영 동작 재현 - 플랫폼 판정은 항상 통과(기존 테스트 기대값 불변).
@@ -77,6 +80,23 @@ class PublishSchedulerTest {
                 .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
         when(storePlatformLinkRepository.findById(5L)).thenReturn(Optional.of(StorePlatformLink.builder()
                 .id(5L).storeId(100L).accountId(77L).platform("BAEMIN").platformStoreId("store-77").build()));
+    }
+
+    @Test
+    void 파기된_계정의_연동이면_PLATFORM_LINK_INVALID로_막고_디스패치하지_않는다() {
+        ReplyDraft draft = dueDraft(9L, 20L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(20L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(20L).category("PRAISE").sentiment(0.9f)
+                        .riskLevel((short) 0).riskReasons(new String[0]).model("m").promptVersion("v1").build()));
+        safeContext(20L);
+        when(platformAccountRepository.findByIdAndRevokedAtIsNull(77L)).thenReturn(Optional.empty());
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        verify(stringRedisTemplate, never()).opsForValue();
+        verify(auditLogRepository).save(any());
     }
 
     @Test
