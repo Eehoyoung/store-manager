@@ -1,0 +1,2 @@
+# 셸 스크립트는 LF 고정 — Windows(autocrlf) 체크아웃에서 CRLF 가 되면 Git Bash 가 deploy/local-ci.sh 를 못 돌린다.
+*.sh text eol=lf

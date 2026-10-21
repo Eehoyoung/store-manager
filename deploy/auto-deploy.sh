@@ -27,17 +27,15 @@ HEAD=$($G rev-parse HEAD)
 NEW=$($G rev-parse origin/master)
 [ "$HEAD" = "$NEW" ] && exit 0
 
-# 공개 저장소라 토큰 없이 조회한다. 새 커밋이 있을 때만 부르므로 시간당 60회 제한에 닿지 않는다.
-CI=$(curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/check-runs?per_page=100" | python3 -c '
-import json, sys
-runs = json.load(sys.stdin)["check_runs"]
-done = [r["conclusion"] for r in runs if r["status"] == "completed"]
-if not runs or len(done) < len(runs):
-    print("wait")
-elif all(c in ("success", "skipped") for c in done):
-    print("ok")
-else:
-    print("fail")') || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; }
+# 공개 저장소라 토큰 없이 조회한다. 새 커밋이 있을 때만 부르므로(2회) 시간당 60회 제한에 닿지 않는다.
+# ★ check-runs(Actions)에 더해 커밋 상태 context "local-ci"(deploy/local-ci.sh 가 기록)도 인정한다 — D76(2026-10-21)
+#   Actions 한도 초과 우회. 판정 규칙은 deploy/ci_gate.py 한 곳에 있다(Actions 실패는 로컬 증명으로 덮지 않는다).
+GATE_TMP=$(mktemp -d)
+CI=$(curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/check-runs?per_page=100" >"$GATE_TMP/runs.json" \
+  && curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/statuses?per_page=100" >"$GATE_TMP/status.json" \
+  && python3 deploy/ci_gate.py "$GATE_TMP/runs.json" "$GATE_TMP/status.json" "${REPO%%/*}") \
+  || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; }
+rm -rf "$GATE_TMP"
 
 case $CI in
   wait) exit 0 ;; # CI 실행 중 — 다음 주기에 다시 본다
