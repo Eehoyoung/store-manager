@@ -148,7 +148,7 @@ export function BillingCheckout({ storeId, billing, onSuccess }: BillingCheckout
         issueName: "소담리뷰 월 정기결제",
         displayAmount: billing.tiered && amount !== null ? amount : billing.chargeNowKrw,
         currency: "KRW",
-        // KG이니시스 모바일은 제공 기간이, PC는 이름·연락처·이메일이 없으면 결제창이 열리지 않는다.
+        // NHN KCP 는 offerPeriod 의 interval 방식만 지원하고 모바일은 issueName 이 필수다(포트원 kcp-v2 문서).
         offerPeriod: { interval: "1m" },
         customer: {
           customerId: billing.customer.customerId,
