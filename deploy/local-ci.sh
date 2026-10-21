@@ -50,7 +50,9 @@ step ai-python bash -c 'cd ai-python && python -m pytest -q'
 step worker    bash -c 'cd worker && python -m pytest -q'
 step web       bash -c 'cd web && npm ci --silent && npm run build && npm test'
 step extension bash -c 'cd extension && npm ci --silent && npm run typecheck && npm run test && npm run build'
-step deploy    bash -c 'python3 deploy/ci_gate.py --self-check && bash deploy/tests/preflight_test.sh'
+# Windows 의 python3 는 스토어 바로가기라 실행되지 않는다 — 돌아가는 쪽을 쓴다.
+PY=python3; python3 -c '' 2>/dev/null || PY=python
+step deploy    bash -c "$PY deploy/ci_gate.py --self-check && bash deploy/tests/preflight_test.sh"
 
 if [ -n "$FAILED" ]; then
   echo "실패:$FAILED — 상태를 기록하지 않는다"
