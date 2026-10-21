@@ -93,6 +93,8 @@ class TieredPlanChangeIT {
     @Autowired UnifiedReviewRepository reviews;
     @Autowired ReplyDraftRepository drafts;
     @Autowired CredentialService credentialService;
+    @Autowired com.storemanager.api.audit.AuditLogRepository auditLogs;
+    @Autowired com.storemanager.api.platform.PlatformAccountService platformAccountService;
     @Autowired StringRedisTemplate stringRedis;
     @Autowired com.storemanager.api.crypto.PlatformAccountRepository accounts;
     @MockitoBean PortOneClient portOne;
@@ -186,7 +188,7 @@ class TieredPlanChangeIT {
     // ── 변경 예약 ─────────────────────────────────────────────────────────
 
     @Test
-    void changeWritesPendingOnly() {
+    void changeWritesPendingOnly() throws Exception {
         Store s = 매장();
         구독(s, "ACTIVE", null);
 
@@ -203,6 +205,26 @@ class TieredPlanChangeIT {
         assertThat(v.tiered().next().deliveryPlatforms()).containsExactly("BAEMIN");
         assertThat(v.tiered().changedThisMonth()).isTrue();
         verify(portOne, never()).pay(anyString(), anyString(), anyString(), anyLong(), anyMap());
+        // 감사로그 detail 에 변경 후 금액(VAT 포함)·적용일(다음 결제예정일)이 남는다.
+        String detail = auditLogs.findByActionOrderByCreatedAtAsc("PLAN_CHANGE_RESERVED").stream()
+                .filter(a -> a.getTargetId().equals(row.getId())).findFirst().orElseThrow().getDetail();
+        JsonNode node = JSON.readTree(detail);
+        assertThat(node.get("totalKrw").asInt()).isEqualTo(25000);
+        assertThat(Instant.parse(node.get("appliesAt").asText())).isEqualTo(row.getNextBillingAt());
+    }
+
+    /** 리뷰가 붙은 연동의 계정을 해지해도 FK 위반 없이 파기된다(연동 행은 남긴다). */
+    @Test
+    void revokeAccountWithReviewsKeepsLinkAndRevokes() {
+        Store s = 매장();
+        UnifiedReview r = 리뷰(s, "BAEMIN");
+        StorePlatformLink link = links.findById(r.getLinkId()).orElseThrow();
+        PlatformAccount account = accounts.findById(link.getAccountId()).orElseThrow();
+
+        platformAccountService.revoke(owner(s), account.getPublicId(), null, null);
+
+        assertThat(accounts.findById(account.getId()).orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(links.findById(link.getId())).isPresent();
     }
 
     @Test

@@ -111,7 +111,9 @@ public class PlatformAccountService {
                 : storeRepository.findById(account.getIntendedStoreId())
                         .filter(candidate -> candidate.getOwnerId().equals(owner.getId()))
                         .orElse(null);
-        linkRepository.deleteByAccountId(account.getId());
+        // ★ 연동 행(store_platform_link)은 지우지 않는다. unified_review.link_id 가 FK(ON DELETE 없음)라
+        //   리뷰가 붙은 행을 지우면 예외 → 같은 트랜잭션의 자격증명 파기까지 롤백된다.
+        //   DowngradeCredentialCleanup 과 같은 방식이다. 재등록 때 CollectResultService.relinkFromRevoked 가 옮긴다.
         credentialService.revoke(account);
         if (store != null) {
             store.clearCredentialConsent(Instant.now());
