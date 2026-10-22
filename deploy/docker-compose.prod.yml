@@ -128,6 +128,15 @@ services:
       PORTONE_API_SECRET: ${PORTONE_API_SECRET:?}
       PORTONE_STORE_ID: ${PORTONE_STORE_ID:?}
       PORTONE_INICIS_CHANNEL_KEY: ${PORTONE_INICIS_CHANNEL_KEY:?}
+      # 아래 키는 비우면 코드 기본값과 같게 동작한다(2026-10-22 D113 에 compose 가 넘기도록 추가).
+      PORTONE_API_BASE: ${PORTONE_API_BASE:-https://api.portone.io}
+      # 무통장 안내 계좌. 비면 계좌 안내를 표시하지 않는다.
+      BILLING_BANK_NAME: ${BILLING_BANK_NAME:-}
+      BILLING_ACCOUNT_NO: ${BILLING_ACCOUNT_NO:-}
+      BILLING_ACCOUNT_HOLDER: ${BILLING_ACCOUNT_HOLDER:-}
+      READINESS_SUMMARY_ENABLED: ${READINESS_SUMMARY_ENABLED:-false}
+      # 자격증명 마스터키 교체 중 이전 키(복호화 전용). 비면 이전 키 없음.
+      CREDENTIAL_PREVIOUS_KEYS: ${CREDENTIAL_PREVIOUS_KEYS:-}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.
       BUSINESS_NAME: 소담랩스
       BUSINESS_SERVICE_NAME: 소담리뷰
@@ -214,6 +223,16 @@ services:
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
       # 0 = 무제한. 테스트 토큰을 쓸 때만 잔여 횟수를 넣는다.
       DATAAPI_CALL_BUDGET: ${DATAAPI_CALL_BUDGET:-0}
+      # 수집·게시 튜닝. 비우면 코드 기본값과 같다(worker/dataapi.py, tasks.py, celery_app.py).
+      DATAAPI_MAX_ATTEMPTS: ${DATAAPI_MAX_ATTEMPTS:-2}
+      COLLECT_POLL_HOURS: ${COLLECT_POLL_HOURS:-10}
+      COLLECT_LOOKBACK_DAYS: ${COLLECT_LOOKBACK_DAYS:-2}
+      BACKFILL_DAYS: ${BACKFILL_DAYS:-90}
+      BACKFILL_CHUNK_DAYS: ${BACKFILL_CHUNK_DAYS:-7}
+      PUBLISH_BATCH_SIZE: ${PUBLISH_BATCH_SIZE:-20}
+      PUBLISH_BRPOP_TIMEOUT_SECONDS: ${PUBLISH_BRPOP_TIMEOUT_SECONDS:-1}
+      PUBLISH_RATE_LIMIT_SECONDS: ${PUBLISH_RATE_LIMIT_SECONDS:-5}
+      PUBLISH_JITTER_MAX_SECONDS: ${PUBLISH_JITTER_MAX_SECONDS:-3}
     # 하트비트 키(readiness:worker, TTL 600s)가 있으면 건강. 없으면 exit 1.
     healthcheck:
       test: ["CMD", "python", "-c", "import os,sys,redis; sys.exit(0 if redis.Redis.from_url(os.environ['REDIS_URL']).exists('readiness:worker') else 1)"]
