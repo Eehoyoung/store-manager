@@ -21,9 +21,15 @@ public class ReadinessService {
     private final PortOneClient portOne;
     private final MailService mail;
     private final boolean billingScheduler;
+    private final DeployHeadChecker deployHead;
+    private final String deploySha;
+    private final Instant startedAt = Instant.now();
 
     public ReadinessService(EntityManager em, StringRedisTemplate redis, PortOneClient portOne, MailService mail,
-            @Value("${app.scheduler.billing.enabled:false}") boolean billingScheduler) {
+            @Value("${app.scheduler.billing.enabled:false}") boolean billingScheduler,
+            DeployHeadChecker deployHead, @Value("${app.deploy.sha:}") String deploySha) {
+        this.deployHead = deployHead;
+        this.deploySha = deploySha == null ? "" : deploySha.trim();
         this.em = em;
         this.redis = redis;
         this.portOne = portOne;
@@ -59,8 +65,21 @@ public class ReadinessService {
                         + "AND fail_reason = 'DATAAPI_WRITE_DISABLED'"),
                 count("SELECT count(*) FROM platform_account WHERE link_status = 'ERROR' AND revoked_at IS NULL"),
                 count("SELECT coalesce(sum(renewal_failures), 0) FROM subscription "
-                        + "WHERE status IN ('TRIAL','ACTIVE','PAST_DUE')"));
+                        + "WHERE status IN ('TRIAL','ACTIVE','PAST_DUE')"),
+                count("SELECT count(*) FROM payment WHERE status = 'FAILED' "
+                        + "AND created_at > now() - interval '24 hours'"),
+                count("SELECT count(*) FROM subscription WHERE status NOT IN ('CANCELED','SUSPENDED') "
+                        + "AND next_billing_at IS NOT NULL AND service_until IS NOT NULL AND service_until <= now()"),
+                new ReadinessEvaluator.DeployInfo(deploySha, startedAt, deployHead.enabled(),
+                        deployHead.headSha(now), deployHead.headCommittedAt(now)),
+                diskUsedRatio());
         return new Report(now, ReadinessEvaluator.mode(worker), ReadinessEvaluator.evaluate(in, now));
+    }
+
+    private static double diskUsedRatio() {
+        java.io.File root = new java.io.File("/");
+        long total = root.getTotalSpace();
+        return total <= 0 ? Double.NaN : (double) (total - root.getUsableSpace()) / total;
     }
 
     private Object first(String sql) {
