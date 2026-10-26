@@ -14,12 +14,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * GitHub 공개 API 로 master HEAD(sha·커밋 시각)를 조회한다. 자동 배포 정지 감지용.
- * repo 가 비면(기본) 외부 호출을 하지 않는다. 성공은 6시간, 실패는 30분 캐시해 점검 화면이 열릴 때마다 부르지 않는다.
+ * repo 가 비면(기본) 외부 호출을 하지 않는다. 성공은 10분, 실패는 30분 캐시해 점검 화면이 열릴 때마다 부르지 않는다.
  */
 @Component
 public class DeployHeadChecker {
 
-    static final Duration OK_TTL = Duration.ofHours(6);
+    // 배포 직후 옛 HEAD 와 비교해 가짜 빨강이 나지 않게 짧게 둔다(공개 API 한도 시간당 60회 안).
+    static final Duration OK_TTL = Duration.ofMinutes(10);
     static final Duration FAIL_TTL = Duration.ofMinutes(30);
 
     private final String repo;
@@ -85,7 +86,7 @@ public class DeployHeadChecker {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            // 조회 실패는 노랑으로 흡수한다(본문·URL 로깅 없음).
+            // 조회 실패는 UNKNOWN 으로 흡수한다(본문·URL 로깅 없음).
         }
     }
 }
