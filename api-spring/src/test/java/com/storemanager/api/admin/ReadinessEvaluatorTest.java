@@ -105,10 +105,10 @@ class ReadinessEvaluatorTest {
     }
 
     @Test
-    void 디스크_70_80_경계() {
+    void 디스크_80_경계() {
         assertThat(ReadinessEvaluator.diskItem(0.699).status()).isEqualTo("GREEN");
-        assertThat(ReadinessEvaluator.diskItem(0.70).status()).isEqualTo("YELLOW");
-        assertThat(ReadinessEvaluator.diskItem(0.799).status()).isEqualTo("YELLOW");
+        assertThat(ReadinessEvaluator.diskItem(0.70).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.diskItem(0.799).status()).isEqualTo("GREEN");
         assertThat(ReadinessEvaluator.diskItem(0.80).status()).isEqualTo("RED");
         assertThat(ReadinessEvaluator.diskItem(Double.NaN).status()).isEqualTo("UNKNOWN");
     }
@@ -120,9 +120,9 @@ class ReadinessEvaluatorTest {
         assertThat(ReadinessEvaluator.deployItem(off, NOW).status()).isEqualTo("INFO");
         assertThat(ReadinessEvaluator.deployItem(null, NOW).status()).isEqualTo("UNKNOWN");
         var noSha = new ReadinessEvaluator.DeployInfo("", start, true, "zzz", NOW);
-        assertThat(ReadinessEvaluator.deployItem(noSha, NOW).status()).isEqualTo("YELLOW");
+        assertThat(ReadinessEvaluator.deployItem(noSha, NOW).status()).isEqualTo("UNKNOWN");
         var failed = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, null, null);
-        assertThat(ReadinessEvaluator.deployItem(failed, NOW).status()).isEqualTo("YELLOW");
+        assertThat(ReadinessEvaluator.deployItem(failed, NOW).status()).isEqualTo("UNKNOWN");
         var same = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "abc1234def", NOW.minusSeconds(99999));
         assertThat(ReadinessEvaluator.deployItem(same, NOW).status()).isEqualTo("GREEN");
         var recent = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3600));

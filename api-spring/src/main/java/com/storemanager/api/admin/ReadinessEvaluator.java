@@ -52,7 +52,6 @@ public final class ReadinessEvaluator {
 
     static final Duration DEPLOY_LAG = Duration.ofHours(1);
     static final double DISK_RED = 0.80;
-    static final double DISK_YELLOW = 0.70;
 
     /** 깨진 JSON·누락 필드는 null 로 흡수한다(UNKNOWN 판정). */
     static Worker parseWorker(String json) {
@@ -213,7 +212,7 @@ public final class ReadinessEvaluator {
         String label = "배포 반영";
         if (d == null || d.runningSha() == null || d.runningSha().isBlank()) {
             return d != null && d.checkEnabled()
-                    ? item(id, label, "YELLOW", false, "실행 중인 커밋을 알 수 없어 master 와 비교하지 못합니다.", null)
+                    ? item(id, label, "UNKNOWN", false, "실행 중인 커밋을 알 수 없어 master 와 비교하지 못합니다.", null)
                     : item(id, label, "UNKNOWN", false, "실행 중인 커밋을 알 수 없습니다.", null);
         }
         String run = d.runningSha();
@@ -223,7 +222,7 @@ public final class ReadinessEvaluator {
             return item(id, label, "INFO", false, base + " (master 비교 꺼짐).", d.startedAt());
         }
         if (d.headSha() == null || d.headCommittedAt() == null) {
-            return item(id, label, "YELLOW", false, base + " - master 조회에 실패했습니다.", d.startedAt());
+            return item(id, label, "UNKNOWN", false, base + " - master 조회에 실패했습니다.", d.startedAt());
         }
         if (d.headSha().startsWith(run) || run.startsWith(d.headSha())) {
             return item(id, label, "GREEN", false, base + " - master 와 같습니다.", d.startedAt());
@@ -246,9 +245,6 @@ public final class ReadinessEvaluator {
         String pct = Math.round(used * 100) + "%";
         if (used >= DISK_RED) {
             return item("disk", label, "RED", false, "루트 디스크 사용률 " + pct + " (80% 이상).", null);
-        }
-        if (used >= DISK_YELLOW) {
-            return item("disk", label, "YELLOW", false, "루트 디스크 사용률 " + pct + " (70% 이상).", null);
         }
         return item("disk", label, "GREEN", false, "루트 디스크 사용률 " + pct + ".", null);
     }
