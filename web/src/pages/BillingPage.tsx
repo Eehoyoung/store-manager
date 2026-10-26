@@ -226,6 +226,11 @@ export function BillingPage() {
             결제가 확인되지 않아 이용이 중지됐어요. 결제하면 바로 다시 시작돼요.
           </p>
         ) : null}
+        {billing.serviceState === "RESTRICTED" && billing.terminationDueDate ? (
+          <p role="alert" className="billing-page__warning">
+            {fmtDate(billing.terminationDueDate)}까지 카드를 바꾸지 않으면 해지되고 배달앱 계정정보가 지워져요. 밀린 요금은 청구하지 않아요.
+          </p>
+        ) : null}
       </Card>
 
       {billing.tiered && !mustRegisterNow ? <PlanManager storeId={storeId} tiered={billing.tiered} serviceState={billing.serviceState} nextBillingAt={billing.nextBillingAt} trialEndsAt={billing.trialEndsAt} onChanged={setBilling} /> : null}

@@ -2,8 +2,15 @@ package com.storemanager.api.store;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.storemanager.api.billing.DowngradeCredentialCleanup;
+import com.storemanager.api.billing.Subscription;
+import com.storemanager.api.billing.SubscriptionRepository;
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
 import com.storemanager.api.user.AppUser;
@@ -26,6 +33,8 @@ class StoreServiceTest {
     @Mock private StoreRepository storeRepository;
     @Mock private StorePersonaRepository storePersonaRepository;
     @Mock private AppUserRepository appUserRepository;
+    @Mock private SubscriptionRepository subscriptions;
+    @Mock private DowngradeCredentialCleanup credentialCleanup;
 
     private StoreService storeService;
 
@@ -36,7 +45,8 @@ class StoreServiceTest {
 
     @BeforeEach
     void setUp() {
-        storeService = new StoreService(storeRepository, storePersonaRepository, appUserRepository);
+        storeService = new StoreService(storeRepository, storePersonaRepository, appUserRepository,
+                subscriptions, credentialCleanup);
         when(appUserRepository.findByPublicId(ownerPublicId)).thenReturn(Optional.of(owner));
     }
 
@@ -71,5 +81,46 @@ class StoreServiceTest {
                 () -> storeService.deleteStore(ownerPublicId, storePublicId));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+    }
+
+    private Store myStore() {
+        Store mine = Store.builder().id(10L).publicId(storePublicId).ownerId(1L).name("내가게").build();
+        when(storeRepository.findByPublicIdAndDeletedAtIsNull(storePublicId)).thenReturn(Optional.of(mine));
+        return mine;
+    }
+
+    @Test
+    void 자동결제가_켜진_구독이_있으면_삭제는_409다() {
+        Store mine = myStore();
+        Subscription sub = Subscription.builder().storeId(10L).priceKrw(java.math.BigDecimal.TEN).autoRenew(true).build();
+        when(subscriptions.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.of(sub));
+
+        ApiException ex = assertThrows(ApiException.class, () -> storeService.deleteStore(ownerPublicId, storePublicId));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.STORE_HAS_ACTIVE_SUBSCRIPTION);
+        assertThat(mine.getDeletedAt()).isNull();
+        verify(credentialCleanup, never()).onRemoved(any(), any(), any());
+    }
+
+    @Test
+    void 해지_접수된_구독이거나_구독이_없으면_삭제하고_자격증명을_파기한다() {
+        Store mine = myStore();
+        Subscription canceled = Subscription.builder().storeId(10L).priceKrw(java.math.BigDecimal.TEN).autoRenew(false).build();
+        when(subscriptions.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.of(canceled));
+
+        storeService.deleteStore(ownerPublicId, storePublicId);
+
+        assertThat(mine.getDeletedAt()).isNotNull();
+        verify(credentialCleanup).onRemoved(eq(10L), any(), eq("CREDENTIAL_REVOKED_ON_STORE_DELETE"));
+    }
+
+    @Test
+    void 구독이_없는_매장도_삭제된다() {
+        Store mine = myStore();
+        when(subscriptions.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.empty());
+
+        storeService.deleteStore(ownerPublicId, storePublicId);
+
+        assertThat(mine.getDeletedAt()).isNotNull();
     }
 }

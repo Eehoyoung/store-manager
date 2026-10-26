@@ -72,6 +72,18 @@ public class Subscription {
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
+    /** 미납 시정 요구 통지 발송 시각(V51). 비어 있으면 아직 통지하지 않았다. */
+    @Column(name = "dunning_notified_at")
+    private Instant dunningNotifiedAt;
+
+    /** 해지 확정일(KST, V51). 시정 요구 통지 발송일 + 14일. */
+    @Column(name = "termination_due_date")
+    private java.time.LocalDate terminationDueDate;
+
+    /** 해지 3일 전 재통지 발송 시각(V51). */
+    @Column(name = "termination_reminded_at")
+    private Instant terminationRemindedAt;
+
     @Column(name = "cancellation_requested_at")
     private Instant cancellationRequestedAt;
 
@@ -234,6 +246,7 @@ public class Subscription {
         this.currentPeriodEnd = periodEnd;
         this.canceledAt = null;
         this.cancellationRequestedAt = null;
+        clearDunning();
         // 자동결제가 없는 수동 활성화도 기간 끝을 결제예정일로 둔다. 유예 뒤 제한되는 것은 같다.
         changeNextBillingAt(periodEnd);
     }
@@ -255,6 +268,7 @@ public class Subscription {
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
         this.cancellationRequestedAt = null;
+        clearDunning();
         changeNextBillingAt(trialEnd);
     }
 
@@ -270,6 +284,7 @@ public class Subscription {
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
         this.cancellationRequestedAt = null;
+        clearDunning();
         this.updatedAt = Instant.now();
     }
 
@@ -282,6 +297,7 @@ public class Subscription {
         this.billingChannelKey = channelKey;
         this.autoRenew = true;
         this.cancellationRequestedAt = null;
+        clearDunning();
         this.renewalFailures = 0;
         changeNextBillingAt(periodEnd);
     }
@@ -308,6 +324,7 @@ public class Subscription {
         this.billingKey = null;
         this.billingChannelKey = null;
         this.cancellationRequestedAt = Instant.now(); // 사장님 해지 기록 - 자격증명 파기 대상 판정의 유일한 근거
+        clearDunning(); // 해지 접수했으므로 미납 해지 절차는 끝난다
         this.updatedAt = Instant.now();
         return oldKey;
     }
@@ -322,6 +339,39 @@ public class Subscription {
         this.status = "CANCELED";
         this.canceledAt = Instant.now();
         this.updatedAt = Instant.now();
+    }
+
+    /** 미납 해지 절차 기록을 비운다. 결제 성공·카드 교체·운영자 활성화·자동결제 해지가 부른다(V51). */
+    public void clearDunning() {
+        this.dunningNotifiedAt = null;
+        this.terminationDueDate = null;
+        this.terminationRemindedAt = null;
+    }
+
+    /** 시정 요구 통지를 보냈다: 발송일(KST) 다음 날부터 14일째 되는 날을 해지일로 확정한다(초일 불산입, D120). */
+    public void markDunningNotified(Instant sentAt) {
+        this.dunningNotifiedAt = sentAt;
+        this.terminationDueDate = sentAt.atZone(KST).toLocalDate().plusDays(14);
+        this.updatedAt = sentAt;
+    }
+
+    public void markTerminationReminded(Instant sentAt) {
+        this.terminationRemindedAt = sentAt;
+        this.updatedAt = sentAt;
+    }
+
+    /**
+     * 미납 해지(D120). 즉시 해지하고 빌링키를 비운다.
+     *
+     * @return PG 에서 지워야 할 빌링키(없으면 null)
+     */
+    public String terminateForNonPayment() {
+        String oldKey = this.billingKey;
+        cancelImmediately();
+        this.autoRenew = false;
+        this.billingKey = null;
+        this.billingChannelKey = null;
+        return oldKey;
     }
 
     public void suspend() {

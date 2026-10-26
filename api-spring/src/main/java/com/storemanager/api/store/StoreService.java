@@ -2,9 +2,13 @@ package com.storemanager.api.store;
 
 import com.storemanager.api.common.ApiException;
 import com.storemanager.api.common.ErrorCode;
+import com.storemanager.api.billing.DowngradeCredentialCleanup;
+import com.storemanager.api.billing.Subscription;
+import com.storemanager.api.billing.SubscriptionRepository;
 import com.storemanager.api.user.AppUser;
 import com.storemanager.api.user.AppUserRepository;
 import java.security.SecureRandom;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -19,9 +23,14 @@ public class StoreService {
     private final StoreRepository storeRepository;
     private final StorePersonaRepository storePersonaRepository;
     private final AppUserRepository appUserRepository;
+    private final SubscriptionRepository subscriptions;
+    private final DowngradeCredentialCleanup credentialCleanup;
 
     public StoreService(StoreRepository storeRepository, StorePersonaRepository storePersonaRepository,
-            AppUserRepository appUserRepository) {
+            AppUserRepository appUserRepository, SubscriptionRepository subscriptions,
+            DowngradeCredentialCleanup credentialCleanup) {
+        this.subscriptions = subscriptions;
+        this.credentialCleanup = credentialCleanup;
         this.storeRepository = storeRepository;
         this.storePersonaRepository = storePersonaRepository;
         this.appUserRepository = appUserRepository;
@@ -78,7 +87,17 @@ public class StoreService {
     @Transactional
     public void deleteStore(UUID ownerPublicId, UUID storeId) {
         Store store = findOwnedStore(ownerPublicId, storeId);
+        // T-31(D120): 자동결제가 켜진(해지 접수 안 된) 구독이 있으면 삭제를 막는다 - 삭제하면 청구와 해지 안내가 끊긴다.
+        // 해지 접수 후 이용기간이 남은 매장·구독 없는 매장은 삭제할 수 있다.
+        boolean autoRenewOn = subscriptions.findByStoreIdAndStatusNot(store.getId(), "CANCELED")
+                .map(Subscription::isAutoRenew).orElse(false);
+        if (autoRenewOn) {
+            throw new ApiException(ErrorCode.STORE_HAS_ACTIVE_SUBSCRIPTION);
+        }
         store.softDelete();
+        // 삭제된 매장의 배달앱 자격증명을 파기한다. 다른 (삭제되지 않은) 매장이 같은 계정을 쓰면 cleanup 이 보존한다.
+        credentialCleanup.onRemoved(store.getId(), new HashSet<>(Subscription.DELIVERY_PLATFORMS),
+                "CREDENTIAL_REVOKED_ON_STORE_DELETE");
     }
 
     private Store findOwnedStore(UUID ownerPublicId, UUID storeId) {

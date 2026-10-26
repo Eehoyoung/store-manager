@@ -24,9 +24,13 @@ class SolapiSender {
     }
 
     SendResult sendHighRisk(String to, Map<String, String> variables) throws Exception {
+        return sendTemplate(properties.getTemplate().getRiskReview(), to, variables);
+    }
+
+    SendResult sendTemplate(String templateId, String to, Map<String, String> variables) throws Exception {
         KakaoOption kakao = new KakaoOption();
         kakao.setPfId(properties.getPfId());
-        kakao.setTemplateId(properties.getTemplate().getRiskReview());
+        kakao.setTemplateId(templateId);
         kakao.setDisableSms(true);
         kakao.setVariables(templateVariables(variables));
 

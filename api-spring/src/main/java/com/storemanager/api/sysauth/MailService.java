@@ -74,6 +74,11 @@ public class MailService {
         return canSend() && send(toEmail, subject, body);
     }
 
+    /** 미납 시정 요구·해지 예정·해지 통지(T-30, D120). 성공 여부를 돌려준다 - 호출부는 성공했을 때만 통지한 것으로 기록한다. */
+    public boolean sendDunningNotice(String toEmail, String subject, String body) {
+        return canSend() && send(toEmail, subject, body);
+    }
+
     /** 관리자 점검 요약 등 내부 안내. 계정이 없으면 조용히 false. */
     public boolean sendAdminNotice(String toEmail, String subject, String body) {
         return canSend() && send(toEmail, subject, body);

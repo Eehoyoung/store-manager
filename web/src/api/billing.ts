@@ -58,6 +58,8 @@ export interface BillingResponse {
   unitPriceKrw: number;
   /** 가맹 브랜드 유료 이용 매장 수 — 이 단가의 근거. 비가맹 매장은 null. */
   brandPaidStoreCount: number | null;
+  /** 미납 해지 확정일(YYYY-MM-DD, KST). 시정 요구 통지 뒤에만 값이 있다. */
+  terminationDueDate?: string | null;
   consentVersion: string;
   payments: BillingPayment[];
   /** 이용 중지로 게시되지 않은 채 BLOCKED(STORE_INACTIVE) 로 남은 예약 답글 수. */

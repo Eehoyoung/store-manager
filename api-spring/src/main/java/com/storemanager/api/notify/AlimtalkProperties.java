@@ -33,6 +33,34 @@ public class AlimtalkProperties {
     public static class Template {
         private String riskReview = "";
         private String dailyBriefing = "";
+        /** 미납 해지 절차(T-30) 알림톡 템플릿 3종. 비어 있으면 그 단계 알림톡은 건너뛴다(메일만). */
+        private String dunningNotice = "";
+        private String dunningReminder = "";
+        private String dunningTerminated = "";
+
+        public String getDunningNotice() {
+            return dunningNotice;
+        }
+
+        public void setDunningNotice(String dunningNotice) {
+            this.dunningNotice = dunningNotice;
+        }
+
+        public String getDunningReminder() {
+            return dunningReminder;
+        }
+
+        public void setDunningReminder(String dunningReminder) {
+            this.dunningReminder = dunningReminder;
+        }
+
+        public String getDunningTerminated() {
+            return dunningTerminated;
+        }
+
+        public void setDunningTerminated(String dunningTerminated) {
+            this.dunningTerminated = dunningTerminated;
+        }
 
         public String getRiskReview() {
             return riskReview;

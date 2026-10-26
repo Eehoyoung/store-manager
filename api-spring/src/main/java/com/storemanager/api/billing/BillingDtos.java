@@ -31,7 +31,7 @@ final class BillingDtos {
             String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
             String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
             long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
-            int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount,
+            int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount, String terminationDueDate,
             @JsonInclude(JsonInclude.Include.NON_NULL) TieredPlanView tiered) {
 
         /** 선택형 요금 필드가 없는 기존 형태(꺼짐). tiered 가 null 이라 JSON 에서 키가 빠진다. */
@@ -39,10 +39,11 @@ final class BillingDtos {
                 String serviceState, boolean trialPending, int trialDays, String trialEndsAt, String nextBillingAt,
                 String restrictedFrom, String lastPaidAt, boolean hasCard, boolean autoRenew, int renewalFailures,
                 long amountKrw, long chargeNowKrw, String consentVersion, List<PaymentItem> payments,
-                int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount) {
+                int heldReplyCount, int unitPriceKrw, Integer brandPaidStoreCount, String terminationDueDate) {
             this(enabled, portoneStoreId, channelKey, customer, serviceState, trialPending, trialDays, trialEndsAt,
                     nextBillingAt, restrictedFrom, lastPaidAt, hasCard, autoRenew, renewalFailures, amountKrw,
-                    chargeNowKrw, consentVersion, payments, heldReplyCount, unitPriceKrw, brandPaidStoreCount, null);
+                    chargeNowKrw, consentVersion, payments, heldReplyCount, unitPriceKrw, brandPaidStoreCount,
+                    terminationDueDate, null);
         }
     }
 
