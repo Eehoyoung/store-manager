@@ -22,7 +22,8 @@ t "restore-test: docker rm 은 \$NAME 만" bash -c "grep -vE '^\s*#' $R | grep '
 t "rotate: 비밀값 echo·log 출력 없음" bash -c "! grep -vE '^\s*#' deploy/rotate-secrets.sh | grep -E '(echo|log|printf).*(NEW_MASTER_KEY|OLD_MASTER_KEY|JWT_SECRET|INTERNAL_TOKEN)'"
 t "rotate: run 에 -T (tty 불필요)" grep -q 'run -T --rm' deploy/rotate-secrets.sh
 t "rotate: .next 정리 trap" grep -q '^trap .*NEXT' deploy/rotate-secrets.sh
-t "rotate: flock 으로 동시 실행 차단" grep -q '^flock -n 9' deploy/rotate-secrets.sh
+t "rotate: auto-deploy 와 같은 락" grep -q '^exec 9>/run/storemanager-deploy.lock' deploy/rotate-secrets.sh
+t "rotate: 락을 trap 보다 먼저" bash -c "awk '/^flock -n 9/{a=NR} /^trap /{b=NR} END{exit !(a && b && a<b)}' deploy/rotate-secrets.sh"
 t "rotate: rewrap 전에 새 env 보관" bash -c "awk '/^NEW_COPY=/{a=NR} /rewrap.py/{b=NR} END{exit !(a && b && a<b)}' deploy/rotate-secrets.sh"
 t "rotate: awk -v 로 비밀값을 넘기지 않음" bash -c "! grep -vE '^\s*#' deploy/rotate-secrets.sh | grep -q 'awk -v'"
 t "restore-test: tmpfs 미사용·메모리 상한" bash -c "! grep -vE '^\s*#' $R | grep -q -- '--tmpfs' && grep -q -- '--memory' $R"

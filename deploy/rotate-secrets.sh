@@ -25,11 +25,13 @@ umask 077
 STAMP=$(date -u +%Y%m%d%H%M)
 NEXT="$ENV_FILE.next"
 log() { echo "[rotate $(date -u +%FT%TZ)] $*"; }
+# 수동 실행과 cron 이 겹치면 한쪽이 다른 쪽의 새 키(.next)를 지운다. auto-deploy 의 up -d 가 끼면 옛 키로 재기동된다.
+# 그래서 auto-deploy 와 같은 락을 잡는다 — 교체 중에는 auto-deploy 가 flock -n 에서 조용히 건너뛴다(auto-deploy.sh 15줄).
+# 락을 trap 보다 먼저 잡는다 — 락 실패로 끝날 때 trap 이 실행 중인 교체의 .next 를 지우지 않게.
+exec 9>/run/storemanager-deploy.lock
+flock -n 9 || { log "배포나 다른 교체가 실행 중이다. 중단(다시 실행)" >&2; exit 1; }
 # 어떤 실패에서도 비밀값이 든 .next 파일을 남기지 않는다(cron 무인 실행 — 비영 종료코드는 set -e 가 보장).
 trap 'rm -f "$NEXT" "$NEXT".????' EXIT
-# 수동 실행과 cron 이 겹치면 한쪽이 다른 쪽의 새 키(.next)를 지운다. 한 번에 하나만 돈다.
-exec 9>"$ENV_FILE.lock"
-flock -n 9 || { log "이미 다른 교체가 실행 중이다. 중단" >&2; exit 1; }
 
 # KEY=VALUE 를 바꾸고, 없으면 끝에 붙인다. 값은 base64 라 awk -v 이스케이프에 걸리지 않는다.
 set_kv() {
