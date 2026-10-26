@@ -58,12 +58,13 @@ public class DunningService {
     private final BusinessInfoProperties business;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate tx;
+    private final PaymentRepository payments;
     private final boolean enabled;
 
     public DunningService(SubscriptionRepository subscriptions, StoreRepository stores, AppUserRepository users,
             AuditLogRepository auditLogs, MailService mail, ObjectProvider<DunningAlimtalk> alimtalk,
             DowngradeCredentialCleanup cleanup, PortOneClient portOneClient, BrandPricingService brandPricingService,
-            BusinessInfoProperties business, ObjectMapper objectMapper, TransactionTemplate tx,
+            BusinessInfoProperties business, ObjectMapper objectMapper, TransactionTemplate tx, PaymentRepository payments,
             @Value("${app.billing.dunning-notify-enabled:false}") boolean enabled) {
         this.subscriptions = subscriptions;
         this.stores = stores;
@@ -77,6 +78,7 @@ public class DunningService {
         this.business = business;
         this.objectMapper = objectMapper;
         this.tx = tx;
+        this.payments = payments;
         this.enabled = enabled;
     }
 
@@ -103,83 +105,126 @@ public class DunningService {
 
     private boolean process(Long subId, Instant now, LocalDate today) {
         Subscription sub = subscriptions.findById(subId).orElse(null);
-        if (sub == null || !stillDunning(sub, now)) {
+        if (sub == null || !eligible(sub, now)) {
             return false; // 목록을 읽은 뒤 결제·해지 접수·운영자 조치로 대상에서 빠졌다
         }
+        // termination_due_date 는 '기한'이다: 이날까지 결제하면 유지, 해지 실행은 기한 다음 날부터(today > 기한).
         LocalDate due = sub.getTerminationDueDate();
-        if (due != null && !today.isBefore(due)) {
-            return terminate(sub, due);
+        if (due != null && today.isAfter(due) && sub.getTerminationRemindedAt() != null) {
+            return terminate(sub, now, today);
         }
         if (sub.getDunningNotifiedAt() == null) {
-            return notifyStage(sub, Stage.NOTICE, now);
+            return notifyStage(sub, Stage.NOTICE, now, today);
         }
+        // 재통지 창은 기한-3 <= today. 재통지 없이 기한이 지났으면 여기서 재통지하고 기한을 늦춘다(해지는 재통지 뒤에만).
         if (sub.getTerminationRemindedAt() == null && !today.isBefore(due.minusDays(REMIND_BEFORE_DAYS))) {
-            return notifyStage(sub, Stage.REMINDER, now);
+            return notifyStage(sub, Stage.REMINDER, now, today);
         }
         return false;
     }
 
-    /** findDunningTargets 와 같은 조건. 해지 직전에 한 번 더 본다. */
+    /** findDunningTargets 와 같은 조건 + 결과를 모르는(PENDING) 결제가 없을 것. */
+    private boolean eligible(Subscription s, Instant now) {
+        return stillDunning(s, now) && !payments.existsBySubscriptionIdAndStatus(s.getId(), "PENDING");
+    }
+
     private static boolean stillDunning(Subscription s, Instant now) {
         return s.getCancellationRequestedAt() == null && s.isAutoRenew() && s.getRenewalFailures() > 0
                 && !"CANCELED".equals(s.getStatus()) && !"SUSPENDED".equals(s.getStatus())
                 && s.getServiceUntil() != null && !now.isBefore(s.getServiceUntil());
     }
 
+    /**
+     * 청구 잠금 아래에서 구독을 다시 읽는다. 결제가 진행 중(잠금 중)이거나 그새 대상에서 빠졌으면 null.
+     * 잠금 UPDATE 의 행 잠금은 이 트랜잭션이 끝날 때까지 유지돼 동시 결제와 겹치지 않는다. until=now 라
+     * 잠금 값은 커밋 즉시 만료된 것과 같다(별도 해제 불필요).
+     */
+    private Subscription lockAndReread(Subscription sub, Instant now) {
+        if (subscriptions.lockBilling(sub.getStoreId(), now, now) == 0) {
+            return null;
+        }
+        Subscription row = subscriptions.findById(sub.getId()).orElse(null);
+        return row != null && eligible(row, now) ? row : null;
+    }
+
     private enum Stage { NOTICE, REMINDER, TERMINATED }
 
-    /** (a)·(b) 통지. 한 채널이라도 접수되면 기록한다. */
-    private boolean notifyStage(Subscription sub, Stage stage, Instant now) {
+    /** (a)·(b) 통지. 한 채널이라도 접수되면 기록한다. 기록 직전에 잠금 아래에서 다시 판정한다. */
+    private boolean notifyStage(Subscription sub, Stage stage, Instant now, LocalDate today) {
         Ctx c = ctx(sub);
         if (c == null) {
             return false;
         }
-        LocalDate due = stage == Stage.NOTICE ? now.atZone(KST).toLocalDate().plusDays(TERMINATION_DAYS)
-                : sub.getTerminationDueDate();
+        LocalDate due;
+        if (stage == Stage.NOTICE) {
+            due = today.plusDays(TERMINATION_DAYS);
+        } else {
+            // 재통지가 기한-3 보다 늦게 나가면 기한을 (재통지 발송일 + 3일)로 늦춘다.
+            due = today.isAfter(sub.getTerminationDueDate().minusDays(REMIND_BEFORE_DAYS))
+                    ? today.plusDays(REMIND_BEFORE_DAYS) : sub.getTerminationDueDate();
+        }
         Map<String, Object> result = send(c, stage, due);
         boolean ok = Boolean.TRUE.equals(result.get("mail")) || Boolean.TRUE.equals(result.get("alimtalk"));
-        tx.executeWithoutResult(st -> {
-            Subscription row = subscriptions.findById(sub.getId()).orElseThrow();
+        Boolean recorded = tx.execute(st -> {
+            Subscription row = lockAndReread(sub, now);
+            if (row == null) {
+                return false; // 발송 사이에 결제 등으로 빠졌다 - 해지일을 남기지 않는다
+            }
             if (ok) {
                 if (stage == Stage.NOTICE) {
                     row.markDunningNotified(now);
                 } else {
-                    row.markTerminationReminded(now);
+                    row.markTerminationReminded(now, due);
                 }
                 subscriptions.save(row);
             }
             audit(ok ? "DUNNING_NOTICE_SENT" : "DUNNING_NOTICE_FAILED", row.getId(), result);
+            return ok;
         });
-        return ok;
+        return Boolean.TRUE.equals(recorded);
     }
 
-    /** (c) 해지일 도래: 해지·빌링키 삭제·자격증명 파기·감사·해지 통지. */
-    private boolean terminate(Subscription sub, LocalDate due) {
+    /** (c) 기한 다음 날: 해지·빌링키 삭제·자격증명 파기·감사·해지 통지. 해지일은 실제 실행일(today). */
+    private boolean terminate(Subscription sub, Instant now, LocalDate today) {
         Ctx c = ctx(sub);
         String[] keyHolder = new String[1];
-        tx.executeWithoutResult(st -> {
-            Subscription row = subscriptions.findById(sub.getId()).orElseThrow();
+        Boolean done = tx.execute(st -> {
+            Subscription row = lockAndReread(sub, now);
+            if (row == null || row.getTerminationRemindedAt() == null || row.getTerminationDueDate() == null
+                    || !today.isAfter(row.getTerminationDueDate())) {
+                return false;
+            }
             keyHolder[0] = row.terminateForNonPayment();
             subscriptions.save(row);
             cleanup.onRemoved(row.getStoreId(), new HashSet<>(Subscription.DELIVERY_PLATFORMS),
                     "CREDENTIAL_REVOKED_ON_TERMINATION");
             Map<String, Object> detail = new LinkedHashMap<>();
             detail.put("unpaidAmountKrw", c == null ? null : c.amount);
-            detail.put("terminationDate", due.toString());
+            detail.put("terminationDate", today.toString());
             detail.put("billedUnpaid", false);
             audit("SUBSCRIPTION_TERMINATED_BY_COMPANY", row.getId(), detail);
+            return true;
         });
-        // 빌링키 삭제는 PG 호출이라 커밋 뒤에 한다. 실패해도 해지는 유지(탈퇴와 같은 규율).
+        if (!Boolean.TRUE.equals(done)) {
+            return false;
+        }
+        // 빌링키 삭제는 PG 호출이라 커밋 뒤에 한다. 실패해도 해지는 유지(탈퇴와 같은 규율) - 감사에는 사유 코드만.
         if (keyHolder[0] != null) {
             try {
                 portOneClient.deleteBillingKey(keyHolder[0]);
             } catch (RuntimeException e) {
                 log.warn("미납 해지 시 포트원 빌링키 삭제 실패: {}", e.getClass().getSimpleName());
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("storeId", sub.getStoreId());
+                detail.put("reason", e.getClass().getSimpleName());
+                tx.executeWithoutResult(st -> audit("BILLING_KEY_DELETE_FAILED", sub.getId(), detail));
             }
         }
         if (c != null) {
-            Map<String, Object> result = send(c, Stage.TERMINATED, due);
-            tx.executeWithoutResult(st -> audit("DUNNING_NOTICE_SENT", sub.getId(), result));
+            Map<String, Object> result = send(c, Stage.TERMINATED, today);
+            boolean ok = Boolean.TRUE.equals(result.get("mail")) || Boolean.TRUE.equals(result.get("alimtalk"));
+            // 재발송은 하지 않는다 - 해지는 유지, 실패 사실만 남긴다.
+            tx.executeWithoutResult(st -> audit(ok ? "DUNNING_NOTICE_SENT" : "DUNNING_NOTICE_FAILED", sub.getId(), result));
         }
         return true;
     }
@@ -258,8 +303,8 @@ public class DunningService {
     }
 
     static String reminder(String store, String amount, String day, String contact) {
-        return "[소담리뷰] " + store + " 이용계약이 " + day + "에 해지될 예정이에요.\n"
-                + "아직 " + amount + "원 결제가 확인되지 않았어요. 결제관리에서 카드를 바꾸면 해지가 취소돼요.\n"
+        return "[소담리뷰] " + store + " 아직 " + amount + "원 결제가 확인되지 않았어요.\n"
+                + day + "까지 결제가 안 되면 이용계약이 해지돼요. 결제관리에서 카드를 바꾸면 해지가 취소돼요.\n"
                 + "해지되면 배달앱 계정정보는 바로 지워지고, 밀린 요금은 청구하지 않아요.\n"
                 + "문의: " + contact;
     }

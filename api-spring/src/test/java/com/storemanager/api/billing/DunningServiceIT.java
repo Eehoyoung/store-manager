@@ -59,6 +59,8 @@ class DunningServiceIT {
     @Autowired PlatformAccountRepository accounts;
     @Autowired StorePlatformLinkRepository links;
     @Autowired AuditLogRepository auditLogs;
+    @Autowired PaymentRepository payments;
+    @Autowired org.springframework.transaction.support.TransactionTemplate txTemplate;
     @MockitoBean MailService mail;
     @MockitoBean PortOneClient portOne;
 
@@ -66,6 +68,7 @@ class DunningServiceIT {
 
     @BeforeEach
     void clean() {
+        payments.deleteAll();
         links.deleteAll();
         subscriptions.deleteAll();
         accounts.deleteAll();
@@ -147,7 +150,7 @@ class DunningServiceIT {
         dunning.run(Instant.now());
 
         assertThat(reload(s).getTerminationRemindedAt()).isNotNull();
-        verify(mail, times(1)).sendDunningNotice(anyString(), contains("해지될 예정"), anyString());
+        verify(mail, times(1)).sendDunningNotice(anyString(), contains("해지돼요"), anyString());
     }
 
     @Test
@@ -168,7 +171,8 @@ class DunningServiceIT {
         AppUser o = owner();
         PlatformAccount a = account(o);
         Subscription s = late(o, a);
-        s.markDunningNotified(Instant.now().minus(Duration.ofDays(15))); // 해지일 = 어제
+        s.markDunningNotified(Instant.now().minus(Duration.ofDays(15))); // 기한 = 어제
+        s.markTerminationReminded(Instant.now().minus(Duration.ofDays(4)), s.getTerminationDueDate());
         subscriptions.save(s);
 
         dunning.run(Instant.now());
@@ -191,6 +195,7 @@ class DunningServiceIT {
         PlatformAccount a = account(o);
         Subscription s = late(o, a);
         s.markDunningNotified(Instant.now().minus(Duration.ofDays(15)));
+        s.markTerminationReminded(Instant.now().minus(Duration.ofDays(4)), s.getTerminationDueDate());
         subscriptions.save(s);
         store(o, a, Instant.now().plus(Duration.ofDays(10)), false); // 같은 계정을 쓰는 정상 매장
 
@@ -218,7 +223,7 @@ class DunningServiceIT {
         Subscription s = Subscription.builder().storeId(1L).priceKrw(BigDecimal.TEN).autoRenew(true).build();
         Instant now = Instant.now();
         s.markDunningNotified(now);
-        s.markTerminationReminded(now);
+        s.markTerminationReminded(now, LocalDate.now());
         s.chargeSucceeded(now, now.plus(Duration.ofDays(30)), "k", "c");
         assertThat(s.getDunningNotifiedAt()).isNull();
         assertThat(s.getTerminationDueDate()).isNull();
@@ -234,6 +239,103 @@ class DunningServiceIT {
     }
 
     @Test
+    void 기한_당일은_해지하지_않고_다음날_해지한다() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        Subscription s = late(o, a);
+        Instant now = Instant.now();
+        s.markDunningNotified(now.minus(Duration.ofDays(14))); // 기한 = 오늘
+        s.markTerminationReminded(now.minus(Duration.ofDays(3)), s.getTerminationDueDate());
+        subscriptions.save(s);
+
+        dunning.run(now);
+        assertThat(reload(s).getStatus()).isEqualTo("ACTIVE");
+        assertThat(revoked(a)).isFalse();
+
+        dunning.run(now.plus(Duration.ofDays(1)));
+        assertThat(reload(s).getStatus()).isEqualTo("CANCELED");
+        assertThat(revoked(a)).isTrue();
+    }
+
+    @Test
+    void 재통지_없이_기한이_지나면_해지하지_않고_재통지_후_기한을_늦춘다() {
+        AppUser o = owner();
+        Subscription s = late(o, account(o));
+        Instant now = Instant.now();
+        s.markDunningNotified(now.minus(Duration.ofDays(15))); // 기한 = 어제, 재통지 기록 없음
+        subscriptions.save(s);
+
+        dunning.run(now);
+
+        Subscription after = reload(s);
+        assertThat(after.getStatus()).isEqualTo("ACTIVE");
+        assertThat(after.getTerminationRemindedAt()).isNotNull();
+        assertThat(after.getTerminationDueDate()).isEqualTo(LocalDate.now(KST).plusDays(3));
+        verify(mail).sendDunningNotice(anyString(), contains("아직"), contains("까지 결제가 안 되면"));
+
+        dunning.run(now.plus(Duration.ofDays(4))); // 연장된 기한 다음 날
+        assertThat(reload(s).getStatus()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    void 청구_잠금_중이면_해지하지_않는다() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        Subscription s = late(o, a);
+        Instant now = Instant.now();
+        s.markDunningNotified(now.minus(Duration.ofDays(15)));
+        s.markTerminationReminded(now.minus(Duration.ofDays(4)), s.getTerminationDueDate());
+        subscriptions.save(s);
+        txTemplate.executeWithoutResult(st ->
+                subscriptions.lockBilling(s.getStoreId(), now, now.plus(Duration.ofMinutes(5))));
+
+        dunning.run(now);
+
+        assertThat(reload(s).getStatus()).isEqualTo("ACTIVE");
+        assertThat(revoked(a)).isFalse();
+    }
+
+    @Test
+    void 결제_성공_뒤_다시_미납되면_지난_기한으로_해지하지_않고_새_통지부터() {
+        AppUser o = owner();
+        PlatformAccount a = account(o);
+        Subscription s = late(o, a);
+        Instant now = Instant.now();
+        s.markDunningNotified(now.minus(Duration.ofDays(15)));
+        s.markTerminationReminded(now.minus(Duration.ofDays(4)), s.getTerminationDueDate());
+        s.chargeSucceeded(now, now.plus(Duration.ofDays(30)), "bk", "c");
+        subscriptions.save(s);
+        assertThat(reload(s).getTerminationDueDate()).isNull();
+
+        // 다시 미납: 결제예정일이 지나 실패가 쌓였다
+        Subscription again = reload(s);
+        again.changeNextBillingAt(now.minus(Duration.ofDays(10)));
+        again.recordChargeFailure();
+        subscriptions.save(again);
+        dunning.run(now);
+
+        Subscription after = reload(s);
+        assertThat(after.getStatus()).isEqualTo("ACTIVE");
+        assertThat(revoked(a)).isFalse();
+        assertThat(after.getTerminationDueDate()).isEqualTo(LocalDate.now(KST).plusDays(14));
+        assertThat(after.getTerminationRemindedAt()).isNull();
+    }
+
+    @Test
+    void 결과를_모르는_PENDING_결제가_있으면_통지도_해지도_안_한다() {
+        AppUser o = owner();
+        Subscription s = late(o, account(o));
+        payments.save(Payment.builder().subscriptionId(s.getId()).idempotencyKey("portone:unk-" + s.getId())
+                .pgTxId("unk-" + s.getId()).amountKrw(new BigDecimal("30000")).vatKrw(new BigDecimal("3000"))
+                .method("PORTONE_CARD").build());
+
+        dunning.run(Instant.now());
+
+        verify(mail, never()).sendDunningNotice(anyString(), anyString(), anyString());
+        assertThat(reload(s).getDunningNotifiedAt()).isNull();
+    }
+
+    @Test
     void 플래그가_꺼져_있으면_아무것도_하지_않는다() {
         SubscriptionRepository repo = mock(SubscriptionRepository.class);
         MailService mailer = mock(MailService.class);
@@ -241,7 +343,7 @@ class DunningServiceIT {
         when(repo.findDunningTargets(any())).thenReturn(java.util.List.of(
                 Subscription.builder().storeId(1L).priceKrw(BigDecimal.TEN).build()));
         DunningService off = new DunningService(repo, null, null, null, mailer, null, null, pg, null, null, null,
-                null, false);
+                null, null, false);
 
         assertThat(off.run(Instant.now())).isZero();
 

@@ -355,7 +355,8 @@ public class Subscription {
         this.updatedAt = sentAt;
     }
 
-    public void markTerminationReminded(Instant sentAt) {
+    public void markTerminationReminded(Instant sentAt, java.time.LocalDate newDue) {
+        this.terminationDueDate = newDue;
         this.terminationRemindedAt = sentAt;
         this.updatedAt = sentAt;
     }
