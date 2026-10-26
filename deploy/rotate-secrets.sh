@@ -27,11 +27,15 @@ NEXT="$ENV_FILE.next"
 log() { echo "[rotate $(date -u +%FT%TZ)] $*"; }
 # 어떤 실패에서도 비밀값이 든 .next 파일을 남기지 않는다(cron 무인 실행 — 비영 종료코드는 set -e 가 보장).
 trap 'rm -f "$NEXT" "$NEXT".????' EXIT
+# 수동 실행과 cron 이 겹치면 한쪽이 다른 쪽의 새 키(.next)를 지운다. 한 번에 하나만 돈다.
+exec 9>"$ENV_FILE.lock"
+flock -n 9 || { log "이미 다른 교체가 실행 중이다. 중단" >&2; exit 1; }
 
 # KEY=VALUE 를 바꾸고, 없으면 끝에 붙인다. 값은 base64 라 awk -v 이스케이프에 걸리지 않는다.
 set_kv() {
 	tmp=$(mktemp "$NEXT.XXXX")
-	awk -v k="$1" -v v="$2" 'index($0, k "=") == 1 { print k "=" v; d = 1; next } { print } END { if (!d) print k "=" v }' \
+	# 값은 환경변수로 넘긴다 — awk -v 는 명령줄 인자라 ps 에 잠깐 보인다.
+	K="$1" V="$2" awk 'BEGIN { k = ENVIRON["K"]; v = ENVIRON["V"] } index($0, k "=") == 1 { print k "=" v; d = 1; next } { print } END { if (!d) print k "=" v }' \
 		"$NEXT" > "$tmp"
 	mv "$tmp" "$NEXT"
 }
@@ -52,6 +56,11 @@ set_kv INTERNAL_TOKEN "$(openssl rand -base64 32)"
 set_kv CREDENTIAL_MASTER_KEY "$NEW_MASTER_KEY"
 set_kv CREDENTIAL_KEY_ID "$NEW_KEY_ID"
 
+# 새 env 를 재암호화 전에 보관한다. rewrap 이 커밋된 뒤 종료코드만 비영이어도 새 키를 잃지 않게.
+# (env.* 로 시작하지 않는 이름이라 KEEP 회전에 섞이지 않는다. 성공하면 지운다.)
+NEW_COPY="$ARCHIVE/next.$STAMP"
+cp -p "$NEXT" "$NEW_COPY"
+
 # 교체 직전 상태를 덤프로 남긴다(옛 키로 풀리는 마지막 백업).
 $DC exec -T backup /backup.sh
 
@@ -61,11 +70,13 @@ if ! $DC run -T --rm --no-deps -e OLD_MASTER_KEY -e NEW_MASTER_KEY -e NEW_KEY_ID
 	# rewrap 은 한 트랜잭션이라 DB 는 그대로다. 옛 env 로 되살린다.
 	rm -f "$NEXT"
 	$DC start api-spring worker
-	log "실패: 재암호화 롤백됨. 옛 비밀값으로 재기동했다" >&2
+	log "실패: 재암호화 비영 종료. 옛 비밀값으로 재기동했다" >&2
+	log "DB credential 행의 kms_key_id 가 $NEW_KEY_ID 이면 커밋된 것이다 - 그때는 $NEW_COPY 를 env 로 쓴다" >&2
 	exit 1
 fi
 
 mv "$NEXT" "$ENV_FILE"
+rm -f "$NEW_COPY"
 $DC up -d
 log "새 env 적용(key_id=$NEW_KEY_ID). api-spring 헬스 대기"
 # ponytail: 이 시점부터 DB 는 새 키로 감싸졌다. 자동 롤백은 없다 — 옛 env 로 되돌리면 복호화가 깨진다.

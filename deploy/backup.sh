@@ -4,6 +4,8 @@
 # ★ 이 DB 에는 배달앱 자격증명 암호문과 리뷰 원문이 들어 있다. 백업본도 같은 등급으로 다뤄야 한다.
 # ★ 백업이 '돌고 있다' 와 '복구된다' 는 다르다. 최소 한 번은 실제로 복구해 보고 운영에 넣을 것.
 set -eu
+# pg_dump 가 실패해도 gzip 헤더 때문에 파일이 비지 않는다. 파이프 실패를 잡는다(busybox ash 지원).
+set -o pipefail
 
 BACKUP_DIR=${BACKUP_DIR:-/backup}
 KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
