@@ -45,10 +45,10 @@ class DeployHeadCheckerTest {
             assertThat(c.headSha(T0)).isEqualTo("abc123");
             assertThat(c.headCommittedAt(T0)).isEqualTo(Instant.parse("2026-10-25T23:00:00Z"));
             assertThat(hits.get()).isEqualTo(1);
-            assertThat(c.headSha(T0.plusSeconds(3600))).isEqualTo("abc123");
+            assertThat(c.headSha(T0.plus(DeployHeadChecker.OK_TTL).minusSeconds(1))).isEqualTo("abc123");
             assertThat(hits.get()).isEqualTo(1);
             status[0] = 500;
-            assertThat(c.headSha(T0.plusSeconds(6 * 3600 + 1))).isNull();
+            assertThat(c.headSha(T0.plus(DeployHeadChecker.OK_TTL))).isNull();
             assertThat(hits.get()).isEqualTo(2);
         } finally {
             server.stop(0);
