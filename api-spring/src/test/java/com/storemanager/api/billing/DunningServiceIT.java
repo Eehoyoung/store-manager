@@ -150,7 +150,7 @@ class DunningServiceIT {
         dunning.run(Instant.now());
 
         assertThat(reload(s).getTerminationRemindedAt()).isNotNull();
-        verify(mail, times(1)).sendDunningNotice(anyString(), contains("해지돼요"), anyString());
+        verify(mail, times(1)).sendDunningNotice(anyString(), anyString(), contains("해지돼요"));
     }
 
     @Test
@@ -184,7 +184,7 @@ class DunningServiceIT {
         assertThat(revoked(a)).isTrue();
         verify(portOne).deleteBillingKey("bk");
         assertThat(auditLogs.findAll()).anyMatch(l -> "SUBSCRIPTION_TERMINATED_BY_COMPANY".equals(l.getAction())
-                && l.getDetail().contains("terminationDate") && l.getDetail().contains("\"billedUnpaid\":false"));
+                && l.getDetail().contains("terminationDate") && l.getDetail().matches("(?s).*\"billedUnpaid\":\\s*false.*")); // jsonb 는 콜론 뒤 공백을 넣는다
         assertThat(auditLogs.findAll()).anyMatch(l -> "CREDENTIAL_REVOKED_ON_TERMINATION".equals(l.getAction()));
         verify(mail).sendDunningNotice(anyString(), contains("해지되었어요"), anyString());
     }
