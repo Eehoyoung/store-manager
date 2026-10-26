@@ -1,0 +1,15 @@
+# /etc/cron.d/storemanager-ops 예시 — <REPO_DIR>·<LOG_DIR> 는 실제 경로로 바꾼다. 시각은 서버 UTC.
+# 결과: BACKUP_DIR 의 backup.status · restore-test.log 와 아래 로그 파일. 사람이 주기적으로 FAIL 을 확인한다.
+
+# 백업 매일 03:00 KST. compose 의 backup 컨테이너가 이미 같은 시각에 돌리므로 중복 등록하지 말 것.
+# 컨테이너 루프가 멈춘 경우의 대체용:
+# 0 18 * * *   root  cd <REPO_DIR>/deploy && docker compose -f docker-compose.prod.yml --env-file <ENV_FILE> exec -T backup /backup.sh >> <LOG_DIR>/storemanager-backup.log 2>&1
+
+# 복구 시험 주 1회 (일요일 19:00 UTC, 백업 뒤)
+0 19 * * 0   root  <REPO_DIR>/deploy/restore-test.sh >> <LOG_DIR>/storemanager-restore-test.log 2>&1
+
+# 비밀값 교체 90일 주기 (1·4·7·10월 1일 19:00 UTC = 2일 04:00 KST)
+0 19 1 1,4,7,10 * root  <REPO_DIR>/deploy/rotate-secrets.sh >> <LOG_DIR>/storemanager-rotate.log 2>&1
+
+# docker 정리 주 1회 (월요일 20:00 UTC). docker-prune.sh 는 다른 브랜치에 있다 — 머지 뒤에 등록.
+0 20 * * 1   root  <REPO_DIR>/deploy/docker-prune.sh >> <LOG_DIR>/storemanager-prune.log 2>&1

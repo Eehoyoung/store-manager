@@ -12,6 +12,9 @@ FILE="$BACKUP_DIR/storemanager-$STAMP.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
+# 결과 한 줄을 backup.status 에 남긴다(알림 경로가 없어 사람이 이 파일을 본다). 실패면 FAIL.
+trap 'c=$?; [ "$c" -eq 0 ] && r=OK || r=FAIL; echo "$(date -u +%FT%TZ) $r exit=$c" >> "$BACKUP_DIR/backup.status" 2>/dev/null || true' EXIT
+
 # --clean --if-exists: 복구 시 기존 객체를 지우고 새로 만든다. 부분 복구로 인한
 # 스키마 불일치가 가장 흔한 복구 실패 원인이다.
 PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \

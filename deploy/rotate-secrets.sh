@@ -25,6 +25,8 @@ umask 077
 STAMP=$(date -u +%Y%m%d%H%M)
 NEXT="$ENV_FILE.next"
 log() { echo "[rotate $(date -u +%FT%TZ)] $*"; }
+# 어떤 실패에서도 비밀값이 든 .next 파일을 남기지 않는다(cron 무인 실행 — 비영 종료코드는 set -e 가 보장).
+trap 'rm -f "$NEXT" "$NEXT".????' EXIT
 
 # KEY=VALUE 를 바꾸고, 없으면 끝에 붙인다. 값은 base64 라 awk -v 이스케이프에 걸리지 않는다.
 set_kv() {
@@ -55,7 +57,7 @@ $DC exec -T backup /backup.sh
 
 log "api-spring·worker 정지 → 재암호화"
 $DC stop api-spring worker
-if ! $DC run --rm --no-deps -e OLD_MASTER_KEY -e NEW_MASTER_KEY -e NEW_KEY_ID worker python rewrap.py; then
+if ! $DC run -T --rm --no-deps -e OLD_MASTER_KEY -e NEW_MASTER_KEY -e NEW_KEY_ID worker python rewrap.py; then
 	# rewrap 은 한 트랜잭션이라 DB 는 그대로다. 옛 env 로 되살린다.
 	rm -f "$NEXT"
 	$DC start api-spring worker
@@ -66,6 +68,8 @@ fi
 mv "$NEXT" "$ENV_FILE"
 $DC up -d
 log "새 env 적용(key_id=$NEW_KEY_ID). api-spring 헬스 대기"
+# ponytail: 이 시점부터 DB 는 새 키로 감싸졌다. 자동 롤백은 없다 — 옛 env 로 되돌리면 복호화가 깨진다.
+#   옛 키는 CREDENTIAL_PREVIOUS_KEYS(id:키) 로만 복호화 전용으로 살릴 수 있다. 실패 시 사람이 처리한다.
 
 i=0
 until [ "$(docker inspect -f '{{.State.Health.Status}}' "$($DC ps -q api-spring)")" = healthy ]; do
