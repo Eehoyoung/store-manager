@@ -3,6 +3,7 @@ package com.storemanager.api.billing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -124,7 +125,7 @@ class DunningServiceIT {
         assertThat(after.getTerminationDueDate()).isEqualTo(LocalDate.now(KST).plusDays(14));
         assertThat(after.getStatus()).isEqualTo("ACTIVE");
         assertThat(revoked(a)).isFalse();
-        verify(mail).sendDunningNotice(anyString(), contains("결제가 되지 않았어요"), contains("청구하지 않아요"));
+        verify(mail).sendDunningNotice(anyString(), contains("결제가 되지 않았어요"), argThat((String b) -> b.contains("청구하지 않아요") && b.contains("결제하면 이용이 유지되고") && b.contains("그 다음 날인") && b.contains("원(VAT 포함)")));
     }
 
     @Test
@@ -150,7 +151,7 @@ class DunningServiceIT {
         dunning.run(Instant.now());
 
         assertThat(reload(s).getTerminationRemindedAt()).isNotNull();
-        verify(mail, times(1)).sendDunningNotice(anyString(), anyString(), contains("해지돼요"));
+        verify(mail, times(1)).sendDunningNotice(anyString(), anyString(), argThat((String b) -> b.contains("결제하지 않으면") && b.contains("해지돼요") && b.contains("원(VAT 포함)")));
     }
 
     @Test
@@ -271,7 +272,7 @@ class DunningServiceIT {
         assertThat(after.getStatus()).isEqualTo("ACTIVE");
         assertThat(after.getTerminationRemindedAt()).isNotNull();
         assertThat(after.getTerminationDueDate()).isEqualTo(LocalDate.now(KST).plusDays(3));
-        verify(mail).sendDunningNotice(anyString(), contains("아직"), contains("까지 결제가 안 되면"));
+        verify(mail).sendDunningNotice(anyString(), contains("결제가 아직 확인되지 않았어요"), contains("까지 결제하면 이용이 유지되고"));
 
         dunning.run(now.plus(Duration.ofDays(4))); // 연장된 기한 다음 날
         assertThat(reload(s).getStatus()).isEqualTo("CANCELED");

@@ -247,11 +247,12 @@ public class DunningService {
     private Map<String, Object> send(Ctx c, Stage stage, LocalDate due) {
         String amount = String.format("%,d", c.amount);
         String day = due.format(DATE);
+        String next = due.plusDays(1).format(DATE); // 표시용. 해지 판정은 process 의 today.isAfter(기한) 그대로
         String contact = contact();
         String name = c.store.getName();
         String body = switch (stage) {
-            case NOTICE -> notice(name, amount, day, contact);
-            case REMINDER -> reminder(name, amount, day, contact);
+            case NOTICE -> notice(name, amount, day, next, contact);
+            case REMINDER -> reminder(name, amount, day, next, contact);
             case TERMINATED -> terminated(name, amount, day, contact);
         };
         boolean mailOk = false;
@@ -294,24 +295,28 @@ public class DunningService {
                 .targetId(subId).detail(json).build());
     }
 
-    // 메일 제목은 각 본문의 첫 줄이다(D120 문구 그대로).
-    static String notice(String store, String amount, String day, String contact) {
+    // 메일 제목은 각 본문의 첫 줄이다(D120 문구 + D129: 기한 = 마지막 결제 가능일, 그 다음 날 해지).
+    // day = 기한(마지막 결제 가능일), next = 기한 다음 날(해지일). 통지에는 두 날짜를 모두 적는다.
+    static String notice(String store, String amount, String day, String next, String contact) {
         return "[소담리뷰] " + store + " 이용요금 " + amount + "원(VAT 포함) 결제가 되지 않았어요.\n"
                 + "지금은 리뷰 수집과 답글 자동 게시가 멈춘 상태예요. 결제관리에서 카드를 바꾸면 바로 다시 쓸 수 있어요.\n"
-                + day + "까지 결제가 안 되면 이용계약이 해지되고, 등록하신 배달앱 계정정보는 그날 바로 지워져요.\n"
-                + "해지되더라도 밀린 요금은 청구하지 않아요. 문의: " + contact;
+                + day + "까지 결제하면 이용이 유지되고, 결제하지 않으면 그 다음 날인 " + next
+                + "에 이용계약이 해지돼요. 이용계약이 해지되면 등록하신 배달앱 계정정보도 바로 지워져요.\n"
+                + "이용계약이 해지되더라도 밀린 요금은 청구하지 않아요. 문의: " + contact;
     }
 
-    static String reminder(String store, String amount, String day, String contact) {
-        return "[소담리뷰] " + store + " 아직 " + amount + "원 결제가 확인되지 않았어요.\n"
-                + day + "까지 결제가 안 되면 이용계약이 해지돼요. 결제관리에서 카드를 바꾸면 해지가 취소돼요.\n"
-                + "해지되면 배달앱 계정정보는 바로 지워지고, 밀린 요금은 청구하지 않아요.\n"
+    static String reminder(String store, String amount, String day, String next, String contact) {
+        return "[소담리뷰] " + store + " 이용요금 " + amount + "원(VAT 포함) 결제가 아직 확인되지 않았어요.\n"
+                + day + "까지 결제하면 이용이 유지되고, 결제하지 않으면 그 다음 날인 " + next
+                + "에 이용계약이 해지돼요. 결제관리에서 카드를 바꾸면 이용계약 해지가 취소돼요.\n"
+                + "이용계약이 해지되면 배달앱 계정정보는 바로 지워지고, 밀린 요금은 청구하지 않아요.\n"
                 + "문의: " + contact;
     }
 
     static String terminated(String store, String amount, String day, String contact) {
         return "[소담리뷰] " + store + " 이용계약이 오늘(" + day + ") 해지되었어요.\n"
-                + "자동결제는 종료되었고 등록된 카드 정보와 배달앱 계정정보는 모두 지웠어요. 밀린 " + amount + "원은 청구하지 않아요.\n"
+                + "자동결제는 종료되었고 자동결제용으로 등록한 카드와 배달앱 계정정보는 모두 지웠어요. 밀린 " + amount
+                + "원(VAT 포함)은 청구하지 않아요.\n"
                 + "다시 쓰시려면 카드를 다시 등록하고 배달앱 계정을 다시 연동해 주세요.\n"
                 + "문의: " + contact;
     }
