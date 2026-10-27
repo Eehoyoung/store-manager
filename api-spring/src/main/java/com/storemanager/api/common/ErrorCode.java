@@ -40,6 +40,9 @@ public enum ErrorCode {
     BILLING_BUSY(HttpStatus.CONFLICT, "결제를 처리하고 있어요. 잠시 후 다시 확인해 주세요."),
     BILLING_KEY_INVALID(HttpStatus.BAD_REQUEST, "이 매장에서 등록한 결제수단이 아니에요. 다시 등록해 주세요."),
     BILLING_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "자동결제에 동의해 주세요."),
+    // 매장 삭제(T-31). 자동결제가 켜진 구독이 있으면 먼저 해지해야 한다 - 화면이 코드로 분기한다.
+    STORE_HAS_ACTIVE_SUBSCRIPTION(HttpStatus.CONFLICT,
+            "자동결제가 켜져 있어 매장을 삭제할 수 없어요. 먼저 결제관리에서 자동결제를 해지해 주세요."),
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많아요. 잠시 후 다시 시도해 주세요."),
     // ★ 검증 실패는 항상 이 한 종류만 반환한다 — 이메일 등록 여부·시도 횟수 초과 등을 구분해서
     //   알려주지 않는다(docs/26a auth.otp). 세분화하면 계정 존재 여부가 새어 나간다.

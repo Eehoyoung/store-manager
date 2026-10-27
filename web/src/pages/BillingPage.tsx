@@ -44,6 +44,13 @@ function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("ko-KR") : "-";
 }
 
+/** "yyyy-MM-dd"(기한 = 마지막 결제 가능일)에 plusDays 를 더해 "yyyy년 M월 d일"로. 시간대와 무관하게 UTC 로 계산한다. */
+function fmtKoDay(ymd: string, plusDays = 0): string {
+  const [y, m, d] = ymd.slice(0, 10).split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + plusDays));
+  return `${t.getUTCFullYear()}년 ${t.getUTCMonth() + 1}월 ${t.getUTCDate()}일`;
+}
+
 export function BillingPage() {
   const { storeId = "" } = useParams<{ storeId: string }>();
   const { setStoreId } = useShellStore();
@@ -224,6 +231,11 @@ export function BillingPage() {
         {billing.serviceState === "RESTRICTED" || billing.serviceState === "SUSPENDED" ? (
           <p role="alert" className="billing-page__warning">
             결제가 확인되지 않아 이용이 중지됐어요. 결제하면 바로 다시 시작돼요.
+          </p>
+        ) : null}
+        {billing.serviceState === "RESTRICTED" && billing.terminationDueDate ? (
+          <p role="alert" className="billing-page__warning">
+            {fmtKoDay(billing.terminationDueDate)}까지 결제하면 이용이 유지되고, 결제하지 않으면 그 다음 날인 {fmtKoDay(billing.terminationDueDate, 1)}에 이용계약이 해지되고 배달앱 계정정보가 지워져요. 카드를 바꾸면 바로 다시 쓸 수 있어요. 밀린 요금은 청구하지 않아요.
           </p>
         ) : null}
       </Card>

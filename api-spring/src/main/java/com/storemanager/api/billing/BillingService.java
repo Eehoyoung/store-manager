@@ -789,7 +789,9 @@ public class BillingService {
                 subOpt.map(Subscription::isAutoRenew).orElse(false),
                 subOpt.map(Subscription::getRenewalFailures).orElse(0),
                 total, chargeNow, agreementService.currentVersion(), items, heldReplies(store.getId()).size(),
-                unit, brandPaidStoreCount, tieredView(store, subOpt.orElse(null), chargeMonth, quote, now));
+                unit, brandPaidStoreCount,
+                subOpt.map(Subscription::getTerminationDueDate).map(java.time.LocalDate::toString).orElse(null),
+                tieredView(store, subOpt.orElse(null), chargeMonth, quote, now));
     }
 
     /** 켜짐일 때만 값이 있다(꺼짐이면 null → JSON 에서 키가 빠진다). 가격은 전부 서버 산정. */

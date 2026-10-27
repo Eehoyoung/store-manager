@@ -20,9 +20,12 @@ public class BillingScheduler {
     private final TrialConversionNoticeService trialNotices;
     private final BrandPricingService brandPricingService;
     private final CancelCredentialPurgeService cancelPurge;
+    private final DunningService dunning;
 
     public BillingScheduler(BillingService billingService, TrialConversionNoticeService trialNotices,
-            BrandPricingService brandPricingService, CancelCredentialPurgeService cancelPurge) {
+            BrandPricingService brandPricingService, CancelCredentialPurgeService cancelPurge,
+            DunningService dunning) {
+        this.dunning = dunning;
         this.cancelPurge = cancelPurge;
         this.billingService = billingService;
         this.trialNotices = trialNotices;
@@ -45,6 +48,12 @@ public class BillingScheduler {
     @Scheduled(cron = "0 20 0 * * *", zone = "Asia/Seoul")
     public void purgeCredentialsAfterCancel() {
         cancelPurge.purgeEnded(java.time.Instant.now());
+    }
+
+    /** 매일 00:30(Asia/Seoul). 미납 해지 절차(T-30). app.billing.dunning-notify-enabled 가 꺼져 있으면 아무것도 하지 않는다. */
+    @Scheduled(cron = "0 30 0 * * *", zone = "Asia/Seoul")
+    public void dunning() {
+        dunning.run(java.time.Instant.now());
     }
 
     /** 매일 00:10(Asia/Seoul). 오늘(KST)이 결제예정일인 매장을 모두 청구한다. */

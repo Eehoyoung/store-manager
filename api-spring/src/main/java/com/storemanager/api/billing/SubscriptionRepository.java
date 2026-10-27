@@ -28,6 +28,12 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             + "and s.serviceUntil is not null and s.serviceUntil <= :now")
     List<Subscription> findCancelEnded(@Param("now") Instant now);
 
+    /** 미납 해지 절차 대상(D120): 자동결제가 켜진 채 결제 실패로 이용 제한 시각이 지난 구독. 해지 접수·SUSPENDED·CANCELED 제외. */
+    @Query("select s from Subscription s where s.cancellationRequestedAt is null and s.autoRenew = true "
+            + "and s.renewalFailures > 0 and s.status not in ('CANCELED', 'SUSPENDED') "
+            + "and s.serviceUntil is not null and s.serviceUntil <= :now")
+    List<Subscription> findDunningTargets(@Param("now") Instant now);
+
     long countByPromotionCode(String promotionCode);
 
     /** 정기 갱신 스케줄러(B) 대상 — 결제예정일이 내일 이전인 구독. 실제 청구 여부는 서비스가 판정한다. */

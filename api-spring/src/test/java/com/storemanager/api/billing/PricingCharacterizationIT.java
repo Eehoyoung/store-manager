@@ -151,7 +151,7 @@ class PricingCharacterizationIT {
         assertThat(keys).containsExactly("enabled", "portoneStoreId", "channelKey", "customer", "serviceState",
                 "trialPending", "trialDays", "trialEndsAt", "nextBillingAt", "restrictedFrom", "lastPaidAt",
                 "hasCard", "autoRenew", "renewalFailures", "amountKrw", "chargeNowKrw", "consentVersion",
-                "payments", "heldReplyCount", "unitPriceKrw", "brandPaidStoreCount");
+                "payments", "heldReplyCount", "unitPriceKrw", "brandPaidStoreCount", "terminationDueDate");
         assertThat(json.get("serviceState").asText()).isEqualTo("ACTIVE");
         assertThat(json.get("amountKrw").asLong()).isEqualTo(33000L);
         assertThat(json.get("chargeNowKrw").asLong()).isZero();
