@@ -30,6 +30,11 @@ ai:
   base-url: ${AI_SERVICE_BASE_URL:http://localhost:8001}
 
 app:
+  deploy:
+    # 실행 중인 커밋(auto-deploy 가 GIT_SHA 로 넘김). 비면 모름.
+    sha: ${APP_DEPLOY_SHA:}
+    # GitHub owner/repo. 비면(기본) master 비교 조회를 하지 않는다.
+    check-repo: ${READINESS_DEPLOY_CHECK_REPO:}
   portone:
     api-base: ${PORTONE_API_BASE:https://api.portone.io}
     api-secret: ${PORTONE_API_SECRET:}

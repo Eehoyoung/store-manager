@@ -85,7 +85,50 @@ class ReadinessEvaluatorTest {
         assertThat(get(l, "lastPublish").status()).isEqualTo("UNKNOWN");
         assertThat(get(l, "paymentProof").status()).isEqualTo("UNKNOWN");
         assertThat(get(ReadinessEvaluator.evaluate(in(null), NOW), "aiModel").status()).isEqualTo("GREEN");
-        assertThat(l).hasSize(14);
+        assertThat(l).hasSize(17);
+    }
+
+    static Inputs full(long payFail, long restricted, ReadinessEvaluator.DeployInfo d, double disk) {
+        return new Inputs(null, NOW, NOW, "gpt", 0, true, NOW, true, true, 0, 0, 0, 0, payFail, restricted, d, disk);
+    }
+
+    @Test
+    void 결제실패_24시간_실패나_이용제한이_있으면_빨강() {
+        assertThat(get(ReadinessEvaluator.evaluate(full(0, 0, null, 0.1), NOW), "paymentFailures").status())
+                .isEqualTo("GREEN");
+        Item a = get(ReadinessEvaluator.evaluate(full(1, 0, null, 0.1), NOW), "paymentFailures");
+        assertThat(a.status()).isEqualTo("RED");
+        assertThat(a.detail()).contains("1건");
+        Item b = get(ReadinessEvaluator.evaluate(full(0, 2, null, 0.1), NOW), "paymentFailures");
+        assertThat(b.status()).isEqualTo("RED");
+        assertThat(b.detail()).contains("2곳");
+    }
+
+    @Test
+    void 디스크_80_경계() {
+        assertThat(ReadinessEvaluator.diskItem(0.699).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.diskItem(0.70).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.diskItem(0.799).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.diskItem(0.80).status()).isEqualTo("RED");
+        assertThat(ReadinessEvaluator.diskItem(Double.NaN).status()).isEqualTo("UNKNOWN");
+    }
+
+    @Test
+    void 배포반영_판정() {
+        Instant start = NOW.minusSeconds(100000);
+        var off = new ReadinessEvaluator.DeployInfo("abc1234def", start, false, null, null);
+        assertThat(ReadinessEvaluator.deployItem(off, NOW).status()).isEqualTo("INFO");
+        assertThat(ReadinessEvaluator.deployItem(null, NOW).status()).isEqualTo("UNKNOWN");
+        var noSha = new ReadinessEvaluator.DeployInfo("", start, true, "zzz", NOW);
+        assertThat(ReadinessEvaluator.deployItem(noSha, NOW).status()).isEqualTo("UNKNOWN");
+        var failed = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, null, null);
+        assertThat(ReadinessEvaluator.deployItem(failed, NOW).status()).isEqualTo("UNKNOWN");
+        var same = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "abc1234def", NOW.minusSeconds(99999));
+        assertThat(ReadinessEvaluator.deployItem(same, NOW).status()).isEqualTo("GREEN");
+        var recent = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3600));
+        assertThat(ReadinessEvaluator.deployItem(recent, NOW).status()).isEqualTo("GREEN");
+        var stale = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3601));
+        assertThat(ReadinessEvaluator.deployItem(stale, NOW).status()).isEqualTo("RED");
     }
 
     static Inputs withCollect(Inputs b, Instant at) {

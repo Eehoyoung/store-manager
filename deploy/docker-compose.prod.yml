@@ -135,6 +135,9 @@ services:
       BILLING_ACCOUNT_NO: ${BILLING_ACCOUNT_NO:-}
       BILLING_ACCOUNT_HOLDER: ${BILLING_ACCOUNT_HOLDER:-}
       READINESS_SUMMARY_ENABLED: ${READINESS_SUMMARY_ENABLED:-false}
+      # 배포 반영 점검: auto-deploy 가 GIT_SHA 로 넘긴다(수동 up 에서는 비어 "모름"). 저장소는 비우면 조회 안 함.
+      APP_DEPLOY_SHA: ${GIT_SHA:-}
+      READINESS_DEPLOY_CHECK_REPO: ${READINESS_DEPLOY_CHECK_REPO:-}
       # 자격증명 마스터키 교체 중 이전 키(복호화 전용). 비면 이전 키 없음.
       CREDENTIAL_PREVIOUS_KEYS: ${CREDENTIAL_PREVIOUS_KEYS:-}
       # 사업자 정보(전자상거래법 제10조). ★ BUSINESS_INFO_REQUIRED=true 면 값이 비면 기동을 막는다.

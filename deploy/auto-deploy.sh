@@ -50,7 +50,7 @@ $G merge -q --ff-only "$NEW"
 log "${HEAD%"${HEAD#???????}"} → ${NEW%"${NEW#???????}"}"
 
 # 바뀌지 않은 서비스는 빌드 캐시로 끝나고 컨테이너도 교체되지 않는다.
-if ! $DC up -d --build; then
+if ! GIT_SHA=$NEW $DC up -d --build; then
   log "빌드 실패 — 기존 컨테이너 유지. 원인 확인 후 수동: dc up -d --build"
   exit 1
 fi
