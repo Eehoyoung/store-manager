@@ -4,6 +4,8 @@
 # ★ 이 DB 에는 배달앱 자격증명 암호문과 리뷰 원문이 들어 있다. 백업본도 같은 등급으로 다뤄야 한다.
 # ★ 백업이 '돌고 있다' 와 '복구된다' 는 다르다. 최소 한 번은 실제로 복구해 보고 운영에 넣을 것.
 set -eu
+# pg_dump 가 실패해도 gzip 헤더 때문에 파일이 비지 않는다. 파이프 실패를 잡는다(busybox ash 지원).
+set -o pipefail
 
 BACKUP_DIR=${BACKUP_DIR:-/backup}
 KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
@@ -11,6 +13,9 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 FILE="$BACKUP_DIR/storemanager-$STAMP.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
+
+# 결과 한 줄을 backup.status 에 남긴다(알림 경로가 없어 사람이 이 파일을 본다). 실패면 FAIL.
+trap 'c=$?; [ "$c" -eq 0 ] && r=OK || r=FAIL; echo "$(date -u +%FT%TZ) $r exit=$c" >> "$BACKUP_DIR/backup.status" 2>/dev/null || true' EXIT
 
 # --clean --if-exists: 복구 시 기존 객체를 지우고 새로 만든다. 부분 복구로 인한
 # 스키마 불일치가 가장 흔한 복구 실패 원인이다.
