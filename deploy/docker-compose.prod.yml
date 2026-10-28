@@ -273,7 +273,7 @@ services:
     entrypoint: >
       sh -c 'while true; do
         now=$$(date -u +%H%M);
-        if [ "$$now" = "1800" ]; then /backup.sh || echo "[backup] 실패"; sleep 3600; fi;
+        if [ "$$now" = "1800" ]; then sh /backup.sh || echo "[backup] 실패"; sleep 3600; fi;
         sleep 30;
       done'
 

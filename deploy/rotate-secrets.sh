@@ -64,7 +64,7 @@ NEW_COPY="$ARCHIVE/next.$STAMP"
 cp -p "$NEXT" "$NEW_COPY"
 
 # 교체 직전 상태를 덤프로 남긴다(옛 키로 풀리는 마지막 백업).
-$DC exec -T backup /backup.sh
+$DC exec -T backup sh /backup.sh
 
 log "api-spring·worker 정지 → 재암호화"
 $DC stop api-spring worker
