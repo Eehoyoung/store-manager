@@ -6,11 +6,11 @@
 # ★ 알림 경로: 서버 호스트에는 메일 클라이언트가 없다. 결과 한 줄을 $BACKUP_DIR/restore-test.log 에 남긴다.
 #   실패는 종료코드 1 + 로그의 FAIL 줄. 사람이 보는 알림은 아직 없다.
 #
-# 덮어쓸 수 있는 값: BACKUP_DIR(기본 deploy/backups) · PG_IMAGE(운영 compose 의 backup 과 같은 메이저)
+# 덮어쓸 수 있는 값: BACKUP_DIR(기본 deploy/backups) · PG_IMAGE(운영 postgres 와 같은 이미지 — 덤프에 CREATE EXTENSION vector 가 있어 pgvector 가 필요)
 set -eu
 
 BACKUP_DIR=${BACKUP_DIR:-$(cd "$(dirname "$0")" && pwd)/backups}
-PG_IMAGE=${PG_IMAGE:-postgres:16-alpine}
+PG_IMAGE=${PG_IMAGE:-pgvector/pgvector:pg16}
 LOG="$BACKUP_DIR/restore-test.log"
 NAME="restore-test-$$"
 FILE=""
@@ -54,7 +54,8 @@ COUNTS=""
 for t in store subscription unified_review; do
 	n=$(q "select count(*) from $t") || n=-1
 	COUNTS="$COUNTS $t=$n"
-	[ "$n" -gt 0 ] || { RESULT="FAIL 행 수 0 이하:$COUNTS flyway=V$VER"; exit 1; }
+	# 테이블이 없으면(-1) 실패. 빈 테이블은 정상일 수 있다(체험 전 subscription 0) — store 만 1건 이상을 요구한다.
+	[ "$n" -ge 0 ] && { [ "$t" != store ] || [ "$n" -gt 0 ]; } || { RESULT="FAIL 행 수:$COUNTS flyway=V$VER"; exit 1; }
 done
 
 RESULT="OK flyway=V$VER$COUNTS"
