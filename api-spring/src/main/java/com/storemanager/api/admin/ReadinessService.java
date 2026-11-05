@@ -24,10 +24,13 @@ public class ReadinessService {
     private final DeployHeadChecker deployHead;
     private final String deploySha;
     private final Instant startedAt = Instant.now();
+    private final String rotateStatusFile;
 
     public ReadinessService(EntityManager em, StringRedisTemplate redis, PortOneClient portOne, MailService mail,
             @Value("${app.scheduler.billing.enabled:false}") boolean billingScheduler,
-            DeployHeadChecker deployHead, @Value("${app.deploy.sha:}") String deploySha) {
+            DeployHeadChecker deployHead, @Value("${app.deploy.sha:}") String deploySha,
+            @Value("${READINESS_ROTATE_STATUS_FILE:}") String rotateStatusFile) {
+        this.rotateStatusFile = rotateStatusFile == null ? "" : rotateStatusFile.trim();
         this.deployHead = deployHead;
         this.deploySha = deploySha == null ? "" : deploySha.trim();
         this.em = em;
@@ -76,8 +79,25 @@ public class ReadinessService {
                         + "AND service_until IS NOT NULL AND service_until <= now()"),
                 new ReadinessEvaluator.DeployInfo(deploySha, startedAt, deployHead.enabled(),
                         deployHead.headSha(now), deployHead.headCommittedAt(now)),
-                diskUsedRatio());
+                diskUsedRatio(), rotateStatusLine());
         return new Report(now, ReadinessEvaluator.mode(worker), ReadinessEvaluator.evaluate(in, now));
+    }
+
+    /** rotate.status 첫 줄. 경로 미설정·파일 없음은 null(미등록), 읽기 실패·빈 파일은 ""(UNKNOWN). 경로는 밖으로 내지 않는다. */
+    public String rotateStatusLine() {
+        if (rotateStatusFile.isEmpty()) {
+            return null;
+        }
+        try {
+            java.nio.file.Path f = java.nio.file.Path.of(rotateStatusFile);
+            if (!java.nio.file.Files.isRegularFile(f)) {
+                return null;
+            }
+            List<String> lines = java.nio.file.Files.readAllLines(f);
+            return lines.isEmpty() ? "" : lines.get(0);
+        } catch (java.io.IOException | RuntimeException e) {
+            return "";
+        }
     }
 
     private static double diskUsedRatio() {

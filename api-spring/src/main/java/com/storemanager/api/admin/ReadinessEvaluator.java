@@ -30,7 +30,18 @@ public final class ReadinessEvaluator {
             long aiBlocked, boolean portoneEnabled, Instant lastPaidAt, boolean billingScheduler,
             boolean mailConfigured, long scheduledStuck, long scheduledStuckWriteDisabled,
             long errorAccounts, long renewalFailures, long paymentFailures24h, long restrictedStores,
-            DeployInfo deploy, double diskUsedRatio) {
+            DeployInfo deploy, double diskUsedRatio, String rotateStatus) {
+
+        /** rotateStatus 없이 만드는 17개 인자 호출용(null = 미등록). */
+        public Inputs(String workerJson, Instant lastCollectAt, Instant lastPublishAt, String latestModel,
+                long aiBlocked, boolean portoneEnabled, Instant lastPaidAt, boolean billingScheduler,
+                boolean mailConfigured, long scheduledStuck, long scheduledStuckWriteDisabled,
+                long errorAccounts, long renewalFailures, long paymentFailures24h, long restrictedStores,
+                DeployInfo deploy, double diskUsedRatio) {
+            this(workerJson, lastCollectAt, lastPublishAt, latestModel, aiBlocked, portoneEnabled, lastPaidAt,
+                    billingScheduler, mailConfigured, scheduledStuck, scheduledStuckWriteDisabled, errorAccounts,
+                    renewalFailures, paymentFailures24h, restrictedStores, deploy, diskUsedRatio, null);
+        }
 
         /** 기존 13개 인자 호출용 - 새 항목은 미상(UNKNOWN)으로 둔다. */
         public Inputs(String workerJson, Instant lastCollectAt, Instant lastPublishAt, String latestModel,
@@ -39,7 +50,7 @@ public final class ReadinessEvaluator {
                 long errorAccounts, long renewalFailures) {
             this(workerJson, lastCollectAt, lastPublishAt, latestModel, aiBlocked, portoneEnabled, lastPaidAt,
                     billingScheduler, mailConfigured, scheduledStuck, scheduledStuckWriteDisabled, errorAccounts,
-                    renewalFailures, 0, 0, null, Double.NaN);
+                    renewalFailures, 0, 0, null, Double.NaN, null);
         }
     }
 
@@ -204,7 +215,36 @@ public final class ReadinessEvaluator {
 
         out.add(deployItem(in.deploy(), now));
         out.add(diskItem(in.diskUsedRatio()));
+        out.add(rotateItem(in.rotateStatus(), now));
         return out;
+    }
+
+    /** 90일 주기 교체의 약 2배. 이보다 오래 기록이 없으면 cron 이 멈춘 것으로 본다. */
+    static final Duration ROTATE_STALE = Duration.ofDays(184);
+
+    /** line = rotate.status 한 줄 '<종료코드> <ISO-UTC 시각>'. null = 경로 미설정 또는 파일 없음. */
+    static Item rotateItem(String line, Instant now) {
+        String id = "secretRotation";
+        String label = "비밀값 교체";
+        if (line == null) {
+            return item(id, label, "INFO", false, "교체 cron 미등록", null);
+        }
+        String[] p = line.trim().split("\\s+");
+        int code;
+        Instant at;
+        try {
+            code = Integer.parseInt(p[0]);
+            at = Instant.parse(p[1]);
+        } catch (RuntimeException e) {
+            return item(id, label, "UNKNOWN", false, "교체 결과 파일을 읽을 수 없습니다.", null);
+        }
+        if (code != 0) {
+            return item(id, label, "RED", false, "마지막 교체가 실패했습니다(종료코드 " + code + ").", at);
+        }
+        if (Duration.between(at, now).compareTo(ROTATE_STALE) > 0) {
+            return item(id, label, "RED", false, "마지막 교체 성공이 184일을 넘었습니다.", at);
+        }
+        return item(id, label, "GREEN", false, "최근 교체가 성공했습니다.", at);
     }
 
     static Item deployItem(DeployInfo d, Instant now) {

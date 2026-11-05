@@ -10,8 +10,10 @@
 0 19 * * 0   root  /bin/sh <REPO_DIR>/deploy/restore-test.sh >> <LOG_DIR>/storemanager-restore-test.log 2>&1
 
 # 비밀값 교체 90일 주기 (1·4·7·10월 1일 19:00 UTC = 2일 04:00 KST)
-# 아직 켜지 말 것(보안 리뷰): 실패 알림이 없어 새벽 교체 실패 시 서비스가 멈춘 채 방치된다. 알림을 붙인 뒤 주석을 푼다.
-# 0 19 1 1,4,7,10 * root  /bin/sh <REPO_DIR>/deploy/rotate-secrets.sh >> <LOG_DIR>/storemanager-rotate.log 2>&1
+# 알림 배선됨(점검 화면 '비밀값 교체' + 실패 시 관리자 메일 1회). 등록(주석 해제)은 대표 직접.
+# 끝의 echo 가 <STATUS_DIR>/rotate.status 에 '<종료코드> <UTC 시각>' 한 줄을 남기고, 앱이 읽기 전용으로 읽는다.
+# <STATUS_DIR> 는 compose 의 OPS_STATUS_DIR(기본 deploy/ops-status)와 같은 디렉터리. cron 에서 % 는 \% 로 쓴다.
+# 0 19 1 1,4,7,10 * root  /bin/sh <REPO_DIR>/deploy/rotate-secrets.sh >> <LOG_DIR>/storemanager-rotate.log 2>&1; echo "$? $(date -u +\%FT\%TZ)" > <STATUS_DIR>/rotate.status
 
 # docker 정리 주 1회 (월요일 20:00 UTC)
 0 20 * * 1   root  /bin/sh <REPO_DIR>/deploy/docker-prune.sh >> <LOG_DIR>/storemanager-prune.log 2>&1

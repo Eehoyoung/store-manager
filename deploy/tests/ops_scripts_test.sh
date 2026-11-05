@@ -30,6 +30,11 @@ t "restore-test: tmpfs 미사용·메모리 상한" bash -c "! grep -vE '^\s*#' 
 t "backup: pipefail" grep -q '^set -o pipefail' deploy/backup.sh
 t "restore-test: 기본 이미지에 pgvector" grep -q "PG_IMAGE:-pgvector/pgvector:pg16" $R
 t "backup: 실행 권한 없이도 sh 로 부름" bash -c "! grep -rnE '(^|[^h] )/backup.sh' deploy/docker-compose.prod.yml deploy/rotate-secrets.sh deploy/cron.example | grep -v ':/backup.sh:ro'"
+RL=$(grep -E '^# 0 19 1 1,4,7,10 .*rotate-secrets.sh' deploy/cron.example)
+t "cron: rotate 줄이 있음" test -n "$RL"
+t "cron: rotate 줄의 % 는 모두 \\% 로 이스케이프" bash -c '! printf "%s" "$1" | sed "s/\\\\%//g" | grep -q "%"' _ "$RL"
+t "cron: rotate 줄이 종료코드를 rotate.status 에 기록" bash -c 'printf "%s" "$1" | grep -qF "echo \"\$? \$(date -u +\%FT\%TZ)\" > <STATUS_DIR>/rotate.status"' _ "$RL"
+t "compose: 상태 디렉터리 :ro 마운트와 env" bash -c "grep -q 'ops-status:ro' deploy/docker-compose.prod.yml && grep -q 'READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status' deploy/docker-compose.prod.yml"
 
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
