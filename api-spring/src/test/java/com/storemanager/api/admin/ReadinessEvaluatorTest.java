@@ -85,7 +85,7 @@ class ReadinessEvaluatorTest {
         assertThat(get(l, "lastPublish").status()).isEqualTo("UNKNOWN");
         assertThat(get(l, "paymentProof").status()).isEqualTo("UNKNOWN");
         assertThat(get(ReadinessEvaluator.evaluate(in(null), NOW), "aiModel").status()).isEqualTo("GREEN");
-        assertThat(l).hasSize(17);
+        assertThat(l).hasSize(18);
     }
 
     static Inputs full(long payFail, long restricted, ReadinessEvaluator.DeployInfo d, double disk) {
@@ -129,6 +129,19 @@ class ReadinessEvaluatorTest {
         assertThat(ReadinessEvaluator.deployItem(recent, NOW).status()).isEqualTo("GREEN");
         var stale = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3601));
         assertThat(ReadinessEvaluator.deployItem(stale, NOW).status()).isEqualTo("RED");
+    }
+
+    @Test
+    void 비밀값교체_판정() {
+        assertThat(ReadinessEvaluator.rotateItem(null, NOW).status()).isEqualTo("INFO");
+        for (String bad : new String[] {"", "garbage", "0", "x 2026-10-02T19:00:00Z", "0 notatime"}) {
+            assertThat(ReadinessEvaluator.rotateItem(bad, NOW).status()).as(bad).isEqualTo("UNKNOWN");
+        }
+        assertThat(ReadinessEvaluator.rotateItem("1 2026-10-02T19:00:00Z", NOW).status()).isEqualTo("RED");
+        assertThat(ReadinessEvaluator.rotateItem("0 2026-10-02T19:00:00Z", NOW).status()).isEqualTo("GREEN");
+        Instant edge = NOW.minus(java.time.Duration.ofDays(184));
+        assertThat(ReadinessEvaluator.rotateItem("0 " + edge, NOW).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.rotateItem("0 " + edge.minusSeconds(1), NOW).status()).isEqualTo("RED");
     }
 
     static Inputs withCollect(Inputs b, Instant at) {
