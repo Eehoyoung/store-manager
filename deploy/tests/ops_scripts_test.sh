@@ -35,6 +35,10 @@ t "cron: rotate 줄이 있음" test -n "$RL"
 t "cron: rotate 줄의 % 는 모두 \\% 로 이스케이프" bash -c '! printf "%s" "$1" | sed "s/\\\\%//g" | grep -q "%"' _ "$RL"
 t "cron: rotate 줄이 종료코드를 rotate.status 에 기록" bash -c 'printf "%s" "$1" | grep -qF "echo \"\$? \$(date -u +\%FT\%TZ)\" > <STATUS_DIR>/rotate.status"' _ "$RL"
 t "README: rotate cron 예시도 rotate.status 기록" bash -c "grep -F 'storemanager-rotate.log 2>&1' deploy/README.md | grep -qF 'echo \"\$? \$(date -u +\%FT\%TZ)\" > /opt/storemanager/deploy/ops-status/rotate.status'"
+# api-spring 은 env_file 이 없어 compose 에 적힌 키만 받는다 — application.yml 의 env 를 빠뜨리면 서버 env 에 넣어도 안 켜진다.
+API_ENV=$(sed -n '/^  api-spring:/,/^  [a-z]/p' deploy/docker-compose.prod.yml | grep -oE '^ +[A-Z][A-Z0-9_]*:' | tr -d ' :' | sort -u)
+YML_ENV=$(grep -oE '\$\{[A-Z][A-Z0-9_]*' api-spring/src/main/resources/application.yml | cut -c3- | sort -u)
+t "compose: application.yml 의 env 를 api-spring 에 전부 넘김" test -z "$(comm -23 <(echo "$YML_ENV") <(echo "$API_ENV"))"
 t "compose: 상태 디렉터리 :ro 마운트와 env" bash -c "grep -q 'ops-status:ro' deploy/docker-compose.prod.yml && grep -q 'READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status' deploy/docker-compose.prod.yml"
 
 echo "통과 $ok / 실패 $bad"
