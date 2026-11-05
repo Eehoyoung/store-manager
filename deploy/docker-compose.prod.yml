@@ -231,6 +231,8 @@ services:
       DATAAPI_ENC_SPEC: ${DATAAPI_ENC_SPEC:?}
       DATAAPI_ENC_KEY: ${DATAAPI_ENC_KEY:?}
       DATAAPI_ENC_IV: ${DATAAPI_ENC_IV:?}
+      # 암호문 인코딩(base64|hex). 업체 샘플로 확정하는 값 — smoke_dataapi.py 가 다르면 env 에 넣으라고 안내한다.
+      DATAAPI_ENC_OUTPUT: ${DATAAPI_ENC_OUTPUT:-base64}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CREDENTIAL_MASTER_KEY: ${CREDENTIAL_MASTER_KEY:?}
       # 0 = 무제한. 테스트 토큰을 쓸 때만 잔여 횟수를 넣는다.
