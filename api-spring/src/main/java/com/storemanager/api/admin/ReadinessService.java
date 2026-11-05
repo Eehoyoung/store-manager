@@ -68,8 +68,12 @@ public class ReadinessService {
                         + "WHERE status IN ('TRIAL','ACTIVE','PAST_DUE')"),
                 count("SELECT count(*) FROM payment WHERE status = 'FAILED' "
                         + "AND created_at > now() - interval '24 hours'"),
-                count("SELECT count(*) FROM subscription WHERE status NOT IN ('CANCELED','SUSPENDED') "
-                        + "AND next_billing_at IS NOT NULL AND service_until IS NOT NULL AND service_until <= now()"),
+                // 결제 실패로 제한된 매장만 센다 — SubscriptionRepository.findDunningTargets 와 같은 조건.
+                // 해지 요청 뒤 유예가 끝난 구독·카드 없이 체험이 끝난 구독은 결제 실패가 아니다.
+                count("SELECT count(*) FROM subscription WHERE cancellation_requested_at IS NULL "
+                        + "AND auto_renew = true AND renewal_failures > 0 "
+                        + "AND status NOT IN ('CANCELED','SUSPENDED') "
+                        + "AND service_until IS NOT NULL AND service_until <= now()"),
                 new ReadinessEvaluator.DeployInfo(deploySha, startedAt, deployHead.enabled(),
                         deployHead.headSha(now), deployHead.headCommittedAt(now)),
                 diskUsedRatio());
