@@ -339,3 +339,23 @@ $DC stop api-spring worker
 $DC run --rm --no-deps -e OLD_MASTER_KEY -e NEW_MASTER_KEY -e NEW_KEY_ID worker python rewrap.py
 sudo cp -p "$OLD" /etc/storemanager/env && $DC up -d
 ```
+
+## 9. 운영 점검 화면 — 알고 볼 것 (PR #52 리뷰 권장 정리, 2026-11-06)
+
+점검 화면(readiness)의 빨강·UNKNOWN 이 모두 장애는 아니다. 아래는 알려진 한계이고, 고치지 않기로 했다.
+
+| 증상 | 원인 | 대응 |
+|---|---|---|
+| 배포 직후 최대 10분 '배포 반영' 빨강 | master HEAD 조회 성공 캐시가 10분(`DeployHeadChecker.OK_TTL`) — 배포 전 HEAD 와 비교한다 | 10분 뒤 다시 본다. 계속 빨강이면 배포 로그 확인 |
+| 앱을 서버에서 손으로 다시 띄운 뒤 '배포 반영' UNKNOWN | 실행 커밋(`APP_DEPLOY_SHA`)은 `auto-deploy.sh` 가 `GIT_SHA` 로 넘길 때만 채워진다 | `GIT_SHA=$(git rev-parse HEAD) dc up -d` 로 띄우거나 다음 자동 배포를 기다린다 |
+| 점검 화면을 여럿이 동시에 열면 늦게 뜸(최대 약 8초) | 외부 조회(GitHub HEAD)가 직렬로 기다린다 | 운영자 1~2명 규모에선 무시. 동시 사용자가 늘면 비동기 갱신으로 바꾼다 |
+| '결제 실패' 빨강 | 24시간 결제 실패 또는 결제 실패로 제한된 매장(해지 요청·카드 없는 체험 종료는 제외, #56) | 실제 미납이다. 결제관리·미납 해지 절차 확인 |
+
+### 9.1 docker 정리가 롤백 이미지를 지우는가 — 조치 불필요
+
+`docker-prune.sh` 는 `docker image prune -af --filter until=168h` 를 쓴다. 이 명령은 **실행 중이거나 멈춘 컨테이너가
+참조하는 이미지는 지우지 않는다** — 지금 돌고 있는 버전은 항상 남는다. 지워지는 것은 7일 넘은 미사용 이미지와 빌드 캐시뿐이다.
+
+그리고 이 저장소의 롤백은 옛 이미지를 다시 띄우는 방식이 아니다. `git revert`(또는 옛 커밋 checkout) 후
+`dc up -d --build` 로 **다시 빌드**한다(2장 자동 배포, 빌드 실패 시 기존 컨테이너 유지). 옛 이미지가 없어도 롤백할 수 있다.
+비용은 빌드 캐시가 비었을 때 재빌드가 몇 분 더 걸리는 것뿐이다.
