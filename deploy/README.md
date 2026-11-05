@@ -287,9 +287,13 @@ Spring 스케줄러 중복(아래)까지 손봐야 한다. 매장 100~200개 규
 
 ```bash
 sudo chmod 700 /opt/storemanager/deploy/rotate-secrets.sh
-echo '0 19 1 1,4,7,10 * root /opt/storemanager/deploy/rotate-secrets.sh >> /var/log/storemanager-rotate.log 2>&1' \
+echo '0 19 1 1,4,7,10 * root /opt/storemanager/deploy/rotate-secrets.sh >> /var/log/storemanager-rotate.log 2>&1; echo "$? $(date -u +\%FT\%TZ)" > /opt/storemanager/deploy/ops-status/rotate.status' \
   | sudo tee /etc/cron.d/storemanager-rotate
 ```
+
+- 끝의 `echo` 가 `<종료코드> <UTC 시각>` 한 줄을 `deploy/ops-status/rotate.status` 에 남기고, 앱이 읽기 전용으로 읽어
+  점검 화면 '비밀값 교체'(실패·184일 무소식이면 빨강)와 관리자 메일 1회(`READINESS_SUMMARY_ENABLED=true` 일 때)에 쓴다.
+  **빼고 등록하면 점검 화면이 계속 '교체 cron 미등록'이다.** cron 안에서 `%` 는 줄바꿈이라 `\%` 로 쓴다.
 
 - 1·4·7·10월 2일 **04:00 KST**. 03:00 백업 뒤, 10:00 수집 전이다. api-spring·worker 가 1~2분 멈춘다.
 - **첫 배포 직후 한 번 손으로 돌려 본다.** 복구 시연(3.1장)과 같은 이유다 — 처음 도는 날이 사고 날이면 안 된다.

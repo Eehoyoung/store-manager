@@ -34,6 +34,7 @@ RL=$(grep -E '^# 0 19 1 1,4,7,10 .*rotate-secrets.sh' deploy/cron.example)
 t "cron: rotate 줄이 있음" test -n "$RL"
 t "cron: rotate 줄의 % 는 모두 \\% 로 이스케이프" bash -c '! printf "%s" "$1" | sed "s/\\\\%//g" | grep -q "%"' _ "$RL"
 t "cron: rotate 줄이 종료코드를 rotate.status 에 기록" bash -c 'printf "%s" "$1" | grep -qF "echo \"\$? \$(date -u +\%FT\%TZ)\" > <STATUS_DIR>/rotate.status"' _ "$RL"
+t "README: rotate cron 예시도 rotate.status 기록" bash -c "grep -F 'storemanager-rotate.log 2>&1' deploy/README.md | grep -qF 'echo \"\$? \$(date -u +\%FT\%TZ)\" > /opt/storemanager/deploy/ops-status/rotate.status'"
 t "compose: 상태 디렉터리 :ro 마운트와 env" bash -c "grep -q 'ops-status:ro' deploy/docker-compose.prod.yml && grep -q 'READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status' deploy/docker-compose.prod.yml"
 
 echo "통과 $ok / 실패 $bad"
