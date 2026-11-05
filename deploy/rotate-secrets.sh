@@ -12,7 +12,7 @@
 #   KEEP=4 × 90일 = 약 1년치. 이 보관을 줄이지 말 것.
 #
 # cron (/etc/cron.d/storemanager-rotate) — 1·4·7·10월 2일 04:00 KST. 03:00 백업 뒤, 10:00 수집 전이다.
-#   0 19 1 1,4,7,10 * root /opt/storemanager/deploy/rotate-secrets.sh >> /var/log/storemanager-rotate.log 2>&1
+#   줄은 README 8.1 · cron.example 그대로 — 끝의 echo 가 결과를 rotate.status 에 남겨 점검 화면이 읽는다.
 set -eu
 cd "$(dirname "$0")"
 
