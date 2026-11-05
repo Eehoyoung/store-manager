@@ -40,6 +40,13 @@ API_ENV=$(sed -n '/^  api-spring:/,/^  [a-z]/p' deploy/docker-compose.prod.yml |
 YML_ENV=$(grep -oE '\$\{[A-Z][A-Z0-9_]*' api-spring/src/main/resources/application.yml | cut -c3- | sort -u)
 t "compose: application.yml 의 env 를 api-spring 에 전부 넘김" test -z "$(comm -23 <(echo "$YML_ENV") <(echo "$API_ENV"))"
 t "compose: 상태 디렉터리 :ro 마운트와 env" bash -c "grep -q 'ops-status:ro' deploy/docker-compose.prod.yml && grep -q 'READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status' deploy/docker-compose.prod.yml"
+# worker·ai-python 도 env_file 이 없다 — 코드가 읽는 env 는 compose 에 있어야 한다(#61 DATAAPI_ENC_OUTPUT 재발 방지).
+# 예외: NEW_KEY_ID(rewrap 은 run -e) · DATAAPI_ENC_SAMPLE_*(smoke 전용) · DATAAPI_BUDGET_KEY(키 이름, 기본값으로 충분) · GOLDENSET_MIN_STORES(eval 전용). 시험 코드(tests/)는 제외.
+ENV_EXEMPT='NEW_KEY_ID|DATAAPI_ENC_SAMPLE_ENC|DATAAPI_ENC_SAMPLE_PLAIN|DATAAPI_BUDGET_KEY|GOLDENSET_MIN_STORES'
+svc_env() { sed -n "/^  $1:/,/^  [a-z]/p" deploy/docker-compose.prod.yml | grep -oE '^ +[A-Z][A-Z0-9_]*:' | tr -d ' :' | sort -u; }
+py_env() { grep -rhoE "(environ\.get\(|getenv\(|environ\[|_ENV *= *)[\"'][A-Z][A-Z0-9_]*" --include=*.py --exclude-dir=tests "$1" | grep -oE '[A-Z][A-Z0-9_]*$' | grep -vxE "$ENV_EXEMPT" | sort -u; }
+t "compose: worker 코드가 읽는 env 를 worker 에 전부 넘김" test -z "$(comm -23 <(py_env worker) <(svc_env worker))"
+t "compose: ai-python 코드가 읽는 env 를 ai-python 에 전부 넘김" test -z "$(comm -23 <(py_env ai-python) <(svc_env ai-python))"
 
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
