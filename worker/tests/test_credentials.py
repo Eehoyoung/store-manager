@@ -80,3 +80,34 @@ def test_single_account_check_uses_same_conditions_as_dispatch(monkeypatch):
     (dispatch_sql, _), (single_sql, params) = seen
     assert single_sql.replace("AND pa.id = %s", "").strip() == dispatch_sql.replace("ORDER BY pa.id", "").strip()
     assert "sub.service_until > now()" in single_sql and params == (7,)
+
+
+def test_backfill_targets_are_new_serviceable_accounts_under_failure_cap(monkeypatch):
+    """T-29: 백필 대상은 수집 대상 조건 + 최근 3일 신규 + 성공 이력 없음 + 실패 3건 미만.
+    실패 상한이 빠지면 일시 장애가 이어질 때 1시간마다 호출이 나간다(최악 72회)."""
+    import sys
+    import types
+
+    import credentials
+
+    seen = []
+
+    class Cur:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def execute(self, sql, params): seen.append((sql, params))
+        def fetchall(self): return [(9,)]
+
+    class Conn(Cur):
+        def cursor(self): return Cur()
+
+    monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=lambda url: Conn()))
+    monkeypatch.setattr(credentials, "DATABASE_URL", "postgresql://fake")
+
+    assert credentials.new_backfill_account_ids() == [9]
+    assert credentials.active_account_ids() == [9]
+    (bf_sql, bf_params), (dispatch_sql, _) = seen
+    assert dispatch_sql.replace("ORDER BY pa.id", "").strip() in bf_sql  # 수집 대상 조건을 그대로 쓴다
+    assert "pa.created_at > now() - INTERVAL '3 days'" in bf_sql
+    assert "j.status = 'SUCCESS'" in bf_sql and "f.status = 'FAILED') < %s" in bf_sql
+    assert bf_params == (3,)

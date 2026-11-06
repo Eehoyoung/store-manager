@@ -336,7 +336,7 @@ def dispatch_backfills(account_lister=None, redis_client=None) -> dict:
     """신규 연동 계정 백필 팬아웃 — beat 가 10분마다 부른다(T-29). BACKFILL_ENABLED 가 아니면 아무것도 안 한다.
 
     ★ 대상은 credentials.new_backfill_account_ids — 수집 대상 조건 + 최근 3일 안에 만든 계정 +
-      성공한 BACKFILL 수집 이력 없음. 기존 계정은 켜는 순간에도 대상이 아니다.
+      성공한 BACKFILL 수집 이력 없음 + 실패 3건 미만(최악 계정당 13+3회). 기존 계정은 켜는 순간에도 대상이 아니다.
     ★ 같은 계정을 1시간 안에 다시 넣지 않는다(Redis SET NX). 큐가 밀려 첫 보고 전에 다음 주기가
       돌면 13회가 두 번 나간다.
     """
