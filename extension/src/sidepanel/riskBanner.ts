@@ -1,7 +1,7 @@
 import type { QueueEntry } from "../state/queueEntry";
 
 /**
- * 위험 사유 코드 → 사장님이 읽을 문구. 정본은 ai-python 의 {@code RISK_REASON_VALUES} 9종이다.
+ * 위험 사유 코드 → 사장님이 읽을 문구. 정본은 ai-python 의 {@code RISK_REASON_VALUES} 11종이다.
  *
  * ★ 모르는 코드는 숨기지 않고 코드를 그대로 보여준다. 서버가 사유를 늘렸는데 화면에서
  *   조용히 사라지는 것이 가장 나쁘다 — 사장님은 경고가 없으면 안전한 줄 안다.
@@ -16,6 +16,8 @@ export const RISK_REASON_LABEL: Record<string, string> = {
   ORIGIN_LABEL: "원산지 표시",
   UNDERAGE_ALCOHOL: "청소년 주류",
   PRIVACY_LEAK: "개인정보 노출",
+  REFUND_DEMAND: "환불 요구",
+  REPEAT_COMPLAINT: "반복 불만",
 };
 
 function escapeHtml(s: string): string {

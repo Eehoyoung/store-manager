@@ -64,5 +64,12 @@ t "방어선 동기화: PublishScheduler 가 차단선 이상·미승인을 막�
 t "방어선 동기화: publish.is_risk_blocked 차단선 3" grep -qxE 'RISK_BLOCK_THRESHOLD = 3' worker/publish.py
 t "방어선 동기화: is_risk_blocked 가 차단선 미만만 통과" grep -qF 'if risk < RISK_BLOCK_THRESHOLD:' worker/publish.py
 
+# 위험 사유 정본(ai-python prompts.RISK_REASON_VALUES)에 라벨이 없으면 사장님 화면에 THREAT 같은 코드가 그대로 뜬다 — 웹·확장 둘 다 전부 있어야 한다.
+RISK_REASONS=$(sed -n '/^RISK_REASON_VALUES = (/,/^)/p' ai-python/prompts.py | grep -v '^ *#' | grep -oE '"[A-Z_]+"' | tr -d '"' | sort -u)
+t "위험 사유 정본 11종 읽힘" test "$(echo "$RISK_REASONS" | wc -l)" -eq 11
+for f in web/src/lib/labels.ts extension/src/sidepanel/riskBanner.ts; do
+  t "위험 사유 라벨: $(basename "$f") 에 정본 전부" test -z "$(comm -23 <(echo "$RISK_REASONS") <(grep -oE '^  [A-Z_]+:' "$f" | tr -d ' :' | sort -u))"
+done
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

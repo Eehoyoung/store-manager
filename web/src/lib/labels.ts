@@ -9,6 +9,13 @@ const RISK_REASON_LABELS: Record<string, string> = {
   FOREIGN_OBJECT: "이물질 발견",
   HYGIENE: "위생 문제 제기",
   LEGAL: "법적 분쟁 소지",
+  THREAT: "협박·영업방해 예고",
+  REVIEW_TRADE: "리뷰 대가 거래",
+  ORIGIN_LABEL: "원산지 표시",
+  UNDERAGE_ALCOHOL: "청소년 주류",
+  PRIVACY_LEAK: "개인정보 노출",
+  REFUND_DEMAND: "환불 요구",
+  REPEAT_COMPLAINT: "반복 불만",
   MEDIA: "언론·SNS 확산 우려",
 };
 
