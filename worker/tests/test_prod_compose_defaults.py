@@ -36,6 +36,7 @@ LOCKED = {
     "CREDENTIAL_REQUIRE_KMS": "false",
     "GOLDENSET_EVAL_ENABLED": "false",
     "TIERED_PRICING_ENABLED": "false",
+    "BACKFILL_ENABLED": "false",
 }
 
 

@@ -52,6 +52,10 @@ class TrialDraftEligibilityIT {
     @Autowired CredentialService credentialService;
 
     private Long 리뷰가_있는_매장(String key, String status, Instant serviceUntil) {
+        return 리뷰가_있는_매장(key, status, serviceUntil, Instant.now());
+    }
+
+    private Long 리뷰가_있는_매장(String key, String status, Instant serviceUntil, Instant writtenAt) {
         AppUser owner = appUserRepository.save(AppUser.builder().email(key + "@example.com")
                 .passwordHash("dummy").name("사장").build());
         Store store = Store.builder().ownerId(owner.getId()).name("체험-" + key).build();
@@ -67,7 +71,7 @@ class TrialDraftEligibilityIT {
                 .priceKrw(BigDecimal.valueOf(30000)).status(status).serviceUntil(serviceUntil).build());
         return unifiedReviewRepository.save(UnifiedReview.builder().storeId(store.getId()).linkId(link.getId())
                 .platform("BAEMIN").platformReviewId("r-" + key).rating((short) 5).body("맛있어요")
-                .writtenAt(Instant.now()).build()).getId();
+                .writtenAt(writtenAt).build()).getId();
     }
 
     @Test
@@ -82,5 +86,27 @@ class TrialDraftEligibilityIT {
                 .map(UnifiedReview::getId).toList();
 
         assertThat(ids).contains(active).doesNotContain(expired, unpaid, suspended);
+    }
+
+    /**
+     * T-29: 백필로 들어온 옛 리뷰(작성일이 수집보다 3일 넘게 앞섬)는 초안 0건, 정기 수집 범위(최근 2일)는 그대로 대상.
+     * ★ 이 조건은 BACKFILL_ENABLED 와 무관하게 항상 걸린다 — 플래그를 켜기 전에도 이 시험이 지킨다.
+     */
+    @Test
+    void 백필로_들어온_옛_리뷰에는_초안이_0건이고_최근_2일치는_대상이다() {
+        Instant later = Instant.now().plus(10, ChronoUnit.DAYS);
+        Instant now = Instant.now();
+        Long today = 리뷰가_있는_매장("bf-today", "ACTIVE", later, now);
+        Long twoDays = 리뷰가_있는_매장("bf-2d", "ACTIVE", later, now.minus(2, ChronoUnit.DAYS).minus(23, ChronoUnit.HOURS));
+        Long old4d = 리뷰가_있는_매장("bf-4d", "ACTIVE", later, now.minus(4, ChronoUnit.DAYS));
+        Long old89d = 리뷰가_있는_매장("bf-89d", "ACTIVE", later, now.minus(89, ChronoUnit.DAYS));
+
+        var ids = unifiedReviewRepository.findNeedingDraft(Instant.now(), PageRequest.of(0, 50)).stream()
+                .map(UnifiedReview::getId).toList();
+        var tieredIds = unifiedReviewRepository.findNeedingDraft(Instant.now(), true, PageRequest.of(0, 50)).stream()
+                .map(UnifiedReview::getId).toList();
+
+        assertThat(ids).contains(today, twoDays).doesNotContain(old4d, old89d);
+        assertThat(tieredIds).doesNotContain(old4d, old89d);
     }
 }

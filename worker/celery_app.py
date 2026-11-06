@@ -43,6 +43,11 @@ app.conf.beat_schedule = {
         "task": "tasks.dispatch_polls",
         "schedule": crontab(hour=POLL_HOURS, minute=0),
     },
+    # BACKFILL_ENABLED 가 아니면 즉시 끝난다(T-29). 대상 선별은 DB 에서 한다.
+    "dispatch-backfills-every-10m": {
+        "task": "tasks.dispatch_backfills",
+        "schedule": 600.0,
+    },
     "readiness-heartbeat-every-60s": {
         "task": "tasks.readiness_heartbeat",
         "schedule": 60.0,
