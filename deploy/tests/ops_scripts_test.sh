@@ -71,5 +71,14 @@ for f in web/src/lib/labels.ts extension/src/sidepanel/riskBanner.ts; do
   t "위험 사유 라벨: $(basename "$f") 에 정본 전부" test -z "$(comm -23 <(echo "$RISK_REASONS") <(grep -oE '^  [A-Z_]+:' "$f" | tr -d ' :' | sort -u))"
 done
 
+# 가드레일 플래그(G코드) 정본은 ai-python 이 내는 문자열이다 — 라벨 키가 다르면 사장님 화면에 G6_REVIEW_QUOTE 같은 코드가 그대로 뜬다.
+G_FLAGS=$(grep -rhoE '"G[0-9]+_[A-Z_]+"' --include=*.py --exclude-dir=tests ai-python | tr -d '"' | sort -u)
+t "가드레일 플래그 정본 읽힘(G1~G9)" test "$(echo "$G_FLAGS" | grep -oE '^G[0-9]+' | sort -u | wc -l)" -eq 9
+t "가드레일 플래그 라벨: labels.ts 에 정본 전부" test -z "$(comm -23 <(echo "$G_FLAGS") <(grep -oE '^  G[0-9]+_[A-Z_]+:' web/src/lib/labels.ts | tr -d ' :' | sort -u))"
+# Spring 이 guardrailFlags 에 직접 넣는 차단 사유도 같은 라벨 맵을 쓴다.
+SPRING_FLAGS=$(grep -rhoE '(blockForScheduling\(|appendFlag\([^,]+, |new String\[\] \{)"[A-Z][A-Z0-9_]+"' api-spring/src/main/java/com/storemanager/api/draft | grep -oE '"[A-Z][A-Z0-9_]+"' | tr -d '"' | sort -u)
+t "차단 사유 정본 읽힘(Spring draft)" test "$(echo "$SPRING_FLAGS" | wc -l)" -ge 10
+t "차단 사유 라벨: labels.ts 에 Spring 차단 사유 전부" test -z "$(comm -23 <(echo "$SPRING_FLAGS") <(grep -oE '^  [A-Z][A-Z0-9_]+:' web/src/lib/labels.ts | tr -d ' :' | sort -u))"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

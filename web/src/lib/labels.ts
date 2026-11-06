@@ -20,16 +20,28 @@ const RISK_REASON_LABELS: Record<string, string> = {
 };
 
 const GUARDRAIL_FLAG_LABELS: Record<string, string> = {
-  G1_LENGTH: "답글 길이 기준 위반",
+  G1_LENGTH_MAX: "답글이 너무 길어요 — 줄여 주세요",
+  G1_LENGTH_MIN: "답글이 너무 짧아요 — 조금 더 써 주세요",
   G2_BANNED_WORD: "금칙어 포함",
   G3_COMPENSATION: "금전적 보상(환불 등) 표현 포함",
   G4_PII: "개인정보(연락처 등) 포함",
   G5_COMPETITOR: "경쟁 배달앱 언급",
-  G6_QUOTE: "리뷰 원문을 그대로 인용",
+  G6_REVIEW_QUOTE: "리뷰 원문을 그대로 인용",
   G7_DUPLICATE: "기존 답글과 지나치게 유사",
   // G8 은 위생·이물질·법적분쟁 등 고위험 리뷰 차단(절대규칙 3)이라 실제로 가장 자주 노출된다.
   G8_RISK: "고위험 리뷰 — 사람 검수 필요",
   G9_INJECTION: "리뷰 내 지시문이 답글에 반영된 것으로 의심",
+  // 아래는 Spring 이 초안을 멈출 때 넣는 사유다(ReplyDraft·PublishScheduler). 사장님이 다음에 할 일을 짧게 알린다.
+  RISK_LEVEL_TOO_HIGH: "위험 리뷰예요 — 직접 확인하고 승인해 주세요",
+  AUTOMATION_SAFETY_BLOCKED: "안전 규칙에 걸려 멈췄어요 — 직접 확인해 주세요",
+  AUTOMATION_MODEL_UNAVAILABLE: "AI가 답글을 쓰지 못했어요 — 직접 작성해 주세요",
+  HUMAN_REJECTED: "반려한 답글이에요",
+  OWNER_CANCELED: "사장님이 게시를 취소했어요",
+  PLATFORM_NOT_SELECTED: "게시할 플랫폼을 고르지 않았어요",
+  PLATFORM_LINK_INVALID: "플랫폼 연동이 끊겼어요 — 연동을 다시 확인해 주세요",
+  STORE_INACTIVE: "이용이 중지돼 게시하지 못했어요",
+  REVIEW_MISSING: "원래 리뷰를 찾을 수 없어요",
+  ANALYSIS_MISSING: "리뷰 분석이 없어 게시하지 못했어요",
 };
 
 export function describeRiskReason(code: string): string {
