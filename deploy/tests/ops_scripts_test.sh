@@ -163,5 +163,18 @@ t "predeploy: 운영 커밋이 조상 아니면 주의" bash -c "$(declare -f pr
 t "predeploy: 없는 커밋이면 exit 2" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; pr deadbeef ok; [ \$? -eq 2 ]"
 rm -rf "$PR_TMP"
 
+# 네이버 ↔ 배달 분리(NAVER 규칙 3·9, 경계 1) — naver-separation.md '지키는 테스트' 표의 "naver 패키지 import 스캔".
+# 배달 패키지 = collect·draft·platform·review·internal. 공유는 제품 코어(store·user·ai·audit·common 등)로만.
+NB=api-spring/src/main/java/com/storemanager/api
+NB_DELIVERY="$NB/collect $NB/draft $NB/platform $NB/review $NB/internal"
+t "네이버 분리: naver 패키지가 배달 패키지를 참조하지 않음" bash -c "! grep -rqE 'com\.storemanager\.api\.(collect|draft|platform|review|internal)\b' $NB/naver"
+t "네이버 분리: 배달 패키지가 naver 패키지를 참조하지 않음" bash -c "! grep -rqE 'com\.storemanager\.api\.naver\b' $NB_DELIVERY"
+t "네이버 분리: worker(DataAPI·Celery)에 네이버 없음" bash -c "! grep -rliE 'naver' worker --include=*.py --exclude-dir=tests | grep -q ."
+# 규칙 3 — 리뷰 원문 컬럼을 막는다. 새 컬럼은 '리뷰 원문·작성자 정보가 아님'을 확인한 뒤에만 이 목록에 넣는다.
+NE_ALLOWED="approved_at blocked category created_at draft_content drafted_at edit_distance edited guardrail_flags id inserted_at model posted_at prompt_version public_id rating review_hash risk_level risk_reasons status store_id updated_at viewed_at"
+NE_COLS=$(cat api-spring/src/main/resources/db/migration/*.sql | sed 's/--.*//' | tr '\n' ' ' | tr ';' '\n' | grep -iE 'TABLE( IF NOT EXISTS)? naver_review_event( |\()' |
+  sed -E 's/.*CREATE TABLE[^(]*\((.*)\)[^)]*$/\1/I' | grep -oiE '(^|,|ADD COLUMN( IF NOT EXISTS)?) *[a-z_]+ ' | grep -oE '[a-z_]+ $' | tr -d ' ' | grep -vxE 'unique|primary|constraint|check|foreign' | sort -u)
+t "네이버 규칙 3: naver_review_event 컬럼이 허용 목록과 같음(본문 컬럼 없음)" test "$(echo $NE_COLS)" = "$NE_ALLOWED"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
