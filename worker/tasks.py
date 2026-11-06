@@ -35,6 +35,11 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 COLLECT_LOOKBACK_DAYS = int(os.environ.get("COLLECT_LOOKBACK_DAYS", "2"))
 BACKFILL_DAYS = int(os.environ.get("BACKFILL_DAYS", "90"))
 BACKFILL_CHUNK_DAYS = int(os.environ.get("BACKFILL_CHUNK_DAYS", "7"))
+# ★ 신규 연동 자동 백필(T-29). 정확히 "true" 일 때만 켜진다 — 연동 1건마다 DataAPI 호출이
+#   BACKFILL_DAYS/BACKFILL_CHUNK_DAYS(기본 13)회 늘어난다. 켜기는 대표 결정(원가).
+#   옛 리뷰에 초안이 생기지 않는 것은 Spring findNeedingDraft 가 플래그와 무관하게 막는다.
+BACKFILL_ENABLED = os.environ.get("BACKFILL_ENABLED", "false") == "true"
+BACKFILL_QUEUED_TTL_SECONDS = 3600
 
 # 게시 큐 — Spring 이 LPUSH, 워커는 processing 리스트로 원자 이동한다.
 # ★ Celery 메시지 프로토콜이 아니다(고정계약 참고).
@@ -326,6 +331,33 @@ def dispatch_polls(account_lister=None) -> dict:
     return {"status": "OK", "dispatched": len(ids)}
 
 
+@app.task(name="tasks.dispatch_backfills")
+def dispatch_backfills(account_lister=None, redis_client=None) -> dict:
+    """신규 연동 계정 백필 팬아웃 — beat 가 10분마다 부른다(T-29). BACKFILL_ENABLED 가 아니면 아무것도 안 한다.
+
+    ★ 대상은 credentials.new_backfill_account_ids — 수집 대상 조건 + 최근 3일 안에 만든 계정 +
+      성공한 BACKFILL 수집 이력 없음 + 실패 3건 미만(최악 계정당 13+3회). 기존 계정은 켜는 순간에도 대상이 아니다.
+    ★ 같은 계정을 1시간 안에 다시 넣지 않는다(Redis SET NX). 큐가 밀려 첫 보고 전에 다음 주기가
+      돌면 13회가 두 번 나간다.
+    """
+    if not BACKFILL_ENABLED:
+        return {"status": "DISABLED", "dispatched": 0}
+    lister = account_lister or credentials.new_backfill_account_ids
+    try:
+        ids = lister()
+    except Exception as exc:  # DB 접근 실패 — 호출을 만들지 않고 조용히 끝낸다
+        log.error("dispatch_backfills 대상 조회 실패: %s", type(exc).__name__)
+        return {"status": "ERROR", "dispatched": 0}
+    rc = redis_client if redis_client is not None else _redis_client()
+    dispatched = 0
+    for account_id in ids:
+        if rc.set(f"backfill:queued:{account_id}", "1", nx=True, ex=BACKFILL_QUEUED_TTL_SECONDS):
+            backfill.delay(str(account_id))
+            dispatched += 1
+    log.info("dispatch_backfills 팬아웃 %d건", dispatched)
+    return {"status": "OK", "dispatched": dispatched}
+
+
 _PUBLISH_CLAIM_SCRIPT = """
 if not redis.call('LPOS', KEYS[1], ARGV[1]) then return 0 end
 return redis.call('SET', KEYS[2], ARGV[2], 'NX', 'EX', ARGV[3]) and 1 or 0
@@ -515,6 +547,9 @@ def backfill(
                     "BACKFILL",
                 )
             )
+            # ★ 실패하면 남은 구간을 부르지 않는다. 로그인 실패는 12구간을 더 불러도 전부 실패하고 전부 과금된다.
+            if results[-1]["status"] == "FAILED":
+                break
             sleep(random.uniform(0.2, 0.6))  # 구간 사이 지터 — 레이트리밋/탐지 회피
         return results
     finally:

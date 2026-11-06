@@ -192,3 +192,55 @@ def test_backfill_does_not_call_dataapi_when_store_not_serviceable(monkeypatch):
     result, client, _, loaded = _guarded_run(monkeypatch, backfill, serviceable=False)
     assert result == [{"status": "SKIPPED", "reason": "NOT_SERVICEABLE"}]
     assert client.calls == [] and loaded == []
+
+
+# ── T-29 신규 연동 자동 백필 ─────────────────────────────────────────────
+
+def test_dispatch_backfills_does_nothing_when_flag_off(monkeypatch):
+    monkeypatch.setattr(tasks, "BACKFILL_ENABLED", False)
+    queued = []
+    monkeypatch.setattr(tasks.backfill, "delay", lambda a: queued.append(a))
+    result = tasks.dispatch_backfills(account_lister=lambda: [1, 2], redis_client=FakeRedis())
+    assert result == {"status": "DISABLED", "dispatched": 0} and queued == []
+
+
+def test_dispatch_backfills_queues_each_account_once(monkeypatch):
+    monkeypatch.setattr(tasks, "BACKFILL_ENABLED", True)
+    queued = []
+    monkeypatch.setattr(tasks.backfill, "delay", lambda a: queued.append(a))
+
+    class NxRedis(FakeRedis):
+        def set(self, key, value, nx=True, ex=None):
+            if key in self._store:
+                return False
+            self._store[key] = value
+            return True
+
+    rc = NxRedis()
+    tasks.dispatch_backfills(account_lister=lambda: [1, 2], redis_client=rc)
+    again = tasks.dispatch_backfills(account_lister=lambda: [1, 2], redis_client=rc)
+    assert queued == ["1", "2"]  # 첫 보고 전에 다음 주기가 돌아도 13회가 두 번 나가지 않는다
+    assert again["dispatched"] == 0
+
+
+def test_backfill_stops_after_first_failed_window(monkeypatch):
+    monkeypatch.setattr(tasks, "_post_collect_result", lambda payload: None)
+    fake_client = FakeClient(error=DataApiError(ecode="ERR_MLCOM_MSG50059", errmsg="로그인 실패", retryable=False))
+    results = backfill(
+        "acct-1",
+        sleep=lambda s: None,
+        client_factory=lambda: fake_client,
+        redis_client=FakeRedis(acquire=True),
+        account_loader=lambda account_id: _dummy_account(),
+    )
+    assert len(results) == 1 and results[0]["status"] == "FAILED"
+
+
+
+def test_backfill_flag_is_exact_true_only():
+    import subprocess, sys, os
+    code = "import tasks; print(tasks.BACKFILL_ENABLED)"
+    for value, expected in (("", "False"), ("TRUE", "False"), ("1", "False"), ("true", "True")):
+        env = {**os.environ, "BACKFILL_ENABLED": value}
+        out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=os.path.dirname(tasks.__file__))
+        assert out.stdout.strip().endswith(expected), (value, out.stderr[-200:])

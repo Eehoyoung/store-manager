@@ -125,6 +125,27 @@ def active_account_ids() -> list[int]:
     return [int(r[0]) for r in _serviceable_rows("ORDER BY pa.id")]
 
 
+BACKFILL_MAX_FAILURES = 3
+
+
+def new_backfill_account_ids() -> list[int]:
+    """신규 연동 백필 대상(T-29): 수집 대상 조건 + 최근 3일 안에 만든 계정 + 성공한 BACKFILL 이력 없음.
+
+    ★ 이력 판정은 collection_job(Spring 이 collect-result 마다 남김)으로 한다 — 마이그레이션 없음.
+      전 구간 실패(일시 장애)면 성공 이력이 없어 다음 주기에 다시 시도된다(실패 시 1회에서 멈춘다).
+    ★ 실패한 BACKFILL 이 BACKFILL_MAX_FAILURES(3)건이면 그 계정은 '백필 실패'로 남기고 다시 부르지 않는다
+      (부대표 전결 11-06). 최악 = 계정당 13 + 3회. 기록은 collection_job 의 FAILED 행이다.
+    ★ created_at 조건이 없으면 플래그를 켜는 순간 기존 계정 전부가 13회씩 호출된다."""
+    return [int(r[0]) for r in _serviceable_rows(
+        "AND pa.created_at > now() - INTERVAL '3 days'"
+        " AND NOT EXISTS (SELECT 1 FROM collection_job j WHERE j.account_id = pa.id"
+        " AND j.job_type = 'BACKFILL' AND j.status = 'SUCCESS')"
+        " AND (SELECT COUNT(*) FROM collection_job f WHERE f.account_id = pa.id"
+        " AND f.job_type = 'BACKFILL' AND f.status = 'FAILED') < %s ORDER BY pa.id",
+        (BACKFILL_MAX_FAILURES,),
+    )]
+
+
 def is_account_serviceable(account_id: str) -> bool:
     """이 계정에 지금 DataAPI 를 불러도 되는가 — active_account_ids 와 **같은 조건**.
 

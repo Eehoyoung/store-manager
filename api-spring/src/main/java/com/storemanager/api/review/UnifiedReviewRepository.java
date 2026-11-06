@@ -34,12 +34,17 @@ public interface UnifiedReviewRepository extends JpaRepository<UnifiedReview, Lo
      *   조건은 Subscription.isServiceableAt 과 같아야 한다 - 함께 바꿀 것(자동결제 전환, 2026-09-29).
      *   ★ :now 를 바인딩한다. CLAUDE.md 의 JPQL 함정은 `(:param IS NULL OR ...)` 패턴이라
      *     여기(단순 비교)는 해당하지 않지만, 스케줄러 호출부와 같은 시각을 쓰도록 파라미터로 받는다.
+     * ★ 작성일이 수집 시각보다 3일 넘게 앞선 리뷰는 제외한다(T-29, 기능 플래그와 무관하게 항상).
+     *   신규 연동 백필(90일)로 들어온 옛 리뷰는 말투 학습(RC_LIST)용이다 — 초안을 만들면 LLM 과금에
+     *   옛 리뷰 답글 폭탄이 된다. 정기 수집은 최근 COLLECT_LOOKBACK_DAYS(2)일만 보므로 걸리지 않는다.
+     *   ★ worker 의 COLLECT_LOOKBACK_DAYS 를 3 이상으로 올리면 이 값도 함께 올릴 것.
      * ★ 선택형 요금의 배열 포함 조건(active_delivery_platforms)은 JPQL 에서 안정적으로 표현되지 않아(array_contains 가
      *   text[] @> varchar 로 풀려 실패) 네이티브로 쓴다. Pageable 은 LIMIT/OFFSET 으로 적용된다.
      */
     @Query(value = """
             SELECT r.* FROM unified_review r
              WHERE r.has_owner_reply = false
+               AND r.written_at >= r.collected_at - INTERVAL '3 days'
                AND NOT EXISTS (SELECT 1 FROM reply_draft d
                                 WHERE d.review_id = r.id AND d.status <> 'FAILED')
                AND (SELECT COUNT(*) FROM reply_draft f WHERE f.review_id = r.id) < 3
