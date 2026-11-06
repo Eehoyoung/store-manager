@@ -48,5 +48,13 @@ py_env() { grep -rhoE "(environ\.get\(|getenv\(|environ\[|_ENV *= *)[\"'][A-Z][A
 t "compose: worker 코드가 읽는 env 를 worker 에 전부 넘김" test -z "$(comm -23 <(py_env worker) <(svc_env worker))"
 t "compose: ai-python 코드가 읽는 env 를 ai-python 에 전부 넘김" test -z "$(comm -23 <(py_env ai-python) <(svc_env ai-python))"
 
+# 구독 서비스 가능 조건은 SQL 3곳에 손으로 복제돼 있다 — 하나만 바뀌면 미납 매장에 LLM·DataAPI 비용이 새거나 결제 매장이 멈춘다.
+# 기준은 Subscription.isServiceableAt(status 가 SUSPENDED·CANCELED 아님, service_until > now). 바꿀 때는 4곳을 함께 고칠 것.
+svc_sql() { tr -s ' \n\r\t' ' ' < "$1" | grep -oE "subscription sub WHERE sub\.store_id = [a-z]+\.(store_id|id) AND sub\.status NOT IN \('SUSPENDED', 'CANCELED'\) AND sub\.service_until > (now\(\)|:now)\)" | wc -l; }
+for f in api-spring/src/main/java/com/storemanager/api/review/UnifiedReviewRepository.java api-spring/src/main/java/com/storemanager/api/notify/DailyBriefingService.java worker/credentials.py; do
+  t "구독 조건 동기화: $(basename "$f") 에 같은 조건 1벌" test "$(svc_sql "$f")" -eq 1
+done
+t "구독 조건 동기화: isServiceableAt 이 같은 조건" bash -c "grep -A6 'boolean isServiceableAt' api-spring/src/main/java/com/storemanager/api/billing/Subscription.java | tr -d ' \n\r' | grep -qF '!\"SUSPENDED\".equals(this.status)&&!\"CANCELED\".equals(this.status)&&this.serviceUntil!=null&&now.isBefore(this.serviceUntil)'"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
