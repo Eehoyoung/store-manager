@@ -176,5 +176,11 @@ NE_COLS=$(cat api-spring/src/main/resources/db/migration/*.sql | sed 's/--.*//' 
   sed -E 's/.*CREATE TABLE[^(]*\((.*)\)[^)]*$/\1/I' | grep -oiE '(^|,|ADD COLUMN( IF NOT EXISTS)?) *[a-z_]+ ' | grep -oE '[a-z_]+ $' | tr -d ' ' | grep -vxE 'unique|primary|constraint|check|foreign' | sort -u)
 t "네이버 규칙 3: naver_review_event 컬럼이 허용 목록과 같음(본문 컬럼 없음)" test "$(echo $NE_COLS)" = "$NE_ALLOWED"
 
+# compose 가 기본값 없이 받는 키(${K:?}·${K})는 env.example 에 있어야 한다 — preflight.sh 는 서버 env 를 env.example 과만
+# 대조하므로, 여기서 빠지면 preflight 는 PASS 인데 배포에서 기동이 실패한다(빈 값으로 뜨거나 :? 로 멈춤).
+CE_MISSING=$(grep -oE '\$\{[A-Z][A-Z0-9_]*(:?\?|\})' deploy/docker-compose.prod.yml | sed -E 's/^\$\{//; s/[:?}]+$//' | sort -u |
+  comm -23 - <(grep -oE '^[A-Z][A-Z0-9_]*=' deploy/env.example | tr -d = | sort -u))
+t "compose 기본값 없는 키가 env.example 에 전부 있음${CE_MISSING:+ — 빠짐: $(echo $CE_MISSING)}" test -z "$CE_MISSING"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
