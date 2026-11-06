@@ -182,5 +182,13 @@ CE_MISSING=$(grep -oE '\$\{[A-Z][A-Z0-9_]*(:?\?|\})' deploy/docker-compose.prod.
   comm -23 - <(grep -oE '^[A-Z][A-Z0-9_]*=' deploy/env.example | tr -d = | sort -u))
 t "compose 기본값 없는 키가 env.example 에 전부 있음${CE_MISSING:+ — 빠짐: $(echo $CE_MISSING)}" test -z "$CE_MISSING"
 
+# 서비스 간 호출은 2개만(CLAUDE.md 경계): Spring→Python POST /internal/ai/analyze-and-draft · Worker→Spring POST /internal/collect-result.
+SJ=api-spring/src/main/java
+t "서비스 경계: ai.base-url 은 AiClient 만 씀" test "$(grep -rl 'ai\.base-url' $SJ)" = "$SJ/com/storemanager/api/ai/AiClient.java"
+t "서비스 경계: AiClient 가 부르는 경로는 analyze-and-draft 하나" test "$(grep -oE '\.uri\("[^"]*"' $SJ/com/storemanager/api/ai/AiClient.java | sort -u)" = '.uri("/internal/ai/analyze-and-draft"'
+t "서비스 경계: worker 의 HTTP 호출은 dataapi.py·tasks.py 각 1곳" test "$(grep -rlE 'httpx\.(post|get|put|patch|delete|request|stream|Client|AsyncClient)\(|import requests|urllib\.request|aiohttp' worker --include=*.py --exclude-dir=tests | sort | tr '\n' ' ')$(grep -rhcE 'httpx\.(post|get|put|patch|delete|request|stream|Client|AsyncClient)\(' worker/dataapi.py worker/tasks.py | tr '\n' ' ')" = "worker/dataapi.py worker/tasks.py 1 1 "
+t "서비스 경계: worker → Spring 경로는 collect-result 하나" test "$(grep -rhoE 'SPRING_INTERNAL_URL\}[^"]*' worker --include=*.py --exclude-dir=tests | sort -u)" = 'SPRING_INTERNAL_URL}/internal/collect-result'
+t "서비스 경계: ai-python 은 다른 서비스를 부르지 않음" bash -c "! grep -rlE 'import httpx|from httpx|import requests|urllib\.request|aiohttp|SPRING_INTERNAL_URL|api-spring:' ai-python --include=*.py --exclude-dir=tests | grep -q ."
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
