@@ -136,5 +136,32 @@ t "local-ci: 여유 2.9GB 면 진행" bash -c "MEMINFO=$LC_TMP/ok $LC 2>&1 | gre
 t "local-ci: 기준은 LOCAL_CI_MIN_FREE_MB 로 조정" bash -c "LOCAL_CI_MIN_FREE_MB=5000 MEMINFO=$LC_TMP/ok $LC 2>&1 | grep -q '< 5000MB'"
 rm -rf "$LC_TMP"
 
+# predeploy-report.sh — git 만 읽는다. 가짜 저장소에서 주의 판정을 돌려 본다.
+PR=deploy/predeploy-report.sh
+t "bash -n $PR" bash -n $PR
+t "predeploy: env 파일·컨테이너·printenv 를 보지 않음" bash -c "! grep -vE '^\s*#' $PR | grep -qE '/etc/storemanager|\.env|docker (compose|exec|ps|run)|printenv|psql'"
+PR_TMP=$(mktemp -d); PRG="git -C $PR_TMP -c core.autocrlf=false -c user.name=t -c user.email=t@t"
+mkdir -p "$PR_TMP/api-spring/src/main/resources/db/migration" "$PR_TMP/deploy"
+git init -q "$PR_TMP"
+echo 'RISK_FLAGS="api-spring:FOO_ENABLED"' > "$PR_TMP/deploy/postdeploy-check.sh"
+printf '      FOO_ENABLED: ${FOO_ENABLED:-false}\n' > "$PR_TMP/deploy/docker-compose.prod.yml"
+echo 'create table a(x int);' > "$PR_TMP/api-spring/src/main/resources/db/migration/V1__a.sql"
+$PRG add -A && $PRG commit -qm base && $PRG tag base
+echo 'create table b(x int);' > "$PR_TMP/api-spring/src/main/resources/db/migration/V2__b.sql"
+printf '      NEW_K: ${NEW_K:-v}\n' >> "$PR_TMP/deploy/docker-compose.prod.yml"
+$PRG add -A && $PRG commit -qm ok && $PRG tag ok
+pr_on() { $PRG checkout -q ok && $PRG checkout -q -b "$1" && eval "$2" && $PRG commit -qam "$1" && $PRG tag "$1"; }
+pr_on edit "echo '-- x' >> $PR_TMP/api-spring/src/main/resources/db/migration/V1__a.sql"
+pr_on req "printf '      REQ: \${REQ:?}\n' >> $PR_TMP/deploy/docker-compose.prod.yml"
+pr_on flag "sed -i 's/FOO_ENABLED:-false/FOO_ENABLED:-true/' $PR_TMP/deploy/docker-compose.prod.yml"
+pr() { REPO_DIR=$PR_TMP bash $PR "$@" > "$PR_TMP/out" 2>&1; }
+t "predeploy: 새 마이그레이션·새 키만이면 주의 0" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; pr base ok && grep -q '새 파일 V2__b.sql' $PR_TMP/out && grep -q \"NEW_K (기본 'v')\" $PR_TMP/out && grep -q 'FOO_ENABLED 기본 false' $PR_TMP/out"
+t "predeploy: 기존 마이그레이션 수정이면 주의" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; ! pr base edit && grep -q '★ 기존 마이그레이션 M V1__a.sql' $PR_TMP/out"
+t "predeploy: 기본값 없는 새 필수 env 면 주의" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; ! pr base req && grep -q '★ REQ' $PR_TMP/out"
+t "predeploy: 위험 플래그 기본값이 false 아니면 주의" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; ! pr base flag && grep -q \"★ FOO_ENABLED 기본 'true'\" $PR_TMP/out"
+t "predeploy: 운영 커밋이 조상 아니면 주의" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; ! pr edit req && grep -q '조상이 아님' $PR_TMP/out"
+t "predeploy: 없는 커밋이면 exit 2" bash -c "$(declare -f pr); PR=$PR PR_TMP=$PR_TMP; pr deadbeef ok; [ \$? -eq 2 ]"
+rm -rf "$PR_TMP"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
