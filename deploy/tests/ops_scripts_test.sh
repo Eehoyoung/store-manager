@@ -56,5 +56,13 @@ for f in api-spring/src/main/java/com/storemanager/api/review/UnifiedReviewRepos
 done
 t "구독 조건 동기화: isServiceableAt 이 같은 조건" bash -c "grep -A6 'boolean isServiceableAt' api-spring/src/main/java/com/storemanager/api/billing/Subscription.java | tr -d ' \n\r' | grep -qF '!\"SUSPENDED\".equals(this.status)&&!\"CANCELED\".equals(this.status)&&this.serviceUntil!=null&&now.isBefore(this.serviceUntil)'"
 
+# 게시 방어선 3중(절대규칙 3)의 위험 차단선은 세 곳에 따로 적혀 있다 — 한 곳만 올라가면 그 방어선이 risk 3 을 통과시킨다.
+t "방어선 동기화: DraftService 차단선 3" grep -qE 'static final (short|int) RISK_AUTO_BLOCK_LEVEL = 3;' api-spring/src/main/java/com/storemanager/api/draft/DraftService.java
+t "방어선 동기화: DraftService 가 차단선 미만만 자동 승인" grep -qF 'analysis.riskLevel() < RISK_AUTO_BLOCK_LEVEL' api-spring/src/main/java/com/storemanager/api/draft/DraftService.java
+t "방어선 동기화: PublishScheduler 차단선 3" grep -qE 'static final short RISK_BLOCK_LEVEL = 3;' api-spring/src/main/java/com/storemanager/api/draft/PublishScheduler.java
+t "방어선 동기화: PublishScheduler 가 차단선 이상·미승인을 막음" grep -qF 'riskLevel >= RISK_BLOCK_LEVEL && !humanApproved' api-spring/src/main/java/com/storemanager/api/draft/PublishScheduler.java
+t "방어선 동기화: publish.is_risk_blocked 차단선 3" grep -qxE 'RISK_BLOCK_THRESHOLD = 3' worker/publish.py
+t "방어선 동기화: is_risk_blocked 가 차단선 미만만 통과" grep -qF 'if risk < RISK_BLOCK_THRESHOLD:' worker/publish.py
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
