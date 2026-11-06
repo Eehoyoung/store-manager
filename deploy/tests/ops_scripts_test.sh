@@ -114,5 +114,27 @@ t "postdeploy: 명시적 false 는 통과" env FAKE_ENV='BACKFILL_ENABLED=false 
 t "postdeploy: 배포 로그에 빌드 실패면 FAIL" bash -c "echo '빌드 실패' >> $PD_TMP/log; ! $PD $PD_SHA"
 rm -rf "$PD_TMP"
 
+# local-ci.sh — 여유 메모리가 기준 미만이면 빌드를 시작하지 않는다(가짜 meminfo 로 확인).
+# ★ 빌드가 절대 돌지 않게, 첫 빌드 단계 앞(LOG=)에서 자른 사본을 돌린다. 끝까지 오면 REACHED 를 찍는다.
+LC_TMP=$(mktemp -d); mkdir -p "$LC_TMP/deploy"
+sed '/^LOG=\$(mktemp -d)/,$d' deploy/local-ci.sh > "$LC_TMP/deploy/local-ci.sh"; echo 'echo REACHED' >> "$LC_TMP/deploy/local-ci.sh"
+LC="bash $LC_TMP/deploy/local-ci.sh"
+printf 'MemTotal: 8000000 kB
+MemFree: 1200000 kB
+' > "$LC_TMP/low"
+printf 'MemTotal: 8000000 kB
+MemFree: 4000000 kB
+MemAvailable: 1000000 kB
+' > "$LC_TMP/avail_low"
+printf 'MemTotal: 8000000 kB
+MemAvailable: 3000000 kB
+' > "$LC_TMP/ok"
+t "local-ci: 사본이 빌드 단계 앞에서 잘림" bash -c "! grep -q '^step ' $LC_TMP/deploy/local-ci.sh"
+t "local-ci: 여유 1.2GB 면 exit 3·진행 안 함" bash -c "MEMINFO=$LC_TMP/low $LC > $LC_TMP/out 2>&1; [ \$? -eq 3 ] && grep -q '시작하지 않는다' $LC_TMP/out && ! grep -q REACHED $LC_TMP/out"
+t "local-ci: MemAvailable 이 있으면 그것으로 판정" bash -c "MEMINFO=$LC_TMP/avail_low $LC >/dev/null 2>&1; [ \$? -eq 3 ]"
+t "local-ci: 여유 2.9GB 면 진행" bash -c "MEMINFO=$LC_TMP/ok $LC 2>&1 | grep -q REACHED"
+t "local-ci: 기준은 LOCAL_CI_MIN_FREE_MB 로 조정" bash -c "LOCAL_CI_MIN_FREE_MB=5000 MEMINFO=$LC_TMP/ok $LC 2>&1 | grep -q '< 5000MB'"
+rm -rf "$LC_TMP"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

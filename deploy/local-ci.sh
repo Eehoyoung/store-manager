@@ -35,6 +35,17 @@ if [ "$RECORD" = 1 ]; then
   git branch -r --contains "$SHA" | grep -q . || { echo "HEAD($SHA)가 origin 에 없다 — 먼저 푸시"; exit 2; }
 fi
 
+# 메모리가 모자라면 시작하지 않는다 — 11-06 --record 가 여유 1.2GB 에서 강제 종료돼 반영 차례를 날렸다.
+#   LOCAL_CI_MIN_FREE_MB 로 기준(기본 2560 = 런북 2.5GB), MEMINFO 로 읽을 파일(시험용)을 바꿀 수 있다.
+MIN_FREE_MB=${LOCAL_CI_MIN_FREE_MB:-2560}
+MEMINFO=${MEMINFO:-/proc/meminfo}
+FREE_KB=$(awk '/^MemAvailable:/ {a=$2} /^MemFree:/ {f=$2} END {print (a != "" ? a : f)}' "$MEMINFO" 2>/dev/null)
+if [ -z "$FREE_KB" ]; then
+  echo "여유 메모리를 읽지 못했다($MEMINFO) — 확인 없이 진행"
+elif [ $((FREE_KB / 1024)) -lt "$MIN_FREE_MB" ]; then
+  echo "여유 메모리 $((FREE_KB / 1024))MB < ${MIN_FREE_MB}MB — 시작하지 않는다(다른 빌드·IDE 를 닫고 다시)"; exit 3
+fi
+
 LOG=$(mktemp -d)
 FAILED=""
 SUMMARY=""
