@@ -80,5 +80,39 @@ SPRING_FLAGS=$(grep -rhoE '(blockForScheduling\(|appendFlag\([^,]+, |new String\
 t "차단 사유 정본 읽힘(Spring draft)" test "$(echo "$SPRING_FLAGS" | wc -l)" -ge 10
 t "차단 사유 라벨: labels.ts 에 Spring 차단 사유 전부" test -z "$(comm -23 <(echo "$SPRING_FLAGS") <(grep -oE '^  [A-Z][A-Z0-9_]+:' web/src/lib/labels.ts | tr -d ' :' | sort -u))"
 
+# postdeploy-check.sh — 읽기만 한다. 가짜 compose 로 실제 판정을 돌려 본다(값이 출력되지 않는지까지).
+P=deploy/postdeploy-check.sh
+t "bash -n $P" bash -n $P
+t "postdeploy: 재시작·쓰기·env 출력 명령 없음" bash -c "! grep -vE '^\s*#' $P | grep -qE '(compose|DC)[^|]* (up|restart|down|stop|kill|rm|pull|build)\b|printenv|docker inspect|/etc/storemanager/env[^\"]*\" *\$|cat [^|]*env|>> *\"?/'"
+for sf in $(grep -oE '^RISK_FLAGS="[^"]+"' $P | cut -d'"' -f2); do
+  t "postdeploy: ${sf#*:} 는 compose ${sf%%:*} 에 기본 false" bash -c "sed -n '/^  ${sf%%:*}:/,/^  [a-z]/p' deploy/docker-compose.prod.yml | grep -qF '${sf#*:}: \${${sf#*:}:-false}'"
+done
+PD_TMP=$(mktemp -d)
+git init -q "$PD_TMP/repo" && git -C "$PD_TMP/repo" -c user.email=t@t -c user.name=t commit -q --allow-empty -m x
+PD_SHA=$(git -C "$PD_TMP/repo" rev-parse HEAD)
+echo "배포 완료" > "$PD_TMP/log"
+cat > "$PD_TMP/dc" <<'DC'
+#!/usr/bin/env bash
+case $1 in
+  ps) printf '%s\n' "${FAKE_PS:-api-spring running healthy
+worker running }" ;;
+  exec) shift 2; svc=$1; shift
+        if [ "$1" = test ]; then exit 0; fi
+        shift 2; env ${FAKE_ENV:-} sh -c "$1" ;;
+esac
+DC
+chmod +x "$PD_TMP/dc"
+printf '%s
+' '#!/usr/bin/env bash' "REPO_DIR=$PD_TMP/repo DEPLOY_LOG=$PD_TMP/log DC=$PD_TMP/dc exec bash $P \"\$@\" > $PD_TMP/out 2>&1" > "$PD_TMP/pd"
+PD="bash $PD_TMP/pd"
+t "postdeploy: 정상이면 통과" $PD $PD_SHA
+t "postdeploy: 커밋이 다르면 FAIL" bash -c "! $PD 0000000"
+t "postdeploy: unhealthy 면 FAIL" bash -c "! FAKE_PS='worker running unhealthy' $PD $PD_SHA"
+t "postdeploy: 플래그 켜지면 FAIL·값은 출력 안 함" bash -c "! FAKE_ENV=BACKFILL_ENABLED=true $PD $PD_SHA && grep -q 'BACKFILL_ENABLED 꺼짐 아님' $PD_TMP/out && ! grep -q 'true' $PD_TMP/out"
+t "postdeploy: Spring 이 켜짐으로 읽는 'TRUE'·'1' 도 FAIL" bash -c "! FAKE_ENV=ALIMTALK_ENABLED=TRUE $PD $PD_SHA && ! FAKE_ENV=TIERED_PRICING_ENABLED=1 $PD $PD_SHA"
+t "postdeploy: 명시적 false 는 통과" env FAKE_ENV='BACKFILL_ENABLED=false ALIMTALK_ENABLED=false' $PD $PD_SHA
+t "postdeploy: 배포 로그에 빌드 실패면 FAIL" bash -c "echo '빌드 실패' >> $PD_TMP/log; ! $PD $PD_SHA"
+rm -rf "$PD_TMP"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
