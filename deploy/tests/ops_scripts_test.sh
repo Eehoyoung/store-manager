@@ -192,8 +192,8 @@ t "서비스 경계: ai-python 은 다른 서비스를 부르지 않음" bash -c
 
 # 배포 후 확인(postdeploy-check.sh)의 RISK_FLAGS 는 compose 에서 기본 false 인 _ENABLED 플래그와 맞아야 한다 —
 # 새 대표 결정 플래그가 생겼는데 배포 후 확인에서 빠지거나, 이름·서비스가 틀려 '확인 불가'로 새는 일을 막는다.
-# 예외는 켜도 대표 결정이 아닌 것만(이유를 옆에 쓴다): READINESS_SUMMARY 는 관리자 주소 메일만, HQ_REVIEW_ACCESS·GOLDENSET_EVAL 은 부대표 결정 대기(넣으면 이 목록에서 빼고 RISK_FLAGS 에 넣는다).
-RF_EXEMPT="api-spring:HQ_REVIEW_ACCESS_ENABLED api-spring:READINESS_SUMMARY_ENABLED ai-python:GOLDENSET_EVAL_ENABLED"
+# 예외(이유를 옆에 쓴다): READINESS_SUMMARY 는 관리자 주소에만 메일 — 켜도 대표 결정 아님. HQ_REVIEW_ACCESS 는 운영 true, 대표 확인 대기(CEO_TODO 18).
+RF_EXEMPT="api-spring:HQ_REVIEW_ACCESS_ENABLED api-spring:READINESS_SUMMARY_ENABLED"
 RF_COMPOSE=$(awk '/^  [a-z][a-z0-9-]*:$/{s=$1; sub(/:$/,"",s)} $1 ~ /^[A-Z][A-Z0-9_]*_ENABLED:$/ && $2 ~ /:-false\}$/ {k=$1; sub(/:$/,"",k); print s":"k}' deploy/docker-compose.prod.yml | sort -u)
 RF_LISTED=$(echo $(sed -n 's/^RISK_FLAGS="\(.*\)"$/\1/p' deploy/postdeploy-check.sh) $RF_EXEMPT | tr ' ' '\n' | sort -u)
 RF_MISSING=$(comm -23 <(echo "$RF_COMPOSE") <(echo "$RF_LISTED"))
