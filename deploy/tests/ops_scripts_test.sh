@@ -208,7 +208,7 @@ c { b = b " " $0; d += gsub(/\(/, "(") - gsub(/\)/, ")"); if (d <= 0) { print at
 LG_PL='while (<STDIN>) { my ($at, $s) = split /\t/, $_, 2;
   $s =~ s#\bf(["'"'"'])(.*?)\1#join " ", $2 =~ m/\{([^}]*)\}/g#ge; $s =~ s/(["'"'"'])(?:\.|(?!\1).)*\1/""/g;
   $s =~ s{//.*}{} if $at =~ /\.java:/; $s =~ s/\s#.*// if $at =~ /\.py:/; $s =~ s/\b_?mask\w*\([^)]*\)/MASKED/gi;
-  print "$at " if $s =~ /LOGINPWD|passw|pwd|nick_?name|author_?name|writer_?name|cookie|secret|token|credential|phone|email/i }'
+  print "$at " if $s =~ /LOGINPWD|passw|pwd|nick_?name|author_?(name|raw)|writer_?name|cookie|secret|token|credential|phone|email/i }'
 lg_scan() { { find "$@" -name '*.py' -not -path '*/tests/*'; find "$@" -name '*.java' -not -path '*/test/*'; } | sort | xargs awk "$LG_AWK" | perl -e "$LG_PL"; }
 LG_HITS=$(lg_scan worker ai-python api-spring/src/main/java)
 t "절대규칙 5·6: 로그·print 에 자격증명·작성자 정보 값 없음${LG_HITS:+ — $LG_HITS}" test -z "$LG_HITS"
@@ -216,6 +216,15 @@ LG_FX=$(mktemp -d); printf '%s\n' 'log.info(f"x {req.LOGINPWD}")' 'print(f"t {_m
 printf '%s\n' 'log.warn("nick {}",' '    review.authorNickname());' 'log.info("x {}", storeId); // password' > "$LG_FX/B.java"
 t "절대규칙 5·6: 로깅 검사가 f-string·여러 줄 호출을 잡고 상수·주석·mask 는 넘김" test "$(lg_scan "$LG_FX" | sed "s#$LG_FX/##g")" = "B.java:1 a.py:1 "
 rm -rf "$LG_FX"
+
+# 절대규칙 6 — 배민 원본 닉네임(authorRaw)은 worker 가 normalize 한 곳에서 담고, Spring 은 Pseudonymizer.mask 로만 꺼낸다.
+# 저장되는 작성자 컬럼은 가명처리 결과(author_masked·author_hash)뿐이다.
+AR_SJ=api-spring/src/main/java
+t "절대규칙 6: Spring 에서 authorRaw 를 꺼내는 곳은 pseudonymizer.mask 하나" test "$(grep -rhE '\.authorRaw\(\)|getAuthorRaw' $AR_SJ | sed 's/^ *//')" = 'Pseudonymizer.Result masked = pseudonymizer.mask(rb.authorRaw());'
+t "절대규칙 6: worker 에서 authorRaw 를 담는 곳은 normalize.py 하나" test "$(grep -rlE '["'"'"']authorRaw["'"'"']' worker --include=*.py --exclude-dir=tests)" = worker/normalize.py
+t "절대규칙 6: 마이그레이션의 작성자 컬럼은 author_masked·author_hash 뿐" test "$(cat api-spring/src/main/resources/db/migration/*.sql | sed 's/--.*//' | grep -oiE '\b[a-z_]*(author|nick|writer)[a-z_]*\b' | tr A-Z a-z | sort -u | tr '\n' ' ')" = "author_hash author_masked "
+# #76 로깅 검사는 로거 이름 log 만 본다 — 다른 이름이 생기면 검사 밖으로 새므로 여기서 막는다.
+t "절대규칙 5·6: 로거 변수 이름은 log 하나(Java·Python)" test "$(grep -rhoE '\bLogger +[A-Za-z_]+ *=' $AR_SJ | sort -u)$(grep -rhoE '^[[:space:]]*[A-Za-z_]+ *= *(logging\.getLogger|get_task_logger|structlog\.get_logger)' worker ai-python --include=*.py --exclude-dir=tests | sed 's/[[:space:]]//g' | sort -u)" = "Logger log =log=logging.getLogger"
 
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

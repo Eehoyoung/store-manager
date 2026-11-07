@@ -88,7 +88,8 @@ describe("manifest 권한 스캔", () => {
  * 이 둘은 프레임워크에 입력값 변경을 알리는 것이고 게시가 아니다. 그 밖의 dispatchEvent·
  * requestSubmit·new SubmitEvent·new Event("submit") 등은 사람 대신 게시를 흉내 낼 수 있어 막는다.
  */
-const EVENT_API = /\.dispatchEvent\(|\bnew [A-Za-z]*Event\(|\.requestSubmit\(|\.(createEvent|initEvent)\(/;
+// 이름 단위로 본다 — el["dispatchEvent"](…)·"dispatchEvent (" 같은 표기도 잡는다. 주석 줄(// · * 로 시작)은 뺀다.
+const EVENT_API = /\b(dispatchEvent|requestSubmit|createEvent|initEvent)\b|\bnew\s+[A-Za-z]*Event\b/;
 const INSERT_FILE = path.join("content", "index.ts");
 const ALLOWED_EVENT_LINES = new Set([
   'textarea.dispatchEvent(new Event("input", { bubbles: true }));',
@@ -100,7 +101,7 @@ function eventApiViolations(rel: string, content: string): string[] {
   const start = lines.findIndex((l) => l.startsWith("export function insertDraft("));
   const end = start < 0 ? -1 : lines.findIndex((l, i) => i > start && l === "}");
   return lines.flatMap((line, i) => {
-    if (!EVENT_API.test(line)) return [];
+    if (/^\s*(\/\/|\*|\/\*)/.test(line) || !EVENT_API.test(line)) return [];
     const allowed =
       rel === INSERT_FILE && i > start && i < end && ALLOWED_EVENT_LINES.has(line.trim());
     return allowed ? [] : [`${rel}:${i + 1}`];
@@ -129,6 +130,8 @@ describe("이벤트 생성·발송은 답글 삽입(input·change)뿐", () => {
       '  textarea.dispatchEvent(new Event("submit", { bubbles: true }));',
       "  form.requestSubmit();",
       '  const e = new SubmitEvent("submit");',
+      '  textarea["dispatchEvent"](e);',
+      "  textarea.dispatchEvent (e);",
       "}",
       ok[2],
     ];
@@ -136,7 +139,9 @@ describe("이벤트 생성·발송은 답글 삽입(input·change)뿐", () => {
       `${INSERT_FILE}:3`,
       `${INSERT_FILE}:4`,
       `${INSERT_FILE}:5`,
+      `${INSERT_FILE}:6`,
       `${INSERT_FILE}:7`,
+      `${INSERT_FILE}:9`,
     ]);
     expect(eventApiViolations(path.join("sidepanel", "x.ts"), ok.join("\n"))).toEqual([
       `${path.join("sidepanel", "x.ts")}:2`,
