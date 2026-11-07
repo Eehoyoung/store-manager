@@ -190,5 +190,16 @@ t "서비스 경계: worker 의 HTTP 호출은 dataapi.py·tasks.py 각 1곳" te
 t "서비스 경계: worker → Spring 경로는 collect-result 하나" test "$(grep -rhoE 'SPRING_INTERNAL_URL\}[^"]*' worker --include=*.py --exclude-dir=tests | sort -u)" = 'SPRING_INTERNAL_URL}/internal/collect-result'
 t "서비스 경계: ai-python 은 다른 서비스를 부르지 않음" bash -c "! grep -rlE 'import httpx|from httpx|import requests|urllib\.request|aiohttp|SPRING_INTERNAL_URL|api-spring:' ai-python --include=*.py --exclude-dir=tests | grep -q ."
 
+# 배포 후 확인(postdeploy-check.sh)의 RISK_FLAGS 는 compose 에서 기본 false 인 _ENABLED 플래그와 맞아야 한다 —
+# 새 대표 결정 플래그가 생겼는데 배포 후 확인에서 빠지거나, 이름·서비스가 틀려 '확인 불가'로 새는 일을 막는다.
+# 예외(이유를 옆에 쓴다): READINESS_SUMMARY 는 관리자 주소에만 메일 — 켜도 대표 결정 아님. HQ_REVIEW_ACCESS 는 운영 true, 대표 확인 대기(CEO_TODO 18).
+RF_EXEMPT="api-spring:HQ_REVIEW_ACCESS_ENABLED api-spring:READINESS_SUMMARY_ENABLED"
+RF_COMPOSE=$(awk '/^  [a-z][a-z0-9-]*:$/{s=$1; sub(/:$/,"",s)} $1 ~ /^[A-Z][A-Z0-9_]*_ENABLED:$/ && $2 ~ /:-false\}$/ {k=$1; sub(/:$/,"",k); print s":"k}' deploy/docker-compose.prod.yml | sort -u)
+RF_LISTED=$(echo $(sed -n 's/^RISK_FLAGS="\(.*\)"$/\1/p' deploy/postdeploy-check.sh) $RF_EXEMPT | tr ' ' '\n' | sort -u)
+RF_MISSING=$(comm -23 <(echo "$RF_COMPOSE") <(echo "$RF_LISTED"))
+RF_EXTRA=$(comm -13 <(echo "$RF_COMPOSE") <(echo "$RF_LISTED"))
+t "RISK_FLAGS: compose 기본 false 플래그가 전부 RISK_FLAGS 나 예외에 있음${RF_MISSING:+ — 빠짐: $(echo $RF_MISSING)}" test -n "$RF_COMPOSE" -a -z "$RF_MISSING"
+t "RISK_FLAGS: RISK_FLAGS·예외가 전부 compose 의 그 서비스에 기본 false 로 있음${RF_EXTRA:+ — 없음: $(echo $RF_EXTRA)}" test -z "$RF_EXTRA"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
