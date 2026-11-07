@@ -200,6 +200,22 @@ RF_MISSING=$(comm -23 <(echo "$RF_COMPOSE") <(echo "$RF_LISTED"))
 RF_EXTRA=$(comm -13 <(echo "$RF_COMPOSE") <(echo "$RF_LISTED"))
 t "RISK_FLAGS: compose 기본 false 플래그가 전부 RISK_FLAGS 나 예외에 있음${RF_MISSING:+ — 빠짐: $(echo $RF_MISSING)}" test -n "$RF_COMPOSE" -a -z "$RF_MISSING"
 t "RISK_FLAGS: RISK_FLAGS·예외가 전부 compose 의 그 서비스에 기본 false 로 있음${RF_EXTRA:+ — 없음: $(echo $RF_EXTRA)}" test -z "$RF_EXTRA"
+# 절대규칙 5·6 — 로그·print 에 자격증명·작성자 정보 값이 들어가지 않는다. 호출을 괄호가 닫힐 때까지 모은 뒤
+# 값이 아닌 부분(문자열 상수·f-string 의 글자·주석)을 지우고 민감어가 남으면 실패. 예외는 패턴 하나: mask* 함수로 감싼 값.
+# ponytail: 정규식 근사(문자열 안 괄호·로거를 변수에 담아 부르는 경우는 못 봄) — 새는 길이 생기면 그 모양을 여기 더한다.
+LG_AWK='!c && /(^|[^A-Za-z_.])(log|logger)\.(trace|debug|info|warn|warning|error|exception|critical)\(|(^|[^A-Za-z_.])print\(|System\.(out|err)\.print/ { c = 1; b = ""; at = FILENAME ":" FNR; d = 0 }
+c { b = b " " $0; d += gsub(/\(/, "(") - gsub(/\)/, ")"); if (d <= 0) { print at "\t" b; c = 0 } }'
+LG_PL='while (<STDIN>) { my ($at, $s) = split /\t/, $_, 2;
+  $s =~ s#\bf(["'"'"'])(.*?)\1#join " ", $2 =~ m/\{([^}]*)\}/g#ge; $s =~ s/(["'"'"'])(?:\.|(?!\1).)*\1/""/g;
+  $s =~ s{//.*}{} if $at =~ /\.java:/; $s =~ s/\s#.*// if $at =~ /\.py:/; $s =~ s/\b_?mask\w*\([^)]*\)/MASKED/gi;
+  print "$at " if $s =~ /LOGINPWD|passw|pwd|nick_?name|author_?name|writer_?name|cookie|secret|token|credential|phone|email/i }'
+lg_scan() { { find "$@" -name '*.py' -not -path '*/tests/*'; find "$@" -name '*.java' -not -path '*/test/*'; } | sort | xargs awk "$LG_AWK" | perl -e "$LG_PL"; }
+LG_HITS=$(lg_scan worker ai-python api-spring/src/main/java)
+t "절대규칙 5·6: 로그·print 에 자격증명·작성자 정보 값 없음${LG_HITS:+ — $LG_HITS}" test -z "$LG_HITS"
+LG_FX=$(mktemp -d); printf '%s\n' 'log.info(f"x {req.LOGINPWD}")' 'print(f"t {_mask(TOKEN)}")' 'print("token 비어 있음")' > "$LG_FX/a.py"
+printf '%s\n' 'log.warn("nick {}",' '    review.authorNickname());' 'log.info("x {}", storeId); // password' > "$LG_FX/B.java"
+t "절대규칙 5·6: 로깅 검사가 f-string·여러 줄 호출을 잡고 상수·주석·mask 는 넘김" test "$(lg_scan "$LG_FX" | sed "s#$LG_FX/##g")" = "B.java:1 a.py:1 "
+rm -rf "$LG_FX"
 
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
