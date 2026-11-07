@@ -82,3 +82,65 @@ describe("manifest 권한 스캔", () => {
     }
   });
 });
+
+/**
+ * 네이버 규칙 8 — 이벤트를 만들거나 보내는 코드는 insertDraft 안의 input·change 두 줄뿐이다.
+ * 이 둘은 프레임워크에 입력값 변경을 알리는 것이고 게시가 아니다. 그 밖의 dispatchEvent·
+ * requestSubmit·new SubmitEvent·new Event("submit") 등은 사람 대신 게시를 흉내 낼 수 있어 막는다.
+ */
+const EVENT_API = /\.dispatchEvent\(|\bnew [A-Za-z]*Event\(|\.requestSubmit\(|\.(createEvent|initEvent)\(/;
+const INSERT_FILE = path.join("content", "index.ts");
+const ALLOWED_EVENT_LINES = new Set([
+  'textarea.dispatchEvent(new Event("input", { bubbles: true }));',
+  'textarea.dispatchEvent(new Event("change", { bubbles: true }));',
+]);
+
+function eventApiViolations(rel: string, content: string): string[] {
+  const lines = content.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.startsWith("export function insertDraft("));
+  const end = start < 0 ? -1 : lines.findIndex((l, i) => i > start && l === "}");
+  return lines.flatMap((line, i) => {
+    if (!EVENT_API.test(line)) return [];
+    const allowed =
+      rel === INSERT_FILE && i > start && i < end && ALLOWED_EVENT_LINES.has(line.trim());
+    return allowed ? [] : [`${rel}:${i + 1}`];
+  });
+}
+
+describe("이벤트 생성·발송은 답글 삽입(input·change)뿐", () => {
+  it("소스 전체에 허용 밖 이벤트 API 가 없다", () => {
+    const hits = listSourceFiles(SRC_ROOT).flatMap((f) =>
+      eventApiViolations(path.relative(SRC_ROOT, f), readFileSync(f, "utf-8")),
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it("검사기: insertDraft 안 input·change 만 통과, 다른 이벤트·다른 위치는 잡는다", () => {
+    const ok = [
+      "export function insertDraft(item: Element): boolean {",
+      '  textarea.dispatchEvent(new Event("input", { bubbles: true }));',
+      '  textarea.dispatchEvent(new Event("change", { bubbles: true }));',
+      "}",
+    ];
+    expect(eventApiViolations(INSERT_FILE, ok.join("\n"))).toEqual([]);
+    const bad = [
+      ok[0],
+      ok[1],
+      '  textarea.dispatchEvent(new Event("submit", { bubbles: true }));',
+      "  form.requestSubmit();",
+      '  const e = new SubmitEvent("submit");',
+      "}",
+      ok[2],
+    ];
+    expect(eventApiViolations(INSERT_FILE, bad.join("\n"))).toEqual([
+      `${INSERT_FILE}:3`,
+      `${INSERT_FILE}:4`,
+      `${INSERT_FILE}:5`,
+      `${INSERT_FILE}:7`,
+    ]);
+    expect(eventApiViolations(path.join("sidepanel", "x.ts"), ok.join("\n"))).toEqual([
+      `${path.join("sidepanel", "x.ts")}:2`,
+      `${path.join("sidepanel", "x.ts")}:3`,
+    ]);
+  });
+});
