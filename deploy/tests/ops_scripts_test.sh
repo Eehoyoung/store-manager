@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # restore-test.sh · rotate-secrets.sh · backup.sh 정적 검사 — 실행하지 않고 문장만 본다.
 #   bash deploy/tests/ops_scripts_test.sh
+# ★ git grep 을 쓰는 검사는 추적 파일만 본다 — 새 파일은 git add 뒤에 검사된다.
 set -u
 cd "$(dirname "$0")/../.."
 ok=0; bad=0
@@ -98,14 +99,18 @@ case $1 in
 worker running }" ;;
   exec) shift 2; svc=$1; shift
         if [ "$1" = test ]; then exit 0; fi
-        shift 2; env ${FAKE_ENV:-} sh -c "$1" ;;
+        shift 2; env APP_DEPLOY_SHA=$FAKE_DEPLOY_SHA ${FAKE_ENV:-} sh -c "$1" ;;
 esac
 DC
 chmod +x "$PD_TMP/dc"
 printf '%s
-' '#!/usr/bin/env bash' "REPO_DIR=$PD_TMP/repo DEPLOY_LOG=$PD_TMP/log DC=$PD_TMP/dc exec bash $P \"\$@\" > $PD_TMP/out 2>&1" > "$PD_TMP/pd"
+' '#!/usr/bin/env bash' "FAKE_DEPLOY_SHA=$PD_SHA REPO_DIR=$PD_TMP/repo DEPLOY_LOG=$PD_TMP/log DC=$PD_TMP/dc exec bash $P \"\$@\" > $PD_TMP/out 2>&1" > "$PD_TMP/pd"
 PD="bash $PD_TMP/pd"
 t "postdeploy: 정상이면 통과" $PD $PD_SHA
+t "postdeploy: 정상이면 실행 커밋 PASS" grep -q '^PASS api-spring 실행 커밋 = 검사한 커밋$' $PD_TMP/out
+t "postdeploy: 실행 커밋이 다르면 FAIL(종료 1)·값은 출력 안 함" bash -c "FAKE_ENV=APP_DEPLOY_SHA=abcdef1234 $PD $PD_SHA; [ \$? = 1 ] && grep -q '실행 커밋 ≠' $PD_TMP/out && ! grep -q abcdef $PD_TMP/out"
+t "postdeploy: 실행 커밋이 비면 WARN(종료 3)·FAIL 0건" bash -c "FAKE_ENV=APP_DEPLOY_SHA= $PD $PD_SHA; [ \$? = 3 ] && grep -q '^WARN api-spring 실행 커밋 비어 있음' $PD_TMP/out && grep -q '^FAIL 0건 · WARN 1건$' $PD_TMP/out && ! grep -q '^FAIL api' $PD_TMP/out"
+t "postdeploy: 16진수가 아닌 sha 는 종료 2" bash -c "$PD 'abc;id'; [ \$? = 2 ]"
 t "postdeploy: 커밋이 다르면 FAIL" bash -c "! $PD 0000000"
 t "postdeploy: unhealthy 면 FAIL" bash -c "! FAKE_PS='worker running unhealthy' $PD $PD_SHA"
 t "postdeploy: 플래그 켜지면 FAIL·값은 출력 안 함" bash -c "! FAKE_ENV=BACKFILL_ENABLED=true $PD $PD_SHA && grep -q 'BACKFILL_ENABLED 꺼짐 아님' $PD_TMP/out && ! grep -q 'true' $PD_TMP/out"
