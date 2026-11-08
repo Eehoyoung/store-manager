@@ -228,10 +228,24 @@ t "절대규칙 5·6: 로거 변수 이름은 log 하나(Java·Python)" test "$(
 
 # 절대규칙 2 — DataAPI 성공 판정은 dataapi.parse_envelope 한 곳에서만, data.RESULT == "SUCCESS" 이면서 ECODE 가 빌 때만.
 # 다른 곳에서 RESULT·ECODE 를 직접 읽거나 응답 JSON 을 parse_envelope 없이 쓰면 우회 판정이 생긴다.
-SJ_AT=$(find worker -name '*.py' -not -path '*/tests/*' | sort | xargs awk '/^[[:space:]]*def [A-Za-z_]+/{fn=$0; sub(/^[[:space:]]*def /,"",fn); sub(/\(.*/,"",fn)} /(get\(|\[)["'"'"'](RESULT|ECODE)["'"'"']/{print FILENAME ":" fn}' | sort -u | tr '\n' ' ')
+SJ_AT=$(find worker -name '*.py' -not -path '*/tests/*' | sort | xargs awk 'FNR==1{fn="<module>"} /^[[:space:]]*def [A-Za-z_]+/{fn=$0; sub(/^[[:space:]]*def /,"",fn); sub(/\(.*/,"",fn)} /(get\(|\[)["'"'"'](RESULT|ECODE)["'"'"']/{print FILENAME ":" fn}' | sort -u | tr '\n' ' ')
 t "절대규칙 2: RESULT·ECODE 를 읽는 곳은 dataapi.parse_envelope 뿐${SJ_AT:+ — $SJ_AT}" test "$SJ_AT" = "worker/dataapi.py:parse_envelope "
 t "절대규칙 2: worker 의 응답 JSON 은 parse_envelope 를 거쳐서만 씀" test "$(grep -rhE '\.json\(\)' worker --include=*.py --exclude-dir=tests | sed 's/^[[:space:]]*//')" = 'return parse_envelope(resp.json())'
 t "절대규칙 2: 판정식이 RESULT 와 ECODE 를 함께 봄" grep -qF 'if data.get("RESULT") != "SUCCESS" or _s(data.get("ECODE")) is not None:' worker/dataapi.py
+
+# 절대규칙 7 — 카드번호·CVC·유효기간은 PG 결제창 밖으로 나오지 않는다. 코드·스키마에 그 필드·입력란 이름이 없어야 한다.
+# 약관·안내 문구(한글 "카드번호·CVC")는 대상이 아니다 — 식별자 표기만 본다. SQL 은 -- 주석을 지우고 본다.
+CD_RE='\b(cvc|cvv|csc|cardNumber|card_number|cardNo|card_no|cardNum|card_num|CARD_NUMBER|CARD_NO|cardExpiry|card_expiry|expiryMonth|expiryYear|expiry_month|expiry_year|expMonth|expYear|exp_month|exp_year)\b|cc-(number|csc|exp)'
+CD_HITS=$( { git grep -nE "$CD_RE" -- 'api-spring/src/main/*.java' 'web/src/*.ts' 'web/src/*.tsx' 'extension/src/*.ts' 'worker/*.py' 'ai-python/*.py' ':!*test*' ':!*Test*';
+  for f in api-spring/src/main/resources/db/migration/*.sql; do sed 's/--.*//' "$f" | grep -nE "$CD_RE" | sed "s#^#$f:#"; done; } | cut -d: -f1,2 | tr '\n' ' ')
+t "절대규칙 7: 코드·스키마에 카드 원문 필드·입력란 없음${CD_HITS:+ — $CD_HITS}" test -z "$CD_HITS"
+# 빌링키는 BillingService 의 verifyBillingKey(소유 고객·허용 채널·ISSUED 확인)를 거친 뒤에만 Subscription 에 들어간다.
+CD_BS=api-spring/src/main/java/com/storemanager/api/billing/BillingService.java
+CD_SUB=api-spring/src/main/java/com/storemanager/api/billing/Subscription.java
+t "절대규칙 7: Subscription 에 빌링키를 담는 메서드는 beginTrial·swapBillingKey·chargeSucceeded 셋" test "$(awk '/^    public .*\(/{m=$0; sub(/^    public [A-Za-z<>]+ /,"",m); sub(/\(.*/,"",m)} /this\.billingKey = [^n]/{print m}' $CD_SUB | tr '\n' ' ')" = "beginTrial swapBillingKey chargeSucceeded "
+t "절대규칙 7: 빌링키를 담는 메서드를 부르는 곳은 BillingService 뿐" test "$(git grep -lE '\.(beginTrial|swapBillingKey|chargeSucceeded)\(' -- api-spring/src/main)" = $CD_BS
+t "절대규칙 7: 바깥에서 온 빌링키는 verifyBillingKey 로 시작하는 한 메서드 안에서만 씀" test "$(git grep -lE '\breq\.billingKey\(\)' -- api-spring/src/main)$(awk '/req\.billingKey\(\)/ && !s {s=FNR; ok=/String channelKey = verifyBillingKey\(store, req\.billingKey\(\)\);/} s && !e && FNR>s && /^    \}$/ {e=FNR} /req\.billingKey\(\)/ && e {bad=1} END{print (ok && !bad) ? " ok" : " bad"}' $CD_BS)" = "$CD_BS ok"
+t "절대규칙 7: verifyBillingKey 가 ISSUED·고객 id·채널을 모두 봄" test "$(grep -cE '"ISSUED"\.equals\(info\.path\("status"\)|customerId\(store\)\.equals\(info\.path\("customer"\)\.path\("id"\)|channelKey\.equals\(portOneClient\.channelKey\(\)\)' $CD_BS)" = 3
 
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
