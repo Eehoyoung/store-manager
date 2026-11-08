@@ -226,5 +226,12 @@ t "절대규칙 6: 마이그레이션의 작성자 컬럼은 author_masked·auth
 # #76 로깅 검사는 로거 이름 log 만 본다 — 다른 이름이 생기면 검사 밖으로 새므로 여기서 막는다.
 t "절대규칙 5·6: 로거 변수 이름은 log 하나(Java·Python)" test "$(grep -rhoE '\bLogger +[A-Za-z_]+ *=' $AR_SJ | sort -u)$(grep -rhoE '^[[:space:]]*[A-Za-z_]+ *= *(logging\.getLogger|get_task_logger|structlog\.get_logger)' worker ai-python --include=*.py --exclude-dir=tests | sed 's/[[:space:]]//g' | sort -u)" = "Logger log =log=logging.getLogger"
 
+# 절대규칙 2 — DataAPI 성공 판정은 dataapi.parse_envelope 한 곳에서만, data.RESULT == "SUCCESS" 이면서 ECODE 가 빌 때만.
+# 다른 곳에서 RESULT·ECODE 를 직접 읽거나 응답 JSON 을 parse_envelope 없이 쓰면 우회 판정이 생긴다.
+SJ_AT=$(find worker -name '*.py' -not -path '*/tests/*' | sort | xargs awk '/^[[:space:]]*def [A-Za-z_]+/{fn=$0; sub(/^[[:space:]]*def /,"",fn); sub(/\(.*/,"",fn)} /(get\(|\[)["'"'"'](RESULT|ECODE)["'"'"']/{print FILENAME ":" fn}' | sort -u | tr '\n' ' ')
+t "절대규칙 2: RESULT·ECODE 를 읽는 곳은 dataapi.parse_envelope 뿐${SJ_AT:+ — $SJ_AT}" test "$SJ_AT" = "worker/dataapi.py:parse_envelope "
+t "절대규칙 2: worker 의 응답 JSON 은 parse_envelope 를 거쳐서만 씀" test "$(grep -rhE '\.json\(\)' worker --include=*.py --exclude-dir=tests | sed 's/^[[:space:]]*//')" = 'return parse_envelope(resp.json())'
+t "절대규칙 2: 판정식이 RESULT 와 ECODE 를 함께 봄" grep -qF 'if data.get("RESULT") != "SUCCESS" or _s(data.get("ECODE")) is not None:' worker/dataapi.py
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
