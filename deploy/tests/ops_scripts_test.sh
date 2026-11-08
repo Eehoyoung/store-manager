@@ -247,5 +247,16 @@ t "절대규칙 7: 빌링키를 담는 메서드를 부르는 곳은 BillingServ
 t "절대규칙 7: 바깥에서 온 빌링키는 verifyBillingKey 로 시작하는 한 메서드 안에서만 씀" test "$(git grep -lE '\breq\.billingKey\(\)' -- api-spring/src/main)$(awk '/req\.billingKey\(\)/ && !s {s=FNR; ok=/String channelKey = verifyBillingKey\(store, req\.billingKey\(\)\);/} s && !e && FNR>s && /^    \}$/ {e=FNR} /req\.billingKey\(\)/ && e {bad=1} END{print (ok && !bad) ? " ok" : " bad"}' $CD_BS)" = "$CD_BS ok"
 t "절대규칙 7: verifyBillingKey 가 ISSUED·고객 id·채널을 모두 봄" test "$(grep -cE '"ISSUED"\.equals\(info\.path\("status"\)|customerId\(store\)\.equals\(info\.path\("customer"\)\.path\("id"\)|channelKey\.equals\(portOneClient\.channelKey\(\)\)' $CD_BS)" = 3
 
+# 절대규칙 1 — 리뷰 본문을 만드는 경로는 어떤 형태로도 없다. 답글만 만든다. 허용 목록으로 고정한다:
+# AI 서비스 경로는 /health · analyze-and-draft 둘, 프롬프트 빌더는 분류·답글 둘, LLM 호출은 그 둘을 쓰는 main.py 한 곳.
+# git pathspec 의 * 는 하위 폴더까지 맞으므로 tests 를 뺀다. 독스트링(""" 줄) 속 호출 표기는 세지 않는다.
+RB_PY="ai-python/*.py :!ai-python/tests"
+t "절대규칙 1: AI 서비스 HTTP 경로는 /health 와 analyze-and-draft 뿐" test "$(git grep -hoE '@(app|router)\.[a-z_]+\("[^"]*"|add_api_route\(|include_router\(|APIRouter\(|\.mount\(' -- $RB_PY | tr '\n' ' ')" = '@app.get("/health" @app.post("/internal/ai/analyze-and-draft" '
+t "절대규칙 1: 프롬프트 함수는 prompt_version_for·build_classify_messages·build_generate_messages 셋" test "$(git grep -hoE '^def [a-z_]*(messages|prompt)[a-z_]*\(' -- $RB_PY | tr '\n' ' ')" = "def prompt_version_for( def build_classify_messages( def build_generate_messages( "
+t "절대규칙 1: LLM 호출은 llm.py 의 complete 와 main.py 의 분류·답글 각 1회, SDK import 는 llm.py 뿐" test "$(git grep -nE '\.messages\.(create|parse|stream)\(|\bprovider\.complete\(|\.chat\.completions|\.responses\.create\(' -- $RB_PY | grep -v '"""' | cut -d: -f1 | uniq -c | awk '{printf "%s:%s ", $2, $1}')$(git grep -lE '^\s*(import|from) (anthropic|openai)\b' -- ai-python worker api-spring ':!ai-python/tests' ':!worker/tests')" = "ai-python/llm.py:1 ai-python/main.py:2 ai-python/llm.py"
+t "절대규칙 1: 답글 생성 호출에는 build_generate_messages 결과만 들어감" test "$(grep -B12 'provider\.complete(system, user' ai-python/main.py | grep -cE 'system, user = prompts\.build_generate_messages\(')" = 1
+RB_HITS=$(git grep -nE '\b(generate|write|create|compose|fabricate|fake|synthesi[sz]e)_?[Rr]eviews?(_?(body|text|content|Body|Text|Content))?\b|\b(generate|write|compose|fabricate|fake|synthesi[sz]e)[A-Za-z]*Review(Body|Text|Content)?\b|\b[Rr]eview_?([Ww]riter|[Gg]enerator|[Ff]abricat)|(리뷰|후기)(를|글을|본문을) ?(대신 )?(작성|써|만들|생성)' -- 'ai-python/*.py' 'api-spring/src/main/java' 'worker/*.py' 'web/src' 'extension/src' ':!*test*' ':!*Test*' | cut -d: -f1,2 | tr '\n' ' ')
+t "절대규칙 1: 코드에 리뷰 생성 이름·지시문 없음${RB_HITS:+ — $RB_HITS}" test -z "$RB_HITS"
+
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]
