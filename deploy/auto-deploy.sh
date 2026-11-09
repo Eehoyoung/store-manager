@@ -21,11 +21,19 @@ G="sudo -u $(stat -c %U .) git"
 DC="docker compose -f deploy/docker-compose.prod.yml --env-file ${ENV_FILE:-/etc/storemanager/env}"
 FAILED_MARK=/run/storemanager-deploy.failed
 log() { echo "[deploy $(date -u +%FT%TZ)] $*"; }
+# 점검 화면 '배포 반영' 이 :ro 로 읽는 한 줄(2026-11-09): <결과> <대상 sha|-> <UTC 시각> [<반영 대기 중 가장 오래된 커밋 시각>]  # deploy.status
+# 결과·sha·시각만 쓴다. 임시 파일 → mv 로 바꾸고, 실패해도 배포 결정·종료 코드는 그대로다.  # deploy.status
+STATUS_FILE=${DEPLOY_STATUS_FILE:-deploy/ops-status/deploy.status}  # deploy.status
+RESULT=error; SINCE=  # deploy.status
+record() { { printf '%s %s %s%s\n' "$RESULT" "${NEW:--}" "$(date -u +%FT%TZ)" "${SINCE:+ $SINCE}" >"$STATUS_FILE.tmp" && mv -f "$STATUS_FILE.tmp" "$STATUS_FILE"; } 2>/dev/null || true; }  # deploy.status
+trap record EXIT  # deploy.status
 
 $G fetch -q origin master
 HEAD=$($G rev-parse HEAD)
 NEW=$($G rev-parse origin/master)
+RESULT=idle  # deploy.status
 [ "$HEAD" = "$NEW" ] && exit 0
+RESULT=error  # deploy.status
 
 # 공개 저장소라 토큰 없이 조회한다. 새 커밋이 있을 때만 부르므로(2회) 시간당 60회 제한에 닿지 않는다.
 # ★ check-runs(Actions)에 더해 커밋 상태 context "local-ci"(deploy/local-ci.sh 가 기록)도 인정한다 — D76(2026-10-21)
@@ -34,9 +42,11 @@ GATE_TMP=$(mktemp -d)
 CI=$(curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/check-runs?per_page=100" >"$GATE_TMP/runs.json" \
   && curl -fsS "https://api.github.com/repos/$REPO/commits/$NEW/statuses?per_page=100" >"$GATE_TMP/status.json" \
   && python3 deploy/ci_gate.py "$GATE_TMP/runs.json" "$GATE_TMP/status.json" "${REPO%%/*}") \
-  || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; }
+  || { log "CI 조회 실패(curl·python3) — 다음 주기에 재시도"; CI=wait; RESULT=ci-error; }
 rm -rf "$GATE_TMP"
 
+[ "$RESULT" = ci-error ] || RESULT=$CI  # deploy.status
+if [ "$RESULT" = wait ]; then SINCE=$(date -u -d "@$($G log --format=%ct "HEAD..$NEW" | tail -1)" +%FT%TZ 2>/dev/null) || SINCE=; fi  # deploy.status
 case $CI in
   wait) exit 0 ;; # CI 실행 중 — 다음 주기에 다시 본다
   fail)
@@ -45,10 +55,12 @@ case $CI in
     exit 0 ;;
 esac
 
+RESULT=error  # deploy.status
 CHANGED=$($G diff --name-only "$HEAD" "$NEW")
 $G merge -q --ff-only "$NEW"
 log "${HEAD%"${HEAD#???????}"} → ${NEW%"${NEW#???????}"}"
 
+RESULT=build-fail  # deploy.status
 # 바뀌지 않은 서비스는 빌드 캐시로 끝나고 컨테이너도 교체되지 않는다.
 if ! GIT_SHA=$NEW $DC up -d --build; then
   log "빌드 실패 — 기존 컨테이너 유지. 원인 확인 후 수동: dc up -d --build"
@@ -56,4 +68,5 @@ if ! GIT_SHA=$NEW $DC up -d --build; then
 fi
 # Caddyfile 은 바인드 마운트라 컨테이너가 교체되지 않는다
 if echo "$CHANGED" | grep -qx 'deploy/Caddyfile'; then $DC restart caddy; fi
+RESULT=done  # deploy.status
 log "완료"

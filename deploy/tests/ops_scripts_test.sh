@@ -295,5 +295,78 @@ t "절대규칙 1: 답글 생성 호출에는 build_generate_messages 결과만 
 RB_HITS=$(git grep -nE '\b(generate|write|create|compose|fabricate|fake|synthesi[sz]e)_?[Rr]eviews?(_?(body|text|content|Body|Text|Content))?\b|\b(generate|write|compose|fabricate|fake|synthesi[sz]e)[A-Za-z]*Review(Body|Text|Content)?\b|\b[Rr]eview_?([Ww]riter|[Gg]enerator|[Ff]abricat)|(리뷰|후기)(를|글을|본문을) ?(대신 )?(작성|써|만들|생성)' -- 'ai-python/*.py' 'api-spring/src/main/java' 'worker/*.py' 'web/src' 'extension/src' ':!*test*' ':!*Test*' | cut -d: -f1,2 | tr '\n' ' ')
 t "절대규칙 1: 코드에 리뷰 생성 이름·지시문 없음${RB_HITS:+ — $RB_HITS}" test -z "$RB_HITS"
 
+
+# auto-deploy.sh — 점검 화면용 deploy.status 기록(2026-11-09). 가짜 git·curl·docker 로 실제로 돌린다.
+# ★ '# deploy.status' 줄과 'RESULT=…; ' 조각을 지운 사본(=기록 전 원본)과 배포 결정(종료 코드·로그·부른 명령)이 같아야 한다.
+AD=deploy/auto-deploy.sh
+AD_TMP=$(mktemp -d); mkdir -p "$AD_TMP/bin"
+for f in sudo stat git curl python3 docker flock; do
+  cat > "$AD_TMP/bin/$f" <<FAKE
+#!/usr/bin/env bash
+c=$f
+FAKE
+  cat >> "$AD_TMP/bin/$f" <<'FAKE'
+[ "$c" = sudo ] && { shift 2; exec "$@"; }
+[ "$c" = stat ] && { echo owner; exit 0; }
+[ "$c" = flock ] && exit 0
+[ "$c" = python3 ] && { echo "$FAKE_CI"; exit 0; }
+echo "$c $*" >> "$AD_CALLS"
+case $c in
+  curl) [ "${FAKE_CURL:-}" = fail ] && exit 22; echo '{}' ;;
+  docker) exit "${FAKE_BUILD:-0}" ;;
+  git) case $1 in
+         fetch) [ "${FAKE_FETCH:-}" = fail ] && exit 1 ;;
+         merge) [ "${FAKE_MERGE:-}" = fail ] && exit 1 ;;
+         rev-parse) [ "$2" = HEAD ] && echo "$FAKE_HEAD" || echo "$FAKE_NEW" ;;
+         log) echo 1762000000; echo 1761000000 ;;
+         diff) echo api-spring/x ;;
+       esac ;;
+esac
+exit 0
+FAKE
+  chmod +x "$AD_TMP/bin/$f"
+done
+AD_A=$(printf 'a%.0s' $(seq 40)); AD_B=$(printf 'b%.0s' $(seq 40))
+# 사본 하나를 새 디렉터리에서 돌린다: ad_run <new|base> <이름> [ops-status 만들기 0/1] — 출력은 $AD_TMP/<이름>.{rc,out,calls}
+ad_run() {
+  local d="$AD_TMP/$2"; rm -rf "$d"; mkdir -p "$d/deploy" "$d/run"
+  [ "${3:-1}" = 1 ] && mkdir -p "$d/deploy/ops-status"
+  if [ "$1" = base ]; then sed -e '/# deploy\.status$/d' -e 's/RESULT=[a-z-]*; //' $AD; else cat $AD; fi \
+    | sed "s#/run/#$d/run/#g" > "$d/deploy/auto-deploy.sh"
+  AD_CALLS="$d.calls" PATH="$AD_TMP/bin:$PATH" sh "$d/deploy/auto-deploy.sh" > "$d.out" 2>&1; echo $? > "$d.rc"
+  sed -i -E 's/^\[deploy [^]]*\]/[deploy]/' "$d.out"; touch "$d.calls"; sed -i '/^git log /d' "$d.calls"   # 대기 시작 시각용 읽기 전용 git log 는 비교에서 뺀다
+}
+# 시나리오: 이름 · 기대 결과 · env
+AD_CASES="idle:idle:FAKE_HEAD=$AD_A,FAKE_NEW=$AD_A wait:wait:FAKE_CI=wait cierr:ci-error:FAKE_CURL=fail fail:fail:FAKE_CI=fail build:build-fail:FAKE_CI=ok,FAKE_BUILD=1 done:done:FAKE_CI=ok error:error:FAKE_FETCH=fail merge:error:FAKE_CI=ok,FAKE_MERGE=fail"
+ad_case() { # 이름 기대결과 env
+  ( export FAKE_HEAD=$AD_A FAKE_NEW=$AD_B FAKE_CI= FAKE_CURL= FAKE_BUILD= FAKE_FETCH= FAKE_MERGE=; export ${3//,/ }
+    ad_run new "$1-new"; ad_run base "$1-base"; ad_run new "$1-nodir" 0 )
+}
+ad_same() { # 기록 전 원본과 배포 결정이 같다 — 종료 코드·로그·부른 명령
+  for x in rc out calls; do cmp -s "$AD_TMP/$1-new.$x" "$AD_TMP/$1-base.$x" || return 1; done
+}
+ad_nodir_same() { # 상태 디렉터리가 없어 기록이 실패해도 같다
+  for x in rc out calls; do cmp -s "$AD_TMP/$1-nodir.$x" "$AD_TMP/$1-base.$x" || return 1; done
+}
+ad_status() { # 결과·sha·시각만 한 줄, 임시 파일이 남지 않음
+  local f="$AD_TMP/$1-new/deploy/ops-status/deploy.status"
+  [ "$(wc -l < "$f")" = 1 ] && [ ! -e "$f.tmp" ] \
+    && grep -qE "^$2 ([0-9a-f]{40}|-) [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z( [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)?$" "$f"
+}
+for c in $AD_CASES; do   # ★ t() 가 전역 n 을 쓰므로 다른 이름을 쓴다
+  an=${c%%:*}; ar=${c#*:}; ar=${ar%%:*}; ae=${c##*:}
+  ad_case "$an" "$ar" "$ae"
+  t "auto-deploy($an): 배포 결정이 기록 전 원본과 같음" ad_same "$an"
+  t "auto-deploy($an): 상태 디렉터리 없어도 결정 같음" ad_nodir_same "$an"
+  t "auto-deploy($an): deploy.status '$ar <sha> <시각>' 한 줄" ad_status "$an" "$ar"
+done
+t "auto-deploy: wait 는 반영 대기 중 가장 오래된 커밋 시각을 덧붙임" grep -qE "^wait $AD_B [^ ]+ 2025-10-20T22:40:00Z$" "$AD_TMP/wait-new/deploy/ops-status/deploy.status"
+t "auto-deploy: error 는 sha 를 모르면 '-'" grep -qE '^error - ' "$AD_TMP/error-new/deploy/ops-status/deploy.status"
+t "auto-deploy: 기록 printf 인자는 결과·sha·시각·대기 시작 넷뿐" test "$(grep -oE '^record\(\) \{ \{ printf .* >"\$STATUS_FILE\.tmp"' $AD | grep -oE '"\$[^"]*"' | tr '\n' ' ')" = '"$RESULT" "${NEW:--}" "$(date -u +%FT%TZ)" "${SINCE:+ $SINCE}" "$STATUS_FILE.tmp" '
+t "auto-deploy: 기록은 임시 파일 → mv, 실패 무시" grep -qE '^record\(\) .*>"\$STATUS_FILE\.tmp" && mv -f "\$STATUS_FILE\.tmp" "\$STATUS_FILE"; \} 2>/dev/null \|\| true; \}' $AD
+t "auto-deploy: 결과 값이 ReadinessEvaluator 정규식과 같음" test "$(for c in $AD_CASES; do r=${c#*:}; echo "${r%%:*}"; done | sort -u | xargs)" = "$(grep -oE '"\^\([a-z|-]+\)' api-spring/src/main/java/com/storemanager/api/admin/ReadinessEvaluator.java | tr -d '"^()' | tr '|' ' ' | xargs -n1 | sort | xargs)"
+t "compose: api-spring 이 deploy.status 를 :ro 마운트 안에서 읽음" grep -qE '^      READINESS_DEPLOY_STATUS_FILE: /ops-status/deploy\.status$' deploy/docker-compose.prod.yml
+t "auto-deploy: trap 은 락 뒤(다른 실행 중이면 기록 안 함)" bash -c "awk '/^flock -n 9/{a=NR} /^trap record EXIT/{b=NR} END{exit !(a && b && a<b)}' $AD"
+rm -rf "$AD_TMP"
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

@@ -92,6 +92,8 @@ services:
       - ${OPS_STATUS_DIR:-./ops-status}:/ops-status:ro
     environment:
       READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status
+      # 자동 배포 결과(deploy.status) — 점검 화면 '배포 반영' 이 대기·실패를 나눈다(2026-11-09).
+      READINESS_DEPLOY_STATUS_FILE: /ops-status/deploy.status
       # 운영 콘솔 연동(2026-09-26): 한 줄 JSON 로그 + 관리 포트 분리 + actuator metrics.
       # 관리 포트를 분리하면 8080 의 /actuator/** 는 404 가 된다(Caddy 404 도 유지).
       LOGGING_STRUCTURED_FORMAT_CONSOLE: logstash

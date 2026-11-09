@@ -116,19 +116,57 @@ class ReadinessEvaluatorTest {
     @Test
     void 배포반영_판정() {
         Instant start = NOW.minusSeconds(100000);
-        var off = new ReadinessEvaluator.DeployInfo("abc1234def", start, false, null, null);
+        var off = new ReadinessEvaluator.DeployInfo("abc1234def", start, false, null, null, null);
         assertThat(ReadinessEvaluator.deployItem(off, NOW).status()).isEqualTo("INFO");
         assertThat(ReadinessEvaluator.deployItem(null, NOW).status()).isEqualTo("UNKNOWN");
-        var noSha = new ReadinessEvaluator.DeployInfo("", start, true, "zzz", NOW);
+        var noSha = new ReadinessEvaluator.DeployInfo("", start, true, "zzz", NOW, null);
         assertThat(ReadinessEvaluator.deployItem(noSha, NOW).status()).isEqualTo("UNKNOWN");
-        var failed = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, null, null);
+        var failed = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, null, null, null);
         assertThat(ReadinessEvaluator.deployItem(failed, NOW).status()).isEqualTo("UNKNOWN");
-        var same = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "abc1234def", NOW.minusSeconds(99999));
+        var same = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "abc1234def", NOW.minusSeconds(99999), null);
         assertThat(ReadinessEvaluator.deployItem(same, NOW).status()).isEqualTo("GREEN");
-        var recent = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3600));
+        var recent = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3600), null);
         assertThat(ReadinessEvaluator.deployItem(recent, NOW).status()).isEqualTo("GREEN");
-        var stale = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3601));
+        var stale = new ReadinessEvaluator.DeployInfo("abc1234def", start, true, "new9999", NOW.minusSeconds(3601), null);
         assertThat(ReadinessEvaluator.deployItem(stale, NOW).status()).isEqualTo("RED");
+    }
+
+    /** 1시간 넘게 뒤처졌을 때 auto-deploy 의 deploy.status 로 원인을 나눈다. wait(검사 기록 대기)만 INFO. */
+    @Test
+    void 배포반영_지연_원인() {
+        String head = "c".repeat(40);
+        String at = NOW.minusSeconds(60).toString();
+        record Case(String line, String status, String detail) {}
+        Case[] cases = {
+            new Case(null, "RED", "master 최신 커밋이 1시간 넘게 반영되지 않았습니다."),
+            new Case("", "RED", "master 최신 커밋이 1시간 넘게 반영되지 않았습니다."),
+            new Case("wait " + head + " 어제", "RED", "master 최신 커밋이 1시간 넘게 반영되지 않았습니다."),
+            new Case("wait " + head + " " + NOW.minusSeconds(1801), "RED", "자동 배포가 30분 넘게 돌지 않았습니다(cron·잠금 확인)."),
+            new Case("error - " + at, "RED", "자동 배포가 오류로 끝났습니다(배포 로그 확인)."),
+            new Case("wait " + "d".repeat(40) + " " + at, "RED", "자동 배포가 master 최신 커밋을 아직 보지 못했습니다(cron 확인)."),
+            new Case("wait " + head + " " + at, "INFO", "master 최신 커밋이 검사 기록을 기다립니다(반영 결정 전, 2시간째)."),
+            new Case("wait " + head + " " + at + " " + NOW.minusSeconds(3 * 86400 + 5), "INFO",
+                    "master 최신 커밋이 검사 기록을 기다립니다(반영 결정 전, 3일째)."),
+            new Case("ci-error " + head + " " + at, "RED", "CI 조회 실패가 이어지고 있습니다(GitHub 상태 확인, 5분마다 재시도)."),
+            new Case("fail " + head + " " + at, "RED", "master 최신 커밋이 CI 실패라 배포하지 않았습니다."),
+            new Case("build-fail " + head + " " + at, "RED", "빌드 실패로 기존 컨테이너가 돌고 있습니다(배포 로그 확인)."),
+            new Case("done " + head + " " + at, "RED", "배포는 끝났지만 실행 커밋이 다릅니다(손으로 up 했는지 확인)."),
+            new Case("idle " + head + " " + at, "RED", "배포는 끝났지만 실행 커밋이 다릅니다(손으로 up 했는지 확인)."),
+        };
+        for (Case c : cases) {
+            var d = new ReadinessEvaluator.DeployInfo("abc1234def", NOW.minusSeconds(100000), true, head,
+                    NOW.minusSeconds(7200), c.line());
+            var item = ReadinessEvaluator.deployItem(d, NOW);
+            assertThat(item.status()).as(c.line()).isEqualTo(c.status());
+            assertThat(item.detail()).as(c.line()).isEqualTo("실행 커밋 abc1234 - " + c.detail());
+        }
+        // 30분 경계는 포함, 1시간 이내면 상태 파일과 상관없이 기존 GREEN
+        var edge = new ReadinessEvaluator.DeployInfo("abc1234def", NOW, true, head, NOW.minusSeconds(7200),
+                "fail " + head + " " + NOW.minusSeconds(1800));
+        assertThat(ReadinessEvaluator.deployItem(edge, NOW).detail()).endsWith("CI 실패라 배포하지 않았습니다.");
+        var recent = new ReadinessEvaluator.DeployInfo("abc1234def", NOW, true, head, NOW.minusSeconds(3600),
+                "fail " + head + " " + at);
+        assertThat(ReadinessEvaluator.deployItem(recent, NOW).status()).isEqualTo("GREEN");
     }
 
     @Test

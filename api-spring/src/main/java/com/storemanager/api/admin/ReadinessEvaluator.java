@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 출시 준비 점검 판정(순수 함수). 값·비밀 없이 상태·라벨·시각·건수만 낸다.
@@ -56,10 +58,10 @@ public final class ReadinessEvaluator {
 
     /**
      * 배포 반영 입력. runningSha 빈 값 = 모름. checkEnabled=false 면 master 조회를 하지 않는다.
-     * checkEnabled 인데 headSha 가 null 이면 조회 실패.
+     * checkEnabled 인데 headSha 가 null 이면 조회 실패. statusLine = auto-deploy 가 남긴 deploy.status 첫 줄(없으면 null).
      */
     public record DeployInfo(String runningSha, Instant startedAt, boolean checkEnabled, String headSha,
-            Instant headCommittedAt) {}
+            Instant headCommittedAt, String statusLine) {}
 
     static final Duration DEPLOY_LAG = Duration.ofHours(1);
     static final double DISK_RED = 0.80;
@@ -267,10 +269,61 @@ public final class ReadinessEvaluator {
         if (d.headSha().startsWith(run) || run.startsWith(d.headSha())) {
             return item(id, label, "GREEN", false, base + " - master 와 같습니다.", d.startedAt());
         }
-        // ponytail: 배포 건너뜀(CI 실패 커밋)도 같은 빨강으로 나온다. 구분하려면 CI 상태 조회 추가.
-        return Duration.between(d.headCommittedAt(), now).compareTo(DEPLOY_LAG) > 0
-                ? item(id, label, "RED", false, base + " - master 최신 커밋이 1시간 넘게 반영되지 않았습니다.", d.startedAt())
-                : item(id, label, "GREEN", false, base + " - 새 커밋 반영 대기 중(1시간 이내).", d.startedAt());
+        // 1시간 넘게 뒤처진 원인은 auto-deploy 가 남긴 deploy.status 로 나눈다(판정 규칙은 ci_gate.py 한 곳).
+        if (Duration.between(d.headCommittedAt(), now).compareTo(DEPLOY_LAG) <= 0) {
+            return item(id, label, "GREEN", false, base + " - 새 커밋 반영 대기 중(1시간 이내).", d.startedAt());
+        }
+        return item(id, label, lagStatus(d, now), false, base + " - " + lagDetail(d, now), d.startedAt());
+    }
+
+    /** auto-deploy 가 매 실행 끝에 덮어쓴다. 이보다 오래되면 cron 이 멈춘 것이다(5분 주기의 6배). */
+    static final Duration DEPLOY_STATUS_STALE = Duration.ofMinutes(30);
+    // <결과> <대상 sha|-> <UTC 시각> [<반영 대기 중 가장 오래된 커밋 시각>] — deploy/auto-deploy.sh 의 record()
+    private static final Pattern DEPLOY_STATUS = Pattern.compile(
+            "^(idle|wait|ci-error|fail|build-fail|done|error) ([0-9a-f]{40}|-) (\\S+Z)(?: (\\S+Z))?$");
+
+    /** 검사 기록을 기다리는 것(의도된 보류)만 INFO, 나머지는 RED. */
+    static String lagStatus(DeployInfo d, Instant now) {
+        return lagDetail(d, now).contains("검사 기록을 기다립니다") ? "INFO" : "RED";
+    }
+
+    /** 실행 커밋이 master 보다 1시간 넘게 뒤처진 원인. 파일 없음·형식 오류는 기존 문구 그대로. */
+    static String lagDetail(DeployInfo d, Instant now) {
+        String old = "master 최신 커밋이 1시간 넘게 반영되지 않았습니다.";
+        Matcher m = d.statusLine() == null ? null : DEPLOY_STATUS.matcher(d.statusLine().trim());
+        if (m == null || !m.matches()) {
+            return old;
+        }
+        Instant at;
+        Instant since;
+        try {
+            at = Instant.parse(m.group(3));
+            since = m.group(4) == null ? d.headCommittedAt() : Instant.parse(m.group(4));
+        } catch (RuntimeException e) {
+            return old;
+        }
+        if (Duration.between(at, now).compareTo(DEPLOY_STATUS_STALE) > 0) {
+            return "자동 배포가 30분 넘게 돌지 않았습니다(cron·잠금 확인).";
+        }
+        String result = m.group(1);
+        if (result.equals("error")) {
+            return "자동 배포가 오류로 끝났습니다(배포 로그 확인).";
+        }
+        if (!d.headSha().equals(m.group(2))) {
+            return "자동 배포가 master 최신 커밋을 아직 보지 못했습니다(cron 확인).";
+        }
+        return switch (result) {
+            case "wait" -> "master 최신 커밋이 검사 기록을 기다립니다(반영 결정 전, " + waited(since, now) + ").";
+            case "ci-error" -> "CI 조회 실패가 이어지고 있습니다(GitHub 상태 확인, 5분마다 재시도).";
+            case "fail" -> "master 최신 커밋이 CI 실패라 배포하지 않았습니다.";
+            case "build-fail" -> "빌드 실패로 기존 컨테이너가 돌고 있습니다(배포 로그 확인).";
+            default -> "배포는 끝났지만 실행 커밋이 다릅니다(손으로 up 했는지 확인).";
+        };
+    }
+
+    private static String waited(Instant since, Instant now) {
+        Duration w = Duration.between(since, now);
+        return w.toHours() < 24 ? w.toHours() + "시간째" : w.toDays() + "일째";
     }
 
     /**
