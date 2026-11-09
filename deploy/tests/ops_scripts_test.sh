@@ -117,7 +117,39 @@ t "postdeploy: 플래그 켜지면 FAIL·값은 출력 안 함" bash -c "! FAKE_
 t "postdeploy: Spring 이 켜짐으로 읽는 'TRUE'·'1' 도 FAIL" bash -c "! FAKE_ENV=ALIMTALK_ENABLED=TRUE $PD $PD_SHA && ! FAKE_ENV=TIERED_PRICING_ENABLED=1 $PD $PD_SHA"
 t "postdeploy: 명시적 false 는 통과" env FAKE_ENV='BACKFILL_ENABLED=false ALIMTALK_ENABLED=false' $PD $PD_SHA
 t "postdeploy: 배포 로그에 빌드 실패면 FAIL" bash -c "echo '빌드 실패' >> $PD_TMP/log; ! $PD $PD_SHA"
+t "postdeploy: 7자 미만 sha 는 종료 2" bash -c "$PD abc123; [ \$? = 2 ]"
 rm -rf "$PD_TMP"
+
+# rotate-check.sh — 읽기만 한다. 가짜 상태 파일·로그·compose 로 판정을 돌려 본다(로그 내용이 출력되지 않는지까지).
+RC=deploy/rotate-check.sh
+t "bash -n $RC" bash -n $RC
+t "rotate-check: 교체·재시작·쓰기·env 출력 명령 없음" bash -c "! grep -vE '^\s*#' $RC | grep -qE 'rotate-secrets|rewrap|(compose|DC)[^|]* (up|restart|down|stop|kill|rm|pull|build|exec|run)\b|printenv|docker inspect|cat |>> *\"?/|> *\"?\\\$'"
+t "rotate-check: 기준 일수가 ReadinessEvaluator 와 같음" test "$(sed -n 's/^STALE_DAYS=\([0-9]*\).*/\1/p' $RC)" = "$(grep -oE 'ROTATE_STALE = Duration\.ofDays\([0-9]+\)' api-spring/src/main/java/com/storemanager/api/admin/ReadinessEvaluator.java | grep -oE '[0-9]+')"
+RC_TMP=$(mktemp -d)
+cat > "$RC_TMP/dc" <<'DC'
+#!/usr/bin/env bash
+printf '%s\n' "${FAKE_PS:-api-spring running healthy
+worker running }"
+DC
+chmod +x "$RC_TMP/dc"
+printf '%s\n' '#!/usr/bin/env bash' "STATUS_FILE=$RC_TMP/st ROTATE_LOG=$RC_TMP/log DC=$RC_TMP/dc exec bash $RC > $RC_TMP/out 2>&1" > "$RC_TMP/rc"
+RCK="bash $RC_TMP/rc"
+rc_set() { # 상태 줄, 마지막 로그 줄
+  printf '%s\n' "$1" > "$RC_TMP/st"
+  # 앞 회차의 '완료' 를 먼저 둔다 — 마지막 회차만 봐야 한다.
+  printf '%s\n' '[rotate 2026-08-08T19:01:00Z] 완료' '[rotate 2026-11-08T19:00:00Z] 옛 env 보관: /SECRET_PATH/env.x' "[rotate 2026-11-08T19:01:00Z] $2" > "$RC_TMP/log"
+}
+NOW_AT=$(date -u +%FT%TZ)
+t "rotate-check: 상태 파일 없으면 INFO·종료 0" bash -c "$RCK && grep -q '^INFO rotate.status 없음' $RC_TMP/out && ! grep -q '교체 로그' $RC_TMP/out"
+t "rotate-check: 정상 교체면 통과" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '0 $NOW_AT' 완료; $RCK && grep -q '^PASS 마지막 교체 성공' $RC_TMP/out && grep -q '^PASS 교체 로그 마지막 줄' $RC_TMP/out"
+t "rotate-check: 로그 내용(보관 경로)은 출력 안 함" bash -c "! grep -q SECRET_PATH $RC_TMP/out"
+t "rotate-check: 종료코드 0 아니면 FAIL" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '1 $NOW_AT' '실패: 재암호화 비영 종료'; $RCK; [ \$? = 1 ] && grep -q '^FAIL 마지막 교체 실패(종료코드 1' $RC_TMP/out"
+t "rotate-check: 형식이 다르면 FAIL" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '0 2026-11-08 19:00' 완료; $RCK; [ \$? = 1 ] && grep -q '^FAIL rotate.status 형식' $RC_TMP/out"
+t "rotate-check: 184일 넘은 성공이면 FAIL" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '0 2020-01-01T00:00:00Z' 완료; $RCK; [ \$? = 1 ] && grep -q '184일 넘음' $RC_TMP/out"
+t "rotate-check: 로그 끝이 완료 아니면 FAIL" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '0 $NOW_AT' '경고: api-spring 이 5분 안에 healthy 가 되지 않았다'; $RCK; [ \$? = 1 ] && grep -q '^FAIL 교체 로그 마지막' $RC_TMP/out"
+t "rotate-check: 로그 없으면 WARN(종료 3)" bash -c "$(declare -f rc_set); RC_TMP=$RC_TMP; rc_set '0 $NOW_AT' 완료; rm $RC_TMP/log; $RCK; [ \$? = 3 ] && grep -q '^FAIL 0건 · WARN 1건$' $RC_TMP/out"
+t "rotate-check: unhealthy 면 FAIL" bash -c "rm -f $RC_TMP/st; ! FAKE_PS='api-spring running unhealthy' $RCK && grep -q '^FAIL api-spring: unhealthy' $RC_TMP/out"
+rm -rf "$RC_TMP"
 
 # local-ci.sh — 여유 메모리가 기준 미만이면 빌드를 시작하지 않는다(가짜 meminfo 로 확인).
 # ★ 빌드가 절대 돌지 않게, 첫 빌드 단계 앞(LOG=)에서 자른 사본을 돌린다. 끝까지 오면 REACHED 를 찍는다.

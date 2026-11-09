@@ -17,6 +17,7 @@ set -u
 [ $# -eq 1 ] || { echo "사용법: postdeploy-check.sh <검사한 커밋 sha>" >&2; exit 2; }
 WANT=$1
 case $WANT in *[!0-9a-f]*|'') echo "sha 는 소문자 16진수" >&2; exit 2 ;; esac
+[ ${#WANT} -ge 7 ] || { echo "sha 는 7자 이상" >&2; exit 2; }
 REPO_DIR=${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}
 DEPLOY_LOG=${DEPLOY_LOG:-/var/log/storemanager-deploy.log}
 DC=${DC:-"docker compose -f $REPO_DIR/deploy/docker-compose.prod.yml --env-file /etc/storemanager/env"}
@@ -31,7 +32,7 @@ warn() { echo "WARN $1"; warns=$((warns + 1)); }
 
 HEAD=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)
 case "$HEAD" in
-  "$WANT"*) [ ${#WANT} -ge 7 ] && pass "운영 커밋 = ${WANT}" || fail "sha 는 7자 이상" ;;
+  "$WANT"*) pass "운영 커밋 = ${WANT}" ;;
   *) fail "운영 커밋 ${HEAD:0:7} ≠ 검사한 커밋 ${WANT:0:7} (자동 배포 아직이면 몇 분 뒤 다시)" ;;
 esac
 
