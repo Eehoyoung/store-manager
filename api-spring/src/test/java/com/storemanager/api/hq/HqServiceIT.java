@@ -203,28 +203,32 @@ class HqServiceIT {
         매장픽스처 store2 = 매장을_만든다("레이더브랜드", "radar-owner2@example.com");
         UUID hqUser = 본부사용자를_만든다("radar-hq@example.com", "레이더브랜드");
 
+        // ★ 날짜는 오늘 기준 상대값이다. 고정 날짜(2026-08-xx)는 조회 상한(HQ_MAX_LOOKBACK_DAYS)을
+        //   넘는 순간 VALIDATION_FAILED 로 깨졌다(2026-11-10). 현재 기간 = now-2 ~ now, 직전 기간 = 그 앞 3일.
+        LocalDate now = LocalDate.now(KST).minusDays(10);
+        LocalDate prev = now.minusDays(3);
         // 직전 기간: 분석 20건 중 배달지연 5건(25.0건/100건) — 기준(5) 이상이라 가려지지 않는다.
         for (int i = 0; i < 20; i++) {
-            리뷰를_만든다(store1, "radar-prev-" + i, 4, 0, LocalDate.of(2026, 8, 7),
+            리뷰를_만든다(store1, "radar-prev-" + i, 4, 0, prev,
                     i < 5 ? new String[] {"배달지연"} : new String[0], new String[0], "[]");
         }
         // 현재 기간: 분석 30건. 배달지연 8건(순수 불만) + 5건(고위험·FOREIGN_OBJECT 동반) = 13건,
         // 2개 매장에 걸쳐 발생. 고위험 5건은 모두 store1.
         for (int i = 0; i < 8; i++) {
             매장픽스처 target = i == 1 ? store2 : store1;
-            리뷰를_만든다(target, "radar-now-delay-" + i, 2, 0, LocalDate.of(2026, 8, 10),
+            리뷰를_만든다(target, "radar-now-delay-" + i, 2, 0, now,
                     new String[] {"배달지연"}, new String[0], "[\"치킨세트\"]");
         }
         for (int i = 0; i < 5; i++) {
-            리뷰를_만든다(store1, "radar-now-risk-" + i, 1, 3, LocalDate.of(2026, 8, 10),
+            리뷰를_만든다(store1, "radar-now-risk-" + i, 1, 3, now,
                     new String[] {"배달지연"}, new String[] {"FOREIGN_OBJECT"}, "[\"치킨세트\"]");
         }
         for (int i = 0; i < 17; i++) {
-            리뷰를_만든다(store1, "radar-now-filler-" + i, 5, 0, LocalDate.of(2026, 8, 10),
+            리뷰를_만든다(store1, "radar-now-filler-" + i, 5, 0, now,
                     new String[0], new String[0], "[]");
         }
 
-        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "레이더브랜드", "2026-08-08", "2026-08-10");
+        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "레이더브랜드", now.minusDays(2).toString(), now.toString());
 
         assertThat(result.analysisCoverageRate()).isEqualTo(1.0);
         assertThat(result.highRiskReviews()).isEqualTo(5);
@@ -266,7 +270,7 @@ class HqServiceIT {
     void 최소_집계_기준_미만인_항목은_수치가_가려지고_목록에는_남는다() {
         매장픽스처 store = 매장을_만든다("임계값브랜드", "threshold-owner@example.com");
         UUID hqUser = 본부사용자를_만든다("threshold-hq@example.com", "임계값브랜드");
-        LocalDate day = LocalDate.of(2026, 8, 10);
+        LocalDate day = LocalDate.now(KST).minusDays(10); // 오늘 기준 상대값(조회 상한 안)
 
         // 기준(5) 미만 — 이슈 태그 "손톱" 2건, 메뉴(떡볶이,손톱) 2건, 위험 사유는 없음.
         for (int i = 0; i < 2; i++) {
@@ -281,7 +285,7 @@ class HqServiceIT {
             리뷰를_만든다(store, "th-risk-" + i, 1, 3, day, new String[0], new String[] {"FOOD_POISONING"}, "[]");
         }
 
-        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "임계값브랜드", "2026-08-10", "2026-08-10");
+        HqDtos.HqAnalyticsResponse result = hqService.analytics(hqUser, "임계값브랜드", day.toString(), day.toString());
 
         // ── 이슈 태그: "손톱"은 가려지고, "맛"은 그대로 보인다 ──
         assertThat(result.issueTagRanking()).extracting(HqDtos.IssueTagItem::tag)
