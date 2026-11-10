@@ -19,6 +19,8 @@ export interface AccountProfile {
   email: string;
   name: string;
   phone: string | null;
+  phoneVerified: boolean;
+  phoneVerifyEnabled: boolean;
   status: string;
   createdAt: string;
   lastLoginAt: string | null;

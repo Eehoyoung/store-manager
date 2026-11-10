@@ -132,6 +132,11 @@ app:
   internal:
     # Worker → Spring 내부 API(POST /internal/collect-result) 공유 시크릿. 기본값을 두지 않는다.
     token: ${INTERNAL_TOKEN}
+  phone-verify:
+    # 회원 휴대폰 번호 확인(SMS 인증번호, 솔라피 계정은 alimtalk 와 공유). 회원당 하루 10회 상한.
+    # ★ 기본값은 false 다. 켜면 실제 고객 휴대폰으로 문자가 나간다. 켜기는 대표 결정.
+    #   켜고 SOLAPI_API_KEY/SECRET/SENDER_PHONE 이 비면 기동을 막는다.
+    enabled: ${PHONE_VERIFY_ENABLED:false}
   alimtalk:
     # 카카오 알림톡 발송(솔라피). 1차로 사람 확인이 필요한 고위험 리뷰만 보낸다.
     #
@@ -145,6 +150,7 @@ app:
     # 카카오 발신프로필 ID(pfId). 채널당 하나이며 솔라피 콘솔에서 발급한다.
     pf-id: ${SOLAPI_PF_ID:}
     # 솔라피에 사전 등록된 발신번호. 현재는 disableSms=true라 문자 대체발송에는 사용하지 않는다.
+    # 휴대폰 확인 인증번호 SMS 의 발신번호로 쓴다(app.phone-verify).
     sender-phone: ${SOLAPI_SENDER_PHONE:}
     # SOLAPI 웹훅 등록 시 지정한 공유 비밀. 헤더로 오는 SHA-1 값과 상수시간 비교한다.
     webhook-secret: ${SOLAPI_WEBHOOK_SECRET:}

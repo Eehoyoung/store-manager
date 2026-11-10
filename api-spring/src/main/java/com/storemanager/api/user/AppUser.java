@@ -88,8 +88,23 @@ public class AppUser {
 
     public void updateProfile(String name, String phone) {
         this.name = name.trim();
-        this.phone = phone == null || phone.isBlank() ? null : phone.trim();
+        String newPhone = phone == null || phone.isBlank() ? null : phone.trim();
+        // ★ 번호가 (숫자 기준으로) 바뀌었거나 지워졌으면 확인 상태를 버린다 - 하이픈 차이만이면 유지.
+        if (!digits(newPhone).equals(digits(this.phone))) {
+            this.phoneVerifiedAt = null;
+        }
+        this.phone = newPhone;
         this.updatedAt = Instant.now();
+    }
+
+    /** 휴대폰 번호 확인 완료. PhoneVerificationService 에서만 호출한다. */
+    public void markPhoneVerified(Instant at) {
+        this.phoneVerifiedAt = at;
+        this.updatedAt = at;
+    }
+
+    private static String digits(String phone) {
+        return phone == null ? "" : phone.replaceAll("[^0-9]", "");
     }
 
     /**

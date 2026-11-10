@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -122,5 +123,13 @@ class OtpServiceTest {
         // ★ 이메일·OTP 원문은 절대 담지 않는다.
         assertThat(captor.getAllValues()).noneSatisfy(log -> assertThat(log.getDetail())
                 .containsIgnoringCase("boss@sodam.test").containsIgnoringCase(code));
+    }
+
+    @Test
+    void PHONE_코드는_TTL_180초로_저장된다() {
+        service.issue(OtpService.Kind.PHONE, "u-1:01012345678", "1.2.3.4");
+
+        org.mockito.Mockito.verify(valueOps).set(startsWith("otp:PHONE:"), anyString(),
+                eq(java.time.Duration.ofSeconds(180)));
     }
 }

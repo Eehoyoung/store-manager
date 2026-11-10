@@ -224,9 +224,90 @@ function ProfileCard({ profile, onUpdated }: { profile: AccountProfile; onUpdate
                hint="숫자만 입력하세요. 하이픈은 자동으로 들어가요."
                onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(formatPhone(e.target.value))} />
         {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+        {profile.phoneVerifyEnabled ? <p className="field__hint">번호를 바꾸면 다시 확인해야 해요.</p> : null}
         <Button type="submit" loading={loading}>저장</Button>
       </form>
+      {profile.phoneVerifyEnabled ? <PhoneVerify profile={profile} dirty={phone.replace(/\D/g, "") !== (profile.phone ?? "").replace(/\D/g, "")} onUpdated={onUpdated} /> : null}
     </Card>
+  );
+}
+
+const CODE_TTL = 180;
+const RESEND_WAIT = 60;
+
+// 폼 밖에 둔다 — 인증번호 칸에서 Enter 를 눌러도 계정 저장이 실행되지 않게.
+function PhoneVerify({ profile, dirty, onUpdated }: { profile: AccountProfile; dirty: boolean; onUpdated: (p: AccountProfile) => void }) {
+  const [sentAt, setSentAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sentAt === null) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [sentAt]);
+
+  if (!profile.phone) return null;
+  if (dirty) return <p className="field__hint" aria-live="polite">번호를 저장한 뒤 확인할 수 있어요.</p>;
+  if (profile.phoneVerified) return <p aria-live="polite"><Badge tone="success" icon="✓">확인됨</Badge></p>;
+
+  const elapsed = sentAt === null ? 0 : Math.floor((now - sentAt) / 1000);
+  const remaining = Math.max(0, CODE_TTL - elapsed);
+  const canResend = sentAt === null || elapsed >= RESEND_WAIT;
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    setCode("");
+    try {
+      await accountApi.requestPhoneVerification();
+      setNow(Date.now());
+      setSentAt(Date.now());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "인증번호를 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await accountApi.confirmPhoneVerification(code);
+      onUpdated(updated);
+      setSentAt(null);
+      setCode("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "인증번호가 맞지 않거나 만료됐어요.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-page__phone-verify">
+      <p className="field__hint" aria-live="polite">확인 전 — 알림톡을 받으려면 확인이 필요해요.</p>
+      {sentAt === null ? (
+        <Button type="button" variant="secondary" loading={busy} onClick={() => void send()}>인증번호 받기</Button>
+      ) : (
+        <>
+          <Field label="인증번호 6자리" value={code} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                 hint="문자로 보낸 인증번호를 입력해 주세요."
+                 onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value.replace(/\D/g, ""))} />
+          <p role="status" aria-live="polite">{remaining > 0 ? `남은 시간 ${formatMmSs(remaining)}` : "시간이 지났어요. 다시 받아 주세요."}</p>
+          {error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+          <Button type="button" loading={busy} disabled={code.length !== 6 || remaining <= 0} onClick={() => void confirm()}>확인</Button>
+          {" "}
+          <Button type="button" variant="secondary" disabled={busy || !canResend} onClick={() => void send()}>
+            {canResend ? "다시 받기" : `다시 받기 (${RESEND_WAIT - elapsed}초)`}
+          </Button>
+        </>
+      )}
+      {sentAt === null && error ? <p className="auth-card__error" role="alert">{error}</p> : null}
+    </div>
   );
 }
 
