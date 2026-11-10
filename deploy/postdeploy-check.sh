@@ -23,7 +23,7 @@ DEPLOY_LOG=${DEPLOY_LOG:-/var/log/storemanager-deploy.log}
 DC=${DC:-"docker compose -f $REPO_DIR/deploy/docker-compose.prod.yml --env-file /etc/storemanager/env"}
 
 # 서비스:플래그. 켜기는 대표 결정이다 — 켰다면 이 목록에서 빼는 것도 같은 결정에 넣는다.
-RISK_FLAGS="api-spring:TIERED_PRICING_ENABLED api-spring:BILLING_DUNNING_NOTIFY_ENABLED api-spring:ALIMTALK_ENABLED worker:BACKFILL_ENABLED worker:DATAAPI_WRITE_ENABLED ai-python:GOLDENSET_EVAL_ENABLED"
+RISK_FLAGS="api-spring:TIERED_PRICING_ENABLED api-spring:BILLING_DUNNING_NOTIFY_ENABLED api-spring:ALIMTALK_ENABLED api-spring:PHONE_VERIFY_ENABLED worker:BACKFILL_ENABLED worker:DATAAPI_WRITE_ENABLED ai-python:GOLDENSET_EVAL_ENABLED"
 
 fails=0; warns=0
 pass() { echo "PASS $1"; }
