@@ -15,7 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * subscription 테이블 매핑 (docs/11 2.7장). Groble 공식 스키마 수령 전 기존 결제 필드를 임의 재사용하지 않는다.
+ * subscription 테이블 매핑 (docs/11 2.7장). 결제는 포트원 빌링키 자동결제다(2026-09-29).
  * ★ 일반 TRIAL 은 입금 대기라 서비스하지 않는다. 단, 서버가 검증해 promotion_code 와
  * trial_ends_at 을 함께 기록한 OPEN30 체험은 종료 시각 전까지만 서비스한다.
  * 상태 전이는 반드시 이 클래스의 메서드를 통해서만 한다(ReplyDraft 와 동일한 원칙).
@@ -234,7 +234,7 @@ public class Subscription {
     }
 
     /**
-     * 운영자가 입금을 확인하고 서비스를 연다 (Groble 연동 전까지의 수동 경로, admin 전용).
+     * 운영자가 입금을 확인하고 서비스를 연다 (자동결제와 별개인 수동 경로, admin 전용).
      *
      * <p>★ 이 메서드가 admin 경로에서 유일하게 ACTIVE 를 만드는 자리다. 자동결제 경로는
      * {@link #beginTrial} · {@link #chargeSucceeded} 를 쓴다. 지우거나 합치지 말 것 —

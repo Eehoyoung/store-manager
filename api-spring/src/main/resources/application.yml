@@ -74,8 +74,8 @@ app:
       # ★ 끄면 보유기간을 정해 두고 실제로는 영구 보관하게 된다.
       enabled: ${RETENTION_SCHEDULER_ENABLED:true}
     billing:
-      # 청구·미납 배치(B3/B4) 활성화 여부. 테스트 프로파일은 false 로 재정의한다.
-      # 자체 계좌이체 청구는 폐기됐다. Groble 상태 동기화 구현 전까지 절대 실행하지 않는다.
+      # 포트원 정기 자동결제 갱신(BillingScheduler) 활성화 여부. 테스트 프로파일은 false 로 재정의한다.
+      # 자체 계좌이체 청구 배치는 포트원 전환 때 제거됐다. ★ 켜면 실결제가 일어난다 — 켜기는 대표 결정.
       enabled: ${BILLING_SCHEDULER_ENABLED:false}
     readiness-summary:
       # 출시 점검 빨강 항목 매일 09:30 관리자 메일. 기본 꺼짐.
