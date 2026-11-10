@@ -23,10 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 운영자의 구독 활성화·정지 (Groble 결제 연동 전까지의 수동 경로).
+ * 운영자의 구독 활성화·정지 (자동결제와 별개인 운영자 수동 경로).
  *
  * <p>★ 2026-08-23 결정: <b>입금을 확인한 뒤에만 ACTIVE 로 올린다.</b> 가입만으로는 서비스하지 않는다.
- * Groble 연동이 되면 이 전이가 자동화될 뿐 게이트와 상태 모델은 그대로다.
+ * 포트원 빌링키 자동결제(2026-09-29)는 {@code Subscription.beginTrial}·{@code chargeSucceeded} 로 따로 전이한다.
  *
  * <p>★ 활성화는 그 매장에 DataAPI 호출과 LLM 토큰을 쓰기 시작한다는 뜻이다. 즉 <b>돈이 나가는
  * 결정</b>이므로 누가 언제 무엇을 근거로 했는지 감사로그에 남긴다. 이 기록을 지우지 말 것 —
