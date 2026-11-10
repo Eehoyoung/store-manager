@@ -21,7 +21,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 시스템 관리자·가맹본부 담당자 공용 이메일 OTP (docs/26a auth.otp).
+ * 시스템 관리자·가맹본부 담당자 공용 이메일 OTP (docs/26a auth.otp). PHONE 종류는 회원 휴대폰 번호 확인(SMS)에 쓴다.
  *
  * <p>6자리 SecureRandom 코드를 해시로만 저장한다({@code otp:{kind}:{HMAC-SHA256(email)}}).
  * 키에 이메일 원문 대신 HMAC 을 써서 Redis 를 들여다봐도 어떤 이메일이 요청했는지 알 수 없다.
@@ -34,7 +34,9 @@ import org.springframework.stereotype.Component;
 public class OtpService {
 
     public enum Kind {
-        ADMIN(Duration.ofSeconds(120)), HQ(Duration.ofSeconds(300));
+        ADMIN(Duration.ofSeconds(120)), HQ(Duration.ofSeconds(300)),
+        /** 회원 휴대폰 번호 확인(SMS). identifier 는 "회원publicId:숫자만번호". */
+        PHONE(Duration.ofSeconds(180));
 
         final Duration ttl;
 
