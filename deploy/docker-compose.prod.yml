@@ -163,6 +163,8 @@ services:
       ALIMTALK_ENABLED: ${ALIMTALK_ENABLED:-false}
       # 선택형 요금(약관 새 버전 포함). ★ 기본 false — 정확히 "true" 일 때만 켜진다.
       TIERED_PRICING_ENABLED: ${TIERED_PRICING_ENABLED:-false}
+      # 휴대폰 번호 확인(SMS 인증번호, 건당 과금). ★ 기본 false — 정확히 "true" 일 때만 문자 발송기가 뜬다. 켜기는 대표 결정.
+      PHONE_VERIFY_ENABLED: ${PHONE_VERIFY_ENABLED:-false}
       SOLAPI_API_KEY: ${SOLAPI_API_KEY:-}
       SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
       SOLAPI_PF_ID: ${SOLAPI_PF_ID:-}
