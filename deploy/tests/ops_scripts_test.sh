@@ -367,6 +367,9 @@ t "auto-deploy: 기록은 임시 파일 → mv, 실패 무시" grep -qE '^record
 t "auto-deploy: 결과 값이 ReadinessEvaluator 정규식과 같음" test "$(for c in $AD_CASES; do r=${c#*:}; echo "${r%%:*}"; done | sort -u | xargs)" = "$(grep -oE '"\^\([a-z|-]+\)' api-spring/src/main/java/com/storemanager/api/admin/ReadinessEvaluator.java | tr -d '"^()' | tr '|' ' ' | xargs -n1 | sort | xargs)"
 t "compose: api-spring 이 deploy.status 를 :ro 마운트 안에서 읽음" grep -qE '^      READINESS_DEPLOY_STATUS_FILE: /ops-status/deploy\.status$' deploy/docker-compose.prod.yml
 t "auto-deploy: trap 은 락 뒤(다른 실행 중이면 기록 안 함)" bash -c "awk '/^flock -n 9/{a=NR} /^trap record EXIT/{b=NR} END{exit !(a && b && a<b)}' $AD"
+t "compose: api-spring 이 backup·restore-test.status 를 :ro 마운트 안에서 읽음" bash -c "grep -qE '^      READINESS_BACKUP_STATUS_FILE: /ops-status/backup/backup\.status$' deploy/docker-compose.prod.yml && grep -qE '^      - \\$\{OPS_STATUS_DIR:-\./ops-status\}/backup:/ops-status$' deploy/docker-compose.prod.yml && grep -qE '^      READINESS_RESTORE_TEST_STATUS_FILE: /ops-status/restore-test\.status$' deploy/docker-compose.prod.yml"
+t "compose: 덤프 폴더(backups)는 api-spring 에 마운트하지 않음" bash -c "! awk '/^  api-spring:/{f=1;next} /^  [a-z]/{f=0} f' deploy/docker-compose.prod.yml | grep -vE '^\s*#' | grep -qE 'BACKUP_DIR|backups|:/backup'"
+t "backup·restore-test: ops-status 에는 시각과 OK/FAIL 만" bash -c "grep -qF 'echo \"\$t \$r\" > \"\$OPS_STATUS/backup.status\"' deploy/backup.sh && grep -qF 'echo \"\$t \${RESULT%% *}\" > \"\$OPS_STATUS/restore-test.status\"' deploy/restore-test.sh"
 rm -rf "$AD_TMP"
 echo "통과 $ok / 실패 $bad"
 [ "$bad" -eq 0 ]

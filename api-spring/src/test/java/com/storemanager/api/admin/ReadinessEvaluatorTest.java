@@ -182,6 +182,25 @@ class ReadinessEvaluatorTest {
         assertThat(ReadinessEvaluator.rotateItem("0 " + edge.minusSeconds(1), NOW).status()).isEqualTo("RED");
     }
 
+    @Test
+    void 백업_복구시험_판정() {
+        assertThat(ReadinessEvaluator.backupItem(null, NOW).status()).isEqualTo("UNKNOWN");
+        assertThat(ReadinessEvaluator.restoreTestItem(null, NOW).status()).isEqualTo("INFO");
+        for (String bad : new String[] {"", "garbage", "OK", "notatime OK", "2026-10-11T18:00:00Z MAYBE",
+                "2026-10-11T18:00:00Z OK exit=0"}) {
+            assertThat(ReadinessEvaluator.backupItem(bad, NOW).status()).as(bad).isEqualTo("UNKNOWN");
+        }
+        assertThat(ReadinessEvaluator.backupItem("2026-10-11T18:00:00Z FAIL", NOW).status()).isEqualTo("RED");
+        assertThat(ReadinessEvaluator.backupItem("2026-10-11T18:00:00Z OK", NOW).status()).isEqualTo("GREEN");
+        Instant edge = NOW.minus(java.time.Duration.ofHours(26));
+        assertThat(ReadinessEvaluator.backupItem(edge + " OK", NOW).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.backupItem(edge.minusSeconds(1) + " OK", NOW).status()).isEqualTo("RED");
+        Instant week = NOW.minus(java.time.Duration.ofDays(8));
+        assertThat(ReadinessEvaluator.restoreTestItem(week + " OK", NOW).status()).isEqualTo("GREEN");
+        assertThat(ReadinessEvaluator.restoreTestItem(week.minusSeconds(1) + " OK", NOW).status()).isEqualTo("RED");
+        assertThat(ReadinessEvaluator.restoreTestItem(NOW + " FAIL", NOW).status()).isEqualTo("RED");
+    }
+
     static Inputs withCollect(Inputs b, Instant at) {
         return new Inputs(b.workerJson(), at, b.lastPublishAt(), b.latestModel(), b.aiBlocked(), b.portoneEnabled(),
                 b.lastPaidAt(), b.billingScheduler(), b.mailConfigured(), b.scheduledStuck(),

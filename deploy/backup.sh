@@ -8,14 +8,16 @@ set -eu
 set -o pipefail
 
 BACKUP_DIR=${BACKUP_DIR:-/backup}
+# 점검 화면용 — 시각과 OK/FAIL 만 쓴다(종료코드는 덤프 폴더 쪽 backup.status 에만). 폴더가 없으면 건너뜀.
+OPS_STATUS=${OPS_STATUS:-/ops-status}  # compose 가 호스트 ops-status/backup 하위 폴더만 여기에 붙인다
 KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
 STAMP=$(date +%Y%m%d-%H%M%S)
 FILE="$BACKUP_DIR/storemanager-$STAMP.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
 
-# 결과 한 줄을 backup.status 에 남긴다(알림 경로가 없어 사람이 이 파일을 본다). 실패면 FAIL.
-trap 'c=$?; [ "$c" -eq 0 ] && r=OK || r=FAIL; echo "$(date -u +%FT%TZ) $r exit=$c" >> "$BACKUP_DIR/backup.status" 2>/dev/null || true' EXIT
+# 결과 한 줄을 backup.status 에 남긴다. 실패면 FAIL. 같은 결과를 ops-status 에도 덮어써 점검 화면 '백업' 이 읽는다.
+trap 'c=$?; [ "$c" -eq 0 ] && r=OK || r=FAIL; t=$(date -u +%FT%TZ); echo "$t $r exit=$c" >> "$BACKUP_DIR/backup.status" 2>/dev/null || true; { [ -d "$OPS_STATUS" ] && echo "$t $r" > "$OPS_STATUS/backup.status"; } 2>/dev/null || true' EXIT
 
 # --clean --if-exists: 복구 시 기존 객체를 지우고 새로 만든다. 부분 복구로 인한
 # 스키마 불일치가 가장 흔한 복구 실패 원인이다.

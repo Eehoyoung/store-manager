@@ -94,6 +94,9 @@ services:
       READINESS_ROTATE_STATUS_FILE: /ops-status/rotate.status
       # 자동 배포 결과(deploy.status) — 점검 화면 '배포 반영' 이 대기·실패를 나눈다(2026-11-09).
       READINESS_DEPLOY_STATUS_FILE: /ops-status/deploy.status
+      # 백업·복구 시험 결과(시각과 OK/FAIL 만) — 점검 화면 '백업'·'복구 시험'. ★ 덤프 폴더(backups)는 api-spring 에 마운트하지 않는다.
+      READINESS_BACKUP_STATUS_FILE: /ops-status/backup/backup.status
+      READINESS_RESTORE_TEST_STATUS_FILE: /ops-status/restore-test.status
       # 운영 콘솔 연동(2026-09-26): 한 줄 JSON 로그 + 관리 포트 분리 + actuator metrics.
       # 관리 포트를 분리하면 8080 의 /actuator/** 는 404 가 된다(Caddy 404 도 유지).
       LOGGING_STRUCTURED_FORMAT_CONSOLE: logstash
@@ -285,6 +288,8 @@ services:
     volumes:
       - ./backup.sh:/backup.sh:ro
       - ${BACKUP_DIR:-./backups}:/backup
+      # backup.sh 가 결과 한 줄(시각 OK|FAIL)을 ops-status/backup/backup.status 에 덮어쓴다. 하위 폴더만 쓰기로 열어 deploy·rotate.status 는 못 건드린다 — api-spring 은 ops-status 전체를 :ro 로 읽는다.
+      - ${OPS_STATUS_DIR:-./ops-status}/backup:/ops-status
     # ★ 매일 03:00(UTC 18:00 = KST 03:00) 백업. 청구·파기 배치보다 앞에 둔다 —
     #   배치가 데이터를 바꾸기 전 상태를 남겨야 사고 시 되돌릴 수 있다.
     entrypoint: >

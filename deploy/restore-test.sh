@@ -12,6 +12,8 @@ set -eu
 BACKUP_DIR=${BACKUP_DIR:-$(cd "$(dirname "$0")" && pwd)/backups}
 PG_IMAGE=${PG_IMAGE:-pgvector/pgvector:pg16}
 LOG="$BACKUP_DIR/restore-test.log"
+# 점검 화면 '복구 시험' 이 읽는다 — 시각과 OK/FAIL 만 쓴다(사유·행 수·파일명은 LOG 에만). 폴더가 없으면 건너뜀.
+OPS_STATUS=${OPS_STATUS:-$(cd "$(dirname "$0")" && pwd)/ops-status}
 NAME="restore-test-$$"
 FILE=""
 RESULT="FAIL 시작 전 중단"
@@ -19,7 +21,9 @@ RESULT="FAIL 시작 전 중단"
 # 어떤 경로로 끝나도 임시 컨테이너를 지우고 결과 한 줄을 남긴다.
 cleanup() {
 	docker rm -fv "$NAME" >/dev/null 2>&1 || true
-	echo "$(date -u +%FT%TZ) $RESULT file=${FILE##*/}" >> "$LOG" 2>/dev/null || true
+	t=$(date -u +%FT%TZ)
+	echo "$t $RESULT file=${FILE##*/}" >> "$LOG" 2>/dev/null || true
+	{ [ -d "$OPS_STATUS" ] && echo "$t ${RESULT%% *}" > "$OPS_STATUS/restore-test.status"; } 2>/dev/null || true
 	echo "[restore-test] $RESULT" >&2
 }
 trap cleanup EXIT

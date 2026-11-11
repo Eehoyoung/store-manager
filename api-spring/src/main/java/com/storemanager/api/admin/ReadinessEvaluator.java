@@ -249,6 +249,47 @@ public final class ReadinessEvaluator {
         return item(id, label, "GREEN", false, "최근 교체가 성공했습니다.", at);
     }
 
+    /** 매일 03:00 백업의 약 1일 + 여유. */
+    static final Duration BACKUP_STALE = Duration.ofHours(26);
+    /** 주 1회 복구 시험 + 1일 여유. */
+    static final Duration RESTORE_TEST_STALE = Duration.ofDays(8);
+
+    /** line = ops-status/backup/backup.status 한 줄 '<ISO-UTC 시각> OK|FAIL'(backup.sh). null = 경로 미설정 또는 파일 없음. */
+    static Item backupItem(String line, Instant now) {
+        return okFailItem("backup", "백업", line, now, BACKUP_STALE, "26시간",
+                "UNKNOWN", "백업 기록이 없습니다(반영 뒤 첫 03:00 백업 전이면 정상).");
+    }
+
+    /** line = ops-status/restore-test.status 한 줄 '<ISO-UTC 시각> OK|FAIL'(restore-test.sh). null = cron 미등록. */
+    static Item restoreTestItem(String line, Instant now) {
+        return okFailItem("restoreTest", "복구 시험", line, now, RESTORE_TEST_STALE, "8일",
+                "INFO", "복구 시험 cron 미등록");
+    }
+
+    private static Item okFailItem(String id, String label, String line, Instant now, Duration stale,
+            String staleText, String missingStatus, String missingDetail) {
+        if (line == null) {
+            return item(id, label, missingStatus, false, missingDetail, null);
+        }
+        String[] p = line.trim().split("\\s+");
+        Instant at;
+        try {
+            at = Instant.parse(p[0]);
+        } catch (RuntimeException e) {
+            at = null;
+        }
+        if (at == null || p.length != 2 || !(p[1].equals("OK") || p[1].equals("FAIL"))) {
+            return item(id, label, "UNKNOWN", false, label + " 결과 파일을 읽을 수 없습니다.", null);
+        }
+        if (p[1].equals("FAIL")) {
+            return item(id, label, "RED", false, "마지막 " + label + "이 실패했습니다(서버 로그 확인).", at);
+        }
+        if (Duration.between(at, now).compareTo(stale) > 0) {
+            return item(id, label, "RED", false, "마지막 " + label + " 성공이 " + staleText + "을 넘었습니다.", at);
+        }
+        return item(id, label, "GREEN", false, "최근 " + label + "이 성공했습니다.", at);
+    }
+
     static Item deployItem(DeployInfo d, Instant now) {
         String id = "deploy";
         String label = "배포 반영";
