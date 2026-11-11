@@ -56,6 +56,32 @@ def test_duplicate_comment_raises_already_replied_not_generic_error():
     assert exc.value.retryable is False
 
 
+def test_data_result_success_with_other_ecode_is_failure_not_success():
+    """★ 절대규칙 2 보강(2026-08-23): 중복 댓글만이 아니다 — data.RESULT 가 SUCCESS 여도
+    ECODE 가 채워져 있으면 어떤 코드든 실패다. 성공으로 넘기면 PUBLISHED 로 잘못 기록된다."""
+    resp = {"result": "SUCCESS", "errCode": "0000",
+            "data": {"RESULT": "SUCCESS", "ECODE": "ERR_MLCOM_MSG50059", "ERRMSG": "로그인 실패"}}
+    with pytest.raises(DataApiError) as exc:
+        parse_envelope(resp)
+    assert exc.value.ecode == "ERR_MLCOM_MSG50059"
+    assert not isinstance(exc.value, AlreadyRepliedError)
+
+
+def test_empty_data_falls_back_to_platform_errcode():
+    """플랫폼에서 거절되면 data 가 비어 ECODE 가 없다 — 최상위 errCode 를 원인으로 집는다."""
+    with pytest.raises(DataApiError) as exc:
+        parse_envelope({"result": "FAIL", "errCode": "2003", "errMsg": "이용횟수 소진", "data": {}})
+    assert exc.value.ecode == "2003"
+    assert exc.value.errmsg == "이용횟수 소진"
+
+
+def test_empty_data_with_platform_ok_code_is_failure_without_ecode():
+    """errCode "0000" 은 플랫폼 성공일 뿐 업무 성공이 아니다 — 실패로 보고, 오류 코드로는 남기지 않는다."""
+    with pytest.raises(DataApiError) as exc:
+        parse_envelope({"result": "SUCCESS", "errCode": "0000", "data": None})
+    assert exc.value.ecode is None
+
+
 def test_null_string_fields_are_parsed_as_none_and_unknown_code_not_retryable():
     resp = _load("null_string_fields.json")
     with pytest.raises(DataApiError) as exc:
