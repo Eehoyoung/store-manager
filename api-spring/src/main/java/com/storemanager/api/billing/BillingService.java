@@ -558,7 +558,12 @@ public class BillingService {
     public void renewAllDue() {
         Instant tomorrow = LocalDate.now(KST).plusDays(1).atStartOfDay(KST).toInstant();
         for (Subscription sub : subscriptions.findByNextBillingAtBefore(tomorrow)) {
-            renew(sub.getStoreId());
+            // ★ 한 매장의 예외가 반복을 끊으면 뒤 매장이 그날 모두 청구되지 않는다(매일 같은 매장이 터지면 영영).
+            try {
+                renew(sub.getStoreId());
+            } catch (RuntimeException e) {
+                log.error("정기 갱신 실패 - 다음 매장으로 넘어갑니다 storeId={} cause={}", sub.getStoreId(), e.getClass().getSimpleName()); // 스택·메시지는 남기지 않는다(빌링키·고객정보가 섞일 수 있음)
+            }
         }
     }
 

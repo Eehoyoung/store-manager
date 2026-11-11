@@ -340,5 +340,64 @@ class DraftServiceTest {
         org.mockito.Mockito.verifyNoInteractions(aiClient); // AI 호출 0회 = LLM 비용 0
         org.mockito.Mockito.verify(replyDraftRepository, org.mockito.Mockito.never()).save(any());
     }
-}
 
+    /** 자동게시 켜짐 + AI 차단 없음에서 tryAutoApprove 의 위험·가드레일 분기를 돌린다. */
+    private DraftDtos.GenerateDraftsResponse 자동승인_분기(int risk, List<String> draftFlags) {
+        UUID reviewPublicId = UUID.randomUUID();
+        UnifiedReview review = UnifiedReview.builder().id(30L).publicId(reviewPublicId).storeId(100L).linkId(1L)
+                .platform("BAEMIN").platformReviewId("r-30").rating((short) 4).body("괜찮아요")
+                .writtenAt(Instant.now()).collectedAt(Instant.now()).build();
+        StorePersona persona = StorePersona.builder().storeId(100L).tone("FRIENDLY")
+                .delayHours((short) 0).publishWindows("[]").personaSeed(1).build();
+        when(unifiedReviewRepository.findByPublicId(reviewPublicId)).thenReturn(Optional.of(review));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(store));
+        when(storePersonaRepository.findById(100L)).thenReturn(Optional.of(persona));
+        when(bannedWordQueryRepository.findActiveGlobal()).thenReturn(List.of());
+        when(replyDraftRepository.findRecentPublishedContents(any(), any(), any())).thenReturn(List.of());
+        AnalysisOut analysisOut = new AnalysisOut("COMPLAINT", "CALM", -0.3f, List.of(), List.of(), risk, List.of(),
+                "local-7b", "v1");
+        DraftOut draftOut = new DraftOut("불편을 드려 죄송합니다", "T1", "local-7b", "v1", draftFlags, 0.2f, 100, 40, 0.5);
+        when(aiClient.analyzeAndDraft(any()))
+                .thenReturn(new AnalyzeAndDraftResponse(analysisOut, List.of(draftOut), false, List.of()));
+        when(reviewAnalysisRepository.findById(30L)).thenReturn(Optional.empty());
+        when(replyDraftRepository.save(any(ReplyDraft.class))).thenAnswer(inv -> inv.getArgument(0));
+        return draftService.generateDrafts(ownerPublicId, reviewPublicId, new GenerateDraftsRequest(1, null));
+    }
+
+    /** ★ 절대규칙 3 — AI 가 차단하지 않았어도 risk>=3 은 자동 게시하지 않고 사람 검수로 보낸다. */
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {3, 4, 5})
+    void AI가_놓친_위험초안도_risk3이상이면_BLOCKED(int risk) {
+        var result = 자동승인_분기(risk, List.of());
+
+        assertThat(result.drafts().get(0).status()).isEqualTo("BLOCKED");
+        assertThat(result.drafts().get(0).guardrailFlags()).containsExactly("RISK_LEVEL_TOO_HIGH");
+        org.mockito.Mockito.verify(notifier).send(1L, 100L, "ALIMTALK", "HIGH_RISK_REVIEW", "UNIFIED_REVIEW", 30L);
+        org.mockito.Mockito.verify(auditLogRepository, org.mockito.Mockito.never()).save(
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
+    }
+
+    @Test
+    void 위험이_낮아도_초안_가드레일_플래그가_있으면_BLOCKED() {
+        var result = 자동승인_분기(0, List.of("G3_COMPENSATION"));
+
+        assertThat(result.drafts().get(0).status()).isEqualTo("BLOCKED");
+        assertThat(result.drafts().get(0).guardrailFlags()).containsExactly("G3_COMPENSATION");
+        org.mockito.Mockito.verify(auditLogRepository, org.mockito.Mockito.never()).save(
+                org.mockito.ArgumentMatchers.argThat((AuditLog a) -> "DRAFT_AUTO_SCHEDULED".equals(a.getAction())));
+    }
+
+    /** risk 2 는 예약하되 사장님이 게시 전에 볼 수 있게 확인 알림을 보낸다. */
+    @Test
+    void risk2는_예약하고_게시전_확인알림을_보낸다() {
+        var result = 자동승인_분기(2, List.of());
+
+        assertThat(result.drafts().get(0).status()).isEqualTo("SCHEDULED");
+        org.mockito.Mockito.verify(notifier).send(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(100L), org.mockito.ArgumentMatchers.eq("ALIMTALK"),
+                org.mockito.ArgumentMatchers.eq("SCHEDULED_REVIEW_CHECK"), org.mockito.ArgumentMatchers.eq("REPLY_DRAFT"),
+                any());
+        org.mockito.Mockito.verify(notifier, org.mockito.Mockito.never()).send(any(), any(), any(),
+                org.mockito.ArgumentMatchers.eq("HIGH_RISK_REVIEW"), any(), any());
+    }
+}
