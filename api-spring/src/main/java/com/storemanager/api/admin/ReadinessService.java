@@ -26,12 +26,18 @@ public class ReadinessService {
     private final Instant startedAt = Instant.now();
     private final String rotateStatusFile;
     private final String deployStatusFile;
+    private final String backupStatusFile;
+    private final String restoreTestStatusFile;
 
     public ReadinessService(EntityManager em, StringRedisTemplate redis, PortOneClient portOne, MailService mail,
             @Value("${app.scheduler.billing.enabled:false}") boolean billingScheduler,
             DeployHeadChecker deployHead, @Value("${app.deploy.sha:}") String deploySha,
             @Value("${READINESS_ROTATE_STATUS_FILE:}") String rotateStatusFile,
-            @Value("${READINESS_DEPLOY_STATUS_FILE:}") String deployStatusFile) {
+            @Value("${READINESS_DEPLOY_STATUS_FILE:}") String deployStatusFile,
+            @Value("${READINESS_BACKUP_STATUS_FILE:}") String backupStatusFile,
+            @Value("${READINESS_RESTORE_TEST_STATUS_FILE:}") String restoreTestStatusFile) {
+        this.backupStatusFile = backupStatusFile == null ? "" : backupStatusFile.trim();
+        this.restoreTestStatusFile = restoreTestStatusFile == null ? "" : restoreTestStatusFile.trim();
         this.rotateStatusFile = rotateStatusFile == null ? "" : rotateStatusFile.trim();
         this.deployStatusFile = deployStatusFile == null ? "" : deployStatusFile.trim();
         this.deployHead = deployHead;
@@ -83,7 +89,10 @@ public class ReadinessService {
                 new ReadinessEvaluator.DeployInfo(deploySha, startedAt, deployHead.enabled(),
                         deployHead.headSha(now), deployHead.headCommittedAt(now), firstLine(deployStatusFile)),
                 diskUsedRatio(), rotateStatusLine());
-        return new Report(now, ReadinessEvaluator.mode(worker), ReadinessEvaluator.evaluate(in, now));
+        List<ReadinessEvaluator.Item> items = new java.util.ArrayList<>(ReadinessEvaluator.evaluate(in, now));
+        items.add(ReadinessEvaluator.backupItem(firstLine(backupStatusFile), now));
+        items.add(ReadinessEvaluator.restoreTestItem(firstLine(restoreTestStatusFile), now));
+        return new Report(now, ReadinessEvaluator.mode(worker), items);
     }
 
     /** rotate.status 첫 줄. 경로 미설정·파일 없음은 null(미등록), 읽기 실패·빈 파일은 ""(UNKNOWN). 경로는 밖으로 내지 않는다. */
@@ -91,7 +100,7 @@ public class ReadinessService {
         return firstLine(rotateStatusFile);
     }
 
-    /** 상태 파일 첫 줄 — rotate.status·deploy.status 공용. 규칙은 rotateStatusLine 주석과 같다. */
+    /** 상태 파일 첫 줄 — rotate·deploy·backup·restore-test.status 공용. 규칙은 rotateStatusLine 주석과 같다. */
     private static String firstLine(String path) {
         if (path.isEmpty()) {
             return null;
