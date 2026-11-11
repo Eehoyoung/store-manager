@@ -473,4 +473,61 @@ class CollectResultIT {
         assertThat(notificationLogRepository.countByRefTypeAndRefIdAndTemplate(
                 "UNIFIED_REVIEW", f.reviewId(), "HIGH_RISK_REVIEW")).isEqualTo(1);
     }
+
+    private void 게시성공_보고가_거절된다(게시픽스처 f) throws Exception {
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(게시결과_바디(f, "SUCCESS", "PUBLISHED", null, "c-1", null)))
+                .andExpect(status().isConflict());
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(after.getPublishedAt()).isNull();
+    }
+
+    @Test
+    void 위험도_3이상인데_게시성공이_오면_PUBLISHED로_기록하지_않는다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-risk3@example.com", "rv-pub-risk3");
+        // ★ 절대규칙 3 서버측 마지막 확인 — 큐에 실린 뒤 재분석으로 위험도가 올라간 경우다.
+        reviewAnalysisRepository.save(ReviewAnalysis.builder().reviewId(f.reviewId()).category("HYGIENE")
+                .sentiment(-0.9f).riskLevel((short) 3).model("test").promptVersion("v1").build());
+
+        게시성공_보고가_거절된다(f);
+    }
+
+    @Test
+    void 매장이_비활성인데_게시성공이_오면_PUBLISHED로_기록하지_않는다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-inactive@example.com", "rv-pub-inactive");
+        Store store = storeRepository.findById(replyDraftRepository.findById(f.draftId()).orElseThrow().getStoreId())
+                .orElseThrow();
+        store.clearCredentialConsent(Instant.now());
+        storeRepository.save(store);
+
+        게시성공_보고가_거절된다(f);
+    }
+
+    @Test
+    void 모르는_action은_FAIL로_기록되어_재시도로_돌아간다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-unknown@example.com", "rv-pub-unknown");
+
+        // 400 으로 거절하면 결과가 유실되고 초안이 SCHEDULED 로 남아 영원히 재디스패치된다(실기동 결함).
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "CONFIG_ERROR", "ERR_CONFIG", null, "설정 오류"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 1);
+        assertThat(stringRedisTemplate.hasKey("dispatch:draft:" + f.draftId())).isFalse();
+    }
+
+    @Test
+    void 쓰기_스위치가_꺼져_거절되면_retry_count를_올리지_않고_미룬다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-wd@example.com", "rv-pub-wd");
+
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", null, null, "DATAAPI_WRITE_DISABLED"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("SCHEDULED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 0);
+        assertThat(after.getFailReason()).isEqualTo("DATAAPI_WRITE_DISABLED");
+        assertThat(after.getScheduledAt()).isAfter(Instant.now().plusSeconds(9 * 60));
+    }
 }
