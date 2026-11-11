@@ -102,4 +102,21 @@ class PhoneVerificationServiceTest {
         assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
         assertThat(user.getPhoneVerifiedAt()).isNull();
     }
+
+    @Test
+    void 플래그가_꺼져_있으면_확인도_404() {
+        when(provider.getIfAvailable()).thenReturn(null);
+        when(otp.verify(eq(OtpService.Kind.PHONE), anyString(), anyString())).thenReturn(true);
+        ApiException e = assertThrows(ApiException.class, () -> service.confirm(user.getPublicId(), "123456"));
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+        assertThat(user.getPhoneVerifiedAt()).isNull();
+    }
+
+    @Test
+    void 번호가_없으면_400이고_코드를_만들지_않는다() {
+        user.updateProfile("홍길동", null);
+        ApiException e = assertThrows(ApiException.class, () -> service.request(user.getPublicId(), "1.2.3.4"));
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        verify(otp, never()).issue(any(), anyString(), any());
+    }
 }
