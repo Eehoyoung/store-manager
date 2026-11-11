@@ -199,6 +199,48 @@ def test_process_publish_job_blocks_high_risk_without_calling_dataapi():
     assert result["publish"]["failReason"] == "RISK_LEVEL_TOO_HIGH"
 
 
+# (d-2) storeActive 가 True 가 아니면(누락·False·위조 값) DataAPI 를 호출하지 않는다
+@pytest.mark.parametrize("overrides", [{"storeActive": False}, {"storeActive": None}, {"storeActive": "true"}, {}])
+def test_process_publish_job_blocks_inactive_store_without_calling_dataapi(overrides):
+    def _boom(*args):
+        pytest.fail("비활성 매장인데 DataAPI 를 호출하면 안 됨")
+
+    payload = _payload(**overrides)
+    if not overrides:
+        del payload["storeActive"]
+    result = process_publish_job(payload, "baemin", Credentials("id", "enc"), _boom)
+
+    assert result["status"] == "FAILED"
+    assert result["publish"]["failReason"] == "STORE_INACTIVE"
+
+
+def test_publish_drafts_skips_account_and_dataapi_for_inactive_store(monkeypatch):
+    """큐 처리 루프도 비활성 매장이면 계정 조회·DataAPI 호출을 생략한다."""
+    posted = []
+    monkeypatch.setattr(tasks, "_post_collect_result", lambda p: posted.append(p))
+    monkeypatch.setenv("DATAAPI_WRITE_ENABLED", "true")  # 쓰기 스위치가 열려 있어도 막혀야 한다
+
+    rc = FakeQueueRedis([json.dumps(_payload(draftId=10, accountId=1, storeActive=False))])
+    fake_client = FakeClient(_fixture_create_comment("create_comment_success.json"))
+
+    def _loader(account_id):
+        pytest.fail("비활성 매장인데 계정을 조회하면 안 됨")
+
+    results = tasks.publish_drafts(
+        sleep=lambda s: None,
+        client_factory=lambda: fake_client,
+        redis_client=rc,
+        account_loader=_loader,
+        now=lambda: 0.0,
+        rand=lambda: 0.0,
+        batch_size=5,
+    )
+
+    assert results[0]["publish"]["failReason"] == "STORE_INACTIVE"
+    assert fake_client.calls == []
+    assert posted == results
+
+
 # (e) 미확인 ECODE → FAIL + ecode 전달
 def test_process_publish_job_unknown_ecode_reports_fail_with_ecode():
     client = FakeClient(_fixture_create_comment("null_string_fields.json"))
