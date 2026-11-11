@@ -70,6 +70,8 @@ class BillingServiceIT {
     static final List<String> PAID = new CopyOnWriteArrayList<>();
     static final List<String> DELETED = new CopyOnWriteArrayList<>();
     static final List<String> PAID_BODIES = new CopyOnWriteArrayList<>();
+    /** 응답과 무관하게 들어온 모든 청구 요청의 paymentId. */
+    static final List<String> CHARGE_REQUESTS = new CopyOnWriteArrayList<>();
     /** true 면 결제를 카드사 거절(PG_PROVIDER)로 응답한다. */
     static volatile boolean decline;
     /** true 면 결제 응답 자체를 502(PG_PROVIDER 아님)로 답해 서버가 재조회하게 만든다. */
@@ -99,6 +101,7 @@ class BillingServiceIT {
                     }
                 } else if (path.startsWith("/payments/") && path.endsWith("/billing-key") && method.equals("POST")) {
                     String paymentId = path.split("/")[2];
+                    CHARGE_REQUESTS.add(paymentId);
                     String sent = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                     if (PAID.contains(paymentId)) {
                         status = 409;
@@ -366,6 +369,31 @@ class BillingServiceIT {
 
         assertThat(PAID_BODIES.size()).isEqualTo(paidAfterFirst); // 두 번째는 포트원 새 청구를 만들지 않는다
         assertThat(row(f.storeId()).getStatus()).isEqualTo("ACTIVE");
+    }
+
+    /**
+     * ★ 탈퇴·미납 해지는 상태만 CANCELED 로 바꾸고 행의 빌링키·autoRenew 는 남을 수 있다
+     * (PG 빌링키 삭제는 커밋 뒤라 실패하면 키도 살아 있다). 청구를 막는 것은 renew 의 CANCELED 제외 조회뿐이다.
+     */
+    @Test
+    void 해지된_구독은_빌링키가_남아_있어도_갱신이_청구하지_않는다() {
+        매장픽스처 f = 매장을_만든다("renew-canceled@example.com");
+        String key = issue(f.storeId());
+        Subscription s = 구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)), key);
+        s.cancelImmediately();
+        subscriptionRepository.save(s);
+        String ours = "renew-" + f.storeId() + "-";
+
+        billingService.renew(f.storeId());
+        assertThat(CHARGE_REQUESTS).noneMatch(id -> id.startsWith(ours)); // 직접 호출: PG 청구 0회
+        billingService.renewAllDue();
+        assertThat(CHARGE_REQUESTS).noneMatch(id -> id.startsWith(ours)); // 일괄 경유: PG 청구 0회(다른 시험 매장은 청구될 수 있어 이 매장만 본다)
+
+        assertThat(paymentRepository.findBySubscriptionIdOrderByCreatedAtDesc(s.getId(),
+                org.springframework.data.domain.PageRequest.of(0, 12)).getContent()).isEmpty();
+        Subscription after = subscriptionRepository.findById(s.getId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("CANCELED");
+        assertThat(after.getBillingKey()).isEqualTo(key); // 전제: 키가 남은 최악의 경우를 재현했다
     }
 
     @Test
