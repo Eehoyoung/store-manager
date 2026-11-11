@@ -488,7 +488,7 @@ class CollectResultIT {
     void 위험도_3이상인데_게시성공이_오면_PUBLISHED로_기록하지_않는다() throws Exception {
         게시픽스처 f = 게시대기_초안을_만든다("pub-risk3@example.com", "rv-pub-risk3");
         // ★ 절대규칙 3 서버측 마지막 확인 — 큐에 실린 뒤 재분석으로 위험도가 올라간 경우다.
-        reviewAnalysisRepository.save(ReviewAnalysis.builder().reviewId(f.reviewId()).category("HYGIENE")
+        reviewAnalysisRepository.save(ReviewAnalysis.builder().reviewId(f.reviewId()).category("COMPLAINT")
                 .sentiment(-0.9f).riskLevel((short) 3).model("test").promptVersion("v1").build());
 
         게시성공_보고가_거절된다(f);
