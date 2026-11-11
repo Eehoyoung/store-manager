@@ -99,6 +99,42 @@ class PublishSchedulerTest {
         verify(auditLogRepository).save(any());
     }
 
+    /** ★ 분석 행이 없으면 위험도 0 이 아니라 '모름' 이다 — 게시하지 않는다(절대규칙 3 안전측). */
+    @Test
+    void 분석_행이_없으면_위험도를_0으로_보지_않고_디스패치하지_않는다() {
+        ReplyDraft draft = dueDraft(2L, 11L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(11L)).thenReturn(Optional.empty());
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("ANALYSIS_MISSING");
+        // 스케줄러의 유일한 게시 출구는 Redis q:publish(워커가 DataAPI 호출)다 — 손대지 않았으면 게시 0회.
+        org.mockito.Mockito.verifyNoInteractions(stringRedisTemplate);
+        verify(auditLogRepository).save(org.mockito.ArgumentMatchers.argThat(
+                (com.storemanager.api.audit.AuditLog a) -> "DRAFT_BLOCKED_ANALYSIS_MISSING".equals(a.getAction())));
+    }
+
+    @Test
+    void 리뷰_행이_없으면_디스패치하지_않는다() {
+        ReplyDraft draft = dueDraft(3L, 12L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(12L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(12L).category("PRAISE").sentiment(0.9f)
+                        .riskLevel((short) 0).riskReasons(new String[0]).model("m").promptVersion("v1").build()));
+        when(unifiedReviewRepository.findById(12L)).thenReturn(Optional.empty());
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("REVIEW_MISSING");
+        // 스케줄러의 유일한 게시 출구는 Redis q:publish(워커가 DataAPI 호출)다 — 손대지 않았으면 게시 0회.
+        org.mockito.Mockito.verifyNoInteractions(stringRedisTemplate);
+        verify(auditLogRepository).save(org.mockito.ArgumentMatchers.argThat(
+                (com.storemanager.api.audit.AuditLog a) -> "DRAFT_BLOCKED_REVIEW_MISSING".equals(a.getAction())));
+    }
+
     @Test
     void risk_level이_3이상으로_재확인되면_디스패치하지_않고_BLOCKED로_되돌린다() {
         ReplyDraft draft = dueDraft(1L, 10L);
