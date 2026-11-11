@@ -112,6 +112,39 @@ class AccountWithdrawalServiceTest {
         assertThat(sub.getCanceledAt()).isNotNull();
     }
 
+    /** ★ 빌링키는 해지가 커밋된 뒤에 PG 에서 지운다 — 먼저 지우고 롤백되면 해지 안 된 구독에 카드만 사라진다. */
+    @Test
+    void 해지가_커밋된_뒤_PG_빌링키를_삭제한다() {
+        Subscription sub = Subscription.builder().storeId(10L).status("ACTIVE").autoRenew(true).billingKey("bk-1")
+                .priceKrw(new BigDecimal("30000")).build();
+        when(subscriptionRepository.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.of(sub));
+        given(user(), List.of(store()), List.of(), true);
+
+        service.withdraw(publicId, "pw");
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(transactionManager, portOneClient);
+        order.verify(transactionManager).commit(any());
+        order.verify(portOneClient).deleteBillingKey("bk-1");
+    }
+
+    /** PG 삭제가 실패해도 탈퇴·해지는 그대로다. 남은 키는 renew 의 CANCELED 제외가 막는다(BillingServiceIT). */
+    @Test
+    void PG_빌링키_삭제가_실패해도_탈퇴와_해지는_유지된다() {
+        Subscription sub = Subscription.builder().storeId(10L).status("ACTIVE").autoRenew(true).billingKey("bk-1")
+                .priceKrw(new BigDecimal("30000")).build();
+        when(subscriptionRepository.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.of(sub));
+        org.mockito.Mockito.doThrow(new IllegalStateException("pg down")).when(portOneClient).deleteBillingKey("bk-1");
+        AppUser user = user();
+        given(user, List.of(store()), List.of(), true);
+
+        service.withdraw(publicId, "pw"); // 예외가 사장님에게 올라가지 않는다
+
+        assertThat(sub.getStatus()).isEqualTo("CANCELED");
+        assertThat(user.getDeletedAt()).isNotNull();
+        verify(transactionManager).commit(any());
+        verify(transactionManager, never()).rollback(any());
+    }
+
     @Test
     void 매장의_activated_at_을_비운다() {
         // ★ 이게 남아 있으면 수집·생성·게시가 계속 돌아 탈퇴한 사람의 매장에 답글이 달린다.
