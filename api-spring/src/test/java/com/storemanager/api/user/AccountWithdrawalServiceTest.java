@@ -129,11 +129,14 @@ class AccountWithdrawalServiceTest {
 
     /** PG 삭제가 실패해도 탈퇴·해지는 그대로다. 남은 키는 renew 의 CANCELED 제외가 막는다(BillingServiceIT). */
     @Test
-    void PG_빌링키_삭제가_실패해도_탈퇴와_해지는_유지된다() {
-        Subscription sub = Subscription.builder().storeId(10L).status("ACTIVE").autoRenew(true).billingKey("bk-1")
-                .priceKrw(new BigDecimal("30000")).build();
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void PG_빌링키_삭제가_실패해도_탈퇴와_해지는_유지된다(org.springframework.boot.test.system.CapturedOutput output) {
+        Subscription sub = Subscription.builder().storeId(10L).status("ACTIVE").autoRenew(true)
+                .billingKey("bk-secret-1").priceKrw(new BigDecimal("30000")).build();
         when(subscriptionRepository.findByStoreIdAndStatusNot(10L, "CANCELED")).thenReturn(Optional.of(sub));
-        org.mockito.Mockito.doThrow(new IllegalStateException("pg down")).when(portOneClient).deleteBillingKey("bk-1");
+        // 예외 메시지에 키가 섞여 와도 로그에는 남지 않아야 한다.
+        org.mockito.Mockito.doThrow(new IllegalStateException("delete bk-secret-1 failed"))
+                .when(portOneClient).deleteBillingKey("bk-secret-1");
         AppUser user = user();
         given(user, List.of(store()), List.of(), true);
 
@@ -143,6 +146,7 @@ class AccountWithdrawalServiceTest {
         assertThat(user.getDeletedAt()).isNotNull();
         verify(transactionManager).commit(any());
         verify(transactionManager, never()).rollback(any());
+        assertThat(output.getAll()).contains("빌링키 삭제 실패").doesNotContain("bk-secret-1");
     }
 
     @Test
