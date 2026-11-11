@@ -73,6 +73,9 @@ public class PhoneVerificationService {
 
     @Transactional
     public AppUser confirm(UUID publicId, String code) {
+        if (!isEnabled()) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND); // 꺼져 있으면 요청과 같이 404
+        }
         AppUser user = find(publicId);
         String digits = digits(user.getPhone());
         if (digits.isEmpty() || !otpService.verify(OtpService.Kind.PHONE, identifier(publicId, digits), code)) {
