@@ -102,6 +102,14 @@ class CollectResultIT {
     @Autowired
     org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    com.storemanager.api.crypto.PlatformAccountRepository platformAccountRepository;
+
+    // 알림 호출은 스파이로 확인한다. 실체는 LoggingNotifier(기록만) — PLATFORM_LINK_ERROR 는 발송 대기열에 넣지 않고,
+    // 발송기(AlimtalkDispatcher)는 app.alimtalk.enabled=true 일 때만 뜬다. 다른 시험의 notification_log 확인도 그대로 동작한다.
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    com.storemanager.api.notify.Notifier notifier;
+
     private Long 계약완료_매장을_만든다(Long ownerId, String name) {
         Store store = Store.builder()
                 .ownerId(ownerId)
@@ -529,5 +537,26 @@ class CollectResultIT {
         assertThat(after.getRetryCount()).isEqualTo((short) 0);
         assertThat(after.getFailReason()).isEqualTo("DATAAPI_WRITE_DISABLED");
         assertThat(after.getScheduledAt()).isAfter(Instant.now().plusSeconds(9 * 60));
+    }
+
+    @Test
+    void 연동끊김이면_재시도하지_않고_FAILED로_확정하고_계정을_ERROR로_바꾸고_사장님께_알린다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-link@example.com", "rv-pub-link");
+
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "LINK_ERROR", "ERR_MLCOM_MSG50059", null, "로그인 실패"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("FAILED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 0);
+        assertThat(after.getFailCode()).isEqualTo("ERR_MLCOM_MSG50059");
+        assertThat(stringRedisTemplate.hasKey("dispatch:draft:" + f.draftId())).isFalse();
+        com.storemanager.api.crypto.PlatformAccount account =
+                platformAccountRepository.findById(f.accountId()).orElseThrow();
+        assertThat(account.getLinkStatus()).isEqualTo("ERROR");
+        assertThat(account.getLastErrorCode()).isEqualTo("ERR_MLCOM_MSG50059");
+        org.mockito.Mockito.verify(notifier, org.mockito.Mockito.times(1)).send(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("ALIMTALK"),
+                org.mockito.ArgumentMatchers.eq("PLATFORM_LINK_ERROR"), org.mockito.ArgumentMatchers.eq("REPLY_DRAFT"),
+                org.mockito.ArgumentMatchers.eq(f.draftId()));
     }
 }
