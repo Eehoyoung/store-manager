@@ -45,7 +45,7 @@ export const DRAFT_CONTENT_MAX_LENGTH = 280;
 
 /**
  * 승인 버튼을 켤지 판정하는 순수 함수 — 화면 로직을 테스트 가능하게 분리해 둔다
- * (저장소에 web 테스트 하네스가 없어 유닛테스트 파일 대신 여기 순수 함수로만 남긴다).
+ * (시험: src/approveGate.test.ts).
  *
  * ★ guardrailFlags 는 GET /reviews/{id} 응답이 내려준다. 여기서 "정확히 RISK_LEVEL_TOO_HIGH
  * 하나인가" 를 미리 판정해 승인 버튼을 막고 사유를 보여준다 — 누르고 나서 422 를 받는 것보다 낫다.
