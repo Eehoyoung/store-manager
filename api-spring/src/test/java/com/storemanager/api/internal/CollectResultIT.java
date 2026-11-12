@@ -105,6 +105,9 @@ class CollectResultIT {
     @Autowired
     com.storemanager.api.crypto.PlatformAccountRepository platformAccountRepository;
 
+    @Autowired
+    com.storemanager.api.audit.AuditLogRepository auditLogRepository;
+
     // 알림 호출은 스파이로 확인한다. 실체는 LoggingNotifier(기록만) — PLATFORM_LINK_ERROR 는 발송 대기열에 넣지 않고,
     // 발송기(AlimtalkDispatcher)는 app.alimtalk.enabled=true 일 때만 뜬다. 다른 시험의 notification_log 확인도 그대로 동작한다.
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -463,6 +466,40 @@ class CollectResultIT {
         assertThat(after.getRetryCount()).isEqualTo((short) 0);
         assertThat(after.getFailCode()).isEqualTo("PLATFORM_NOT_SELECTED");
         assertThat(after.getGuardrailFlags()).containsExactly("PLATFORM_NOT_SELECTED");
+    }
+
+    @Test
+    void 재시도를_3회_소진한_일반실패는_FAILED로_확정되고_더_재예약되지_않는다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-exhaust@example.com", "rv-pub-exhaust");
+        ReplyDraft draft = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        for (int i = 0; i < 3; i++) {
+            draft.retryLater(Instant.now(), "일시 오류");
+        }
+        replyDraftRepository.save(draft);
+
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", "ERR_UNKNOWN_9999", null, "일시 오류"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("FAILED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 3);
+        assertThat(after.getFailCode()).isEqualTo("ERR_UNKNOWN_9999");
+    }
+
+    @Test
+    void 매장비활성으로_게시직전_거절되면_재시도하지_않고_BLOCKED로_종결하고_위험알림은_없다() throws Exception {
+        게시픽스처 f = 게시대기_초안을_만든다("pub-si@example.com", "rv-pub-si");
+
+        게시결과를_보낸다(게시결과_바디(f, "FAILED", "FAIL", null, null, "STORE_INACTIVE"));
+
+        ReplyDraft after = replyDraftRepository.findById(f.draftId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("BLOCKED");
+        assertThat(after.getRetryCount()).isEqualTo((short) 0);
+        assertThat(after.getFailCode()).isEqualTo("STORE_INACTIVE");
+        assertThat(auditLogRepository.findAll()).anyMatch(a -> "DRAFT_BLOCKED_AT_PUBLISH_GUARD".equals(a.getAction())
+                && f.draftId().equals(a.getTargetId()));
+        // 위험 리뷰 알림은 RISK_LEVEL_TOO_HIGH 일 때만이다.
+        assertThat(notificationLogRepository.countByRefTypeAndRefIdAndTemplate(
+                "UNIFIED_REVIEW", f.reviewId(), "HIGH_RISK_REVIEW")).isZero();
     }
 
     @Test
