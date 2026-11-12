@@ -306,4 +306,69 @@ class RiskApprovalServiceTest {
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
         assertThat(d.isHumanApproved()).isFalse();
     }
+
+    // ── 승인 분기 보강: 상태·구독·링크 경로 ───────────────────────────────
+
+    /** BLOCKED 가 아닌 초안(예약·게시 완료)을 다시 승인하면 예약 시각·승인자가 덮어써진다 — 막아야 한다. */
+    @Test
+    void 예약되었거나_게시된_초안은_다시_승인할_수_없다() {
+        for (String status : List.of("SCHEDULED", "PUBLISHED")) {
+            ReplyDraft d = ReplyDraft.builder().id(1L).publicId(draftPublicId).reviewId(10L).storeId(100L)
+                    .content("고객님, 불편을 드려 죄송합니다.").status(status).generatedBy("AI")
+                    .guardrailFlags(new String[] {"RISK_LEVEL_TOO_HIGH"}).build();
+            when(replyDraftRepository.findByPublicId(draftPublicId)).thenReturn(Optional.of(d));
+
+            ApiException e = assertThrows(ApiException.class,
+                    () -> service.approve(ownerPublicId, draftPublicId, true, null), status);
+
+            assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_DRAFT_STATE);
+            assertThat(d.getStatus()).isEqualTo(status);
+            assertThat(d.isHumanApproved()).isFalse();
+        }
+    }
+
+    @Test
+    void 구독이_끊긴_매장은_로그인_경로로_승인할_수_없다() {
+        ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
+        when(serviceGate.isServiceable(any())).thenReturn(false);
+
+        ApiException e = assertThrows(ApiException.class,
+                () -> service.approve(ownerPublicId, draftPublicId, true, null));
+
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.SUBSCRIPTION_INACTIVE);
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+        assertThat(d.isHumanApproved()).isFalse();
+    }
+
+    @Test
+    void 구독이_끊긴_매장은_알림톡_링크_경로로도_승인할_수_없다() {
+        ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
+        when(serviceGate.isServiceable(any())).thenReturn(false);
+        Store store = storeRepository.findById(100L).orElseThrow();
+
+        ApiException e = assertThrows(ApiException.class, () -> service.approveForLink(store, d, true, null));
+
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.SUBSCRIPTION_INACTIVE);
+        assertThat(d.getStatus()).isEqualTo("BLOCKED");
+        assertThat(d.isHumanApproved()).isFalse();
+    }
+
+    /** ★ 링크 경로가 느슨하면 그 경로가 우회로가 된다 — 사유 확인·위험도 단독 조건을 로그인 경로와 똑같이 본다. */
+    @Test
+    void 링크_승인도_사유_확인과_위험도_단독_조건을_똑같이_본다() {
+        Store store = storeRepository.findById(100L).orElseThrow();
+
+        ReplyDraft unchecked = blocked("RISK_LEVEL_TOO_HIGH");
+        ApiException noAck = assertThrows(ApiException.class,
+                () -> service.approveForLink(store, unchecked, false, null));
+        assertThat(noAck.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+        assertThat(unchecked.getStatus()).isEqualTo("BLOCKED");
+
+        ReplyDraft mixed = blocked("RISK_LEVEL_TOO_HIGH", "G2_MONEY");
+        ApiException guard = assertThrows(ApiException.class,
+                () -> service.approveForLink(store, mixed, true, null));
+        assertThat(guard.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
+        assertThat(mixed.getStatus()).isEqualTo("BLOCKED");
+        assertThat(mixed.isHumanApproved()).isFalse();
+    }
 }
