@@ -288,26 +288,22 @@ class RiskApprovalServiceTest {
                 .isInstanceOf(ApiException.class);
     }
 
-    // ── 선택형 요금: 미선택 배달앱은 두 진입점 모두 승인 불가 ───────────────
+    // ── 선택형 요금: 미선택 배달앱은 승인 불가 ───────────────────────────
 
     @Test
-    void riskApprovalBothPathsBlocked() {
+    void 미선택_배달앱의_초안은_승인할_수_없다() {
         ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
         when(serviceGate.isPlatformSelected(100L, "BAEMIN")).thenReturn(false);
-        Store store = storeRepository.findById(100L).orElseThrow();
 
-        ApiException loginPath = assertThrows(ApiException.class,
+        ApiException e = assertThrows(ApiException.class,
                 () -> service.approve(ownerPublicId, draftPublicId, true, null));
-        ApiException linkPath = assertThrows(ApiException.class,
-                () -> service.approveForLink(store, d, true, null));
 
-        assertThat(loginPath.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
-        assertThat(linkPath.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
+        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PLATFORM_NOT_SELECTED);
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
         assertThat(d.isHumanApproved()).isFalse();
     }
 
-    // ── 승인 분기 보강: 상태·구독·링크 경로 ───────────────────────────────
+    // ── 승인 분기 보강: 상태·구독 ─────────────────────────────────────
 
     /** BLOCKED 가 아닌 초안(예약·게시 완료)을 다시 승인하면 예약 시각·승인자가 덮어써진다 — 막아야 한다. */
     @Test
@@ -328,7 +324,7 @@ class RiskApprovalServiceTest {
     }
 
     @Test
-    void 구독이_끊긴_매장은_로그인_경로로_승인할_수_없다() {
+    void 구독이_끊긴_매장은_승인할_수_없다() {
         ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
         when(serviceGate.isServiceable(any())).thenReturn(false);
 
@@ -338,37 +334,5 @@ class RiskApprovalServiceTest {
         assertThat(e.getErrorCode()).isEqualTo(ErrorCode.SUBSCRIPTION_INACTIVE);
         assertThat(d.getStatus()).isEqualTo("BLOCKED");
         assertThat(d.isHumanApproved()).isFalse();
-    }
-
-    @Test
-    void 구독이_끊긴_매장은_알림톡_링크_경로로도_승인할_수_없다() {
-        ReplyDraft d = blocked("RISK_LEVEL_TOO_HIGH");
-        when(serviceGate.isServiceable(any())).thenReturn(false);
-        Store store = storeRepository.findById(100L).orElseThrow();
-
-        ApiException e = assertThrows(ApiException.class, () -> service.approveForLink(store, d, true, null));
-
-        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.SUBSCRIPTION_INACTIVE);
-        assertThat(d.getStatus()).isEqualTo("BLOCKED");
-        assertThat(d.isHumanApproved()).isFalse();
-    }
-
-    /** ★ 링크 경로가 느슨하면 그 경로가 우회로가 된다 — 사유 확인·위험도 단독 조건을 로그인 경로와 똑같이 본다. */
-    @Test
-    void 링크_승인도_사유_확인과_위험도_단독_조건을_똑같이_본다() {
-        Store store = storeRepository.findById(100L).orElseThrow();
-
-        ReplyDraft unchecked = blocked("RISK_LEVEL_TOO_HIGH");
-        ApiException noAck = assertThrows(ApiException.class,
-                () -> service.approveForLink(store, unchecked, false, null));
-        assertThat(noAck.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
-        assertThat(unchecked.getStatus()).isEqualTo("BLOCKED");
-
-        ReplyDraft mixed = blocked("RISK_LEVEL_TOO_HIGH", "G2_MONEY");
-        ApiException guard = assertThrows(ApiException.class,
-                () -> service.approveForLink(store, mixed, true, null));
-        assertThat(guard.getErrorCode()).isEqualTo(ErrorCode.GUARDRAIL_BLOCKED);
-        assertThat(mixed.getStatus()).isEqualTo("BLOCKED");
-        assertThat(mixed.isHumanApproved()).isFalse();
     }
 }

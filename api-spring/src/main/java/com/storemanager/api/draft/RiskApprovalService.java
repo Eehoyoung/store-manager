@@ -156,41 +156,11 @@ public class RiskApprovalService {
         return DraftDtos.DraftResponse.from(draft, review.getPublicId());
     }
 
-    /**
-     * 알림톡 링크에서 들어온 승인.
-     *
-     * <p>★ 소유자 검증만 토큰이 대신한다({@code DraftAccessService}). 나머지 — 위험 사유
-     * 단독인지, 사유를 확인했는지, 내용이 280자를 넘지 않는지 — 는 <b>로그인 경로와 똑같이</b>
-     * 검사한다. 진입 경로가 다르다고 규칙이 느슨해지면 그 경로가 우회로가 된다.
-     */
-    @Transactional
-    public void approveForLink(Store store, ReplyDraft draft, boolean riskAcknowledged, String editedContent) {
-        if (!serviceGate.isServiceable(store)) {
-            throw new ApiException(ErrorCode.SUBSCRIPTION_INACTIVE);
-        }
-        requireApprovable(draft);
-        if (!riskAcknowledged) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED,
-                    Map.of("riskAcknowledged", "차단 사유를 확인해야 게시할 수 있어요."));
-        }
-        // ★ approved_by 는 매장 소유자로 남긴다 — 링크를 누른 사람이 누구인지는 모르지만,
-        //   책임 주체는 그 매장의 사장님이다. 링크로 들어왔다는 사실은 감사로그의
-        //   actorType='LINK' 에 남는다.
-        doApprove(store, draft, store.getOwnerId(), editedContent);
-    }
-
-    @Transactional
-    public void rejectForLink(ReplyDraft draft) {
-        requireApprovable(draft);
-        draft.rejectByHuman(null);
-        replyDraftRepository.save(draft);
-    }
-
-    /** 로그인 경로와 링크 경로가 공유하는 승인 본문. 사본을 만들지 말 것. */
+    /** 승인 본문. 승인 경로를 새로 만들면 여기를 거치게 하고 사본을 만들지 말 것. */
     private UnifiedReview doApprove(Store store, ReplyDraft draft, Long approverId, String editedContent) {
         UnifiedReview review = unifiedReviewRepository.findById(draft.getReviewId())
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
-        // ★ 로그인 승인(approve)과 알림톡 링크 승인(approveForLink) 모두 여기를 지난다. 미선택 배달앱은 승인 불가.
+        // ★ 승인은 모두 여기를 지난다. 미선택 배달앱은 승인 불가.
         if (!serviceGate.isPlatformSelected(store.getId(), review.getPlatform())) {
             throw new ApiException(ErrorCode.PLATFORM_NOT_SELECTED);
         }
