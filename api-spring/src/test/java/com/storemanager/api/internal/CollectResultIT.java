@@ -204,6 +204,74 @@ class CollectResultIT {
         assertThat(all.get(0).getCollectedAt()).isEqualTo(firstCollectedAt);
     }
 
+    // ── 연동 검증 표시(markVerified) ─────────────────────────────────────────
+    // 빠지면 사장님 화면이 영원히 '검증 보류'로 남고, 연동 끊김 뒤 수집이 다시 성공해도 ERROR 가 풀리지 않는다.
+
+    private void 수집결과를_보낸다(String body) throws Exception {
+        mockMvc.perform(post("/internal/collect-result").header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void 정상수집이면_연동완료로_표시하고_연동끊김도_풀며_최초_검증시각은_유지한다() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("verify-ok@example.com")
+                .passwordHash("dummy").name("사장V").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-verify-ok", "pw");
+        account.markLinkError("ERR_MLCOM_MSG50059");
+        platformAccountRepository.save(account);
+        매장을_연동한다(계약완료_매장을_만든다(owner.getId(), "검증매장"), account.getId(), "BAEMIN", "store-verify-ok");
+
+        수집결과를_보낸다(수집결과_요청바디("verify-1", "BAEMIN", "store-verify-ok", "rv-verify-1", "손님", false));
+
+        PlatformAccount first = platformAccountRepository.findById(account.getId()).orElseThrow();
+        assertThat(first.getLinkStatus()).isEqualTo("LINKED");
+        assertThat(first.getLastErrorCode()).isNull();
+        assertThat(first.getVerifiedAt()).isNotNull();
+        assertThat(first.getLastSyncedAt()).isNotNull();
+
+        수집결과를_보낸다(수집결과_요청바디("verify-2", "BAEMIN", "store-verify-ok", "rv-verify-2", "손님", false));
+
+        PlatformAccount second = platformAccountRepository.findById(account.getId()).orElseThrow();
+        assertThat(second.getVerifiedAt()).isEqualTo(first.getVerifiedAt());
+        assertThat(second.getLastSyncedAt()).isAfterOrEqualTo(first.getLastSyncedAt());
+    }
+
+    @Test
+    void 적재한_매장이_없으면_자격증명이_맞아도_연동완료로_표시하지_않는다() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("verify-none@example.com")
+                .passwordHash("dummy").name("사장N").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-verify-none", "pw");
+        // 구독이 없는 매장 — 서비스 게이트에서 건너뛰어 processed 가 0 이다.
+        Long storeId = storeRepository.save(Store.builder().ownerId(owner.getId()).name("미구독매장")
+                .activatedAt(Instant.now()).build()).getId();
+        매장을_연동한다(storeId, account.getId(), "BAEMIN", "store-verify-none");
+
+        수집결과를_보낸다(수집결과_요청바디("verify-none", "BAEMIN", "store-verify-none", "rv-verify-none", "손님", false));
+
+        PlatformAccount after = platformAccountRepository.findById(account.getId()).orElseThrow();
+        assertThat(after.getVerifiedAt()).isNull();
+        assertThat(after.getLinkStatus()).isNotEqualTo("LINKED");
+    }
+
+    @Test
+    void 실패한_수집이면_연동완료로_표시하지_않고_연동끊김도_그대로_둔다() throws Exception {
+        AppUser owner = appUserRepository.save(AppUser.builder().email("verify-fail@example.com")
+                .passwordHash("dummy").name("사장F").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-verify-fail", "pw");
+        account.markLinkError("ERR_MLCOM_MSG50059");
+        platformAccountRepository.save(account);
+        매장을_연동한다(계약완료_매장을_만든다(owner.getId(), "실패매장"), account.getId(), "BAEMIN", "store-verify-fail");
+
+        수집결과를_보낸다(수집결과_요청바디("verify-fail", "BAEMIN", "store-verify-fail", "rv-verify-fail", "손님", false)
+                .replace("\"status\": \"SUCCESS\"", "\"status\": \"FAILED\""));
+
+        PlatformAccount after = platformAccountRepository.findById(account.getId()).orElseThrow();
+        assertThat(after.getVerifiedAt()).isNull();
+        assertThat(after.getLinkStatus()).isEqualTo("ERROR");
+        assertThat(after.getLastErrorCode()).isEqualTo("ERR_MLCOM_MSG50059");
+    }
+
     @Test
     void 배민_닉네임은_원문으로_저장되지_않고_마스킹과_해시로_저장된다() throws Exception {
         AppUser owner = appUserRepository.save(AppUser.builder().email("f5owner@example.com")
