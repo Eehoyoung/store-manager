@@ -108,6 +108,12 @@ class CollectResultIT {
     @Autowired
     com.storemanager.api.audit.AuditLogRepository auditLogRepository;
 
+    @Autowired
+    com.storemanager.api.collect.CollectionJobRepository collectionJobRepository;
+
+    @Autowired
+    com.storemanager.api.collect.DataApiCallLogRepository dataApiCallLogRepository;
+
     // 알림 호출은 스파이로 확인한다. 실체는 LoggingNotifier(기록만) — PLATFORM_LINK_ERROR 는 발송 대기열에 넣지 않고,
     // 발송기(AlimtalkDispatcher)는 app.alimtalk.enabled=true 일 때만 뜬다. 다른 시험의 notification_log 확인도 그대로 동작한다.
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -312,6 +318,80 @@ class CollectResultIT {
         PlatformAccount after = platformAccountRepository.findById(account.getId()).orElseThrow();
         assertThat(after.getLinkStatus()).isEqualTo("LINKED");
         assertThat(after.getLastErrorCode()).isNull();
+    }
+
+    // ── 수집 이력(collection_job)·호출 기록(data_api_call_log) ────────────────
+    // T-5 수집 성공률의 근거다. 예전에 jobId 해석 실패로 한 행도 쌓이지 않은 적이 있다.
+
+    private List<com.storemanager.api.collect.CollectionJob> 수집이력(Long accountId) {
+        return collectionJobRepository.findAll().stream().filter(j -> accountId.equals(j.getAccountId())).toList();
+    }
+
+    private List<com.storemanager.api.collect.DataApiCallLog> 호출기록(Long accountId) {
+        return dataApiCallLogRepository.findAll().stream().filter(l -> accountId.equals(l.getAccountId())).toList();
+    }
+
+    private PlatformAccount 이력용_연동계정을_만든다(String key) {
+        AppUser owner = appUserRepository.save(AppUser.builder().email(key + "@example.com")
+                .passwordHash("dummy").name("사장H").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-" + key, "pw");
+        매장을_연동한다(계약완료_매장을_만든다(owner.getId(), "이력매장-" + key), account.getId(), "BAEMIN", "store-" + key);
+        return account;
+    }
+
+    @Test
+    void 기간이_있는_정기수집_성공은_수집이력과_호출기록을_한_행씩_남긴다() throws Exception {
+        PlatformAccount account = 이력용_연동계정을_만든다("hist-poll");
+
+        수집결과를_보낸다(수집결과_요청바디("job-hist-poll", "BAEMIN", "store-hist-poll", "rv-hist-poll", "손님", false)
+                .replace("\"status\": \"SUCCESS\",",
+                        "\"status\": \"SUCCESS\", \"jobType\": \"POLL\", \"startDate\": \"2026-11-01\", \"endDate\": \"2026-11-07\","));
+
+        List<com.storemanager.api.collect.CollectionJob> jobs = 수집이력(account.getId());
+        assertThat(jobs).hasSize(1);
+        assertThat(jobs.get(0).getJobKey()).isEqualTo("job-hist-poll");
+        assertThat(jobs.get(0).getJobType()).isEqualTo("POLL");
+        assertThat(jobs.get(0).getStatus()).isEqualTo("SUCCESS");
+        assertThat(jobs.get(0).getReviewsFound()).isEqualTo(1);
+        assertThat(jobs.get(0).getReviewsNew()).isEqualTo(1);
+        assertThat(jobs.get(0).getStartDate()).isEqualTo(java.time.LocalDate.of(2026, 11, 1));
+        assertThat(jobs.get(0).getEndDate()).isEqualTo(java.time.LocalDate.of(2026, 11, 7));
+        List<com.storemanager.api.collect.DataApiCallLog> calls = 호출기록(account.getId());
+        assertThat(calls).hasSize(1);
+        assertThat(calls.get(0).getResult()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void 백필_실패는_BACKFILL_FAILED와_오류코드로_남긴다() throws Exception {
+        PlatformAccount account = 이력용_연동계정을_만든다("hist-bf");
+
+        수집결과를_보낸다("""
+                {"jobId":"job-hist-bf","accountId":"%d","platform":"BAEMIN","status":"FAILED",
+                 "ecode":"ERR_HIST_9999","action":"FAIL","jobType":"BACKFILL",
+                 "startDate":"2026-10-01","endDate":"2026-10-31","stores":[],
+                 "stats":{"found":0,"new":0,"latencyMs":50}}
+                """.formatted(account.getId()));
+
+        List<com.storemanager.api.collect.CollectionJob> jobs = 수집이력(account.getId());
+        assertThat(jobs).hasSize(1);
+        assertThat(jobs.get(0).getJobType()).isEqualTo("BACKFILL");
+        assertThat(jobs.get(0).getStatus()).isEqualTo("FAILED");
+        assertThat(jobs.get(0).getEcode()).isEqualTo("ERR_HIST_9999");
+        assertThat(jobs.get(0).getReviewsNew()).isZero();
+        List<com.storemanager.api.collect.DataApiCallLog> calls = 호출기록(account.getId());
+        assertThat(calls).hasSize(1);
+        assertThat(calls.get(0).getEcode()).isEqualTo("ERR_HIST_9999");
+    }
+
+    @Test
+    void 기간이_없는_구버전_수집결과는_받되_수집이력은_만들지_않고_호출기록은_남긴다() throws Exception {
+        PlatformAccount account = 이력용_연동계정을_만든다("hist-legacy");
+
+        수집결과를_보낸다(수집결과_요청바디("job-hist-legacy", "BAEMIN", "store-hist-legacy", "rv-hist-legacy", "손님", false));
+
+        assertThat(수집이력(account.getId())).isEmpty();
+        // 기간이 없을 때 호출 기록까지 사라지면 DataAPI 원가 집계가 빈다.
+        assertThat(호출기록(account.getId())).hasSize(1);
     }
 
     @Test
