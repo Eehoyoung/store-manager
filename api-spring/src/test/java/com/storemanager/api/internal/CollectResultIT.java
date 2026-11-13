@@ -394,6 +394,92 @@ class CollectResultIT {
         assertThat(호출기록(account.getId())).hasSize(1);
     }
 
+    // ── 자동 연결(autoLink) ──────────────────────────────────────────────────
+    // 틀리면 남의 매장에 리뷰가 적재되거나, 사장님 첫 연동이 영원히 '매핑 대기'로 남는다.
+
+    private String 자동연결_바디(Long accountId, String platformStoreId, String reviewId) {
+        return """
+                {"jobId":"job-%s","accountId":"%d","platform":"BAEMIN","status":"SUCCESS",
+                 "stores":[{"platformStoreId":"%s","storeName":"자동연결매장","avgRating":4.5,
+                   "reviews":[{"platformReviewId":"%s","rating":5,"body":"맛있어요","authorRaw":"손님",
+                     "orderedMenus":[],"imageUrls":[],"platformExtra":{},"reviewStatus":"0",
+                     "writtenDate":"2026-11-01"}]}],
+                 "stats":{"found":1,"new":1,"latencyMs":50}}
+                """.formatted(reviewId, accountId, platformStoreId, reviewId);
+    }
+
+    private AppUser 사장을_만든다(String key) {
+        return appUserRepository.save(AppUser.builder().email(key + "@example.com")
+                .passwordHash("dummy").name("사장A").build());
+    }
+
+    @Test
+    void 지정매장이_있는_계정의_첫수집은_그_매장에_자동연결하고_리뷰를_적재한다() throws Exception {
+        AppUser owner = 사장을_만든다("auto-ok");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "자동연결-성공");
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-auto-ok", "pw", storeId);
+
+        수집결과를_보낸다(자동연결_바디(account.getId(), "store-auto-ok", "rv-auto-ok"));
+
+        StorePlatformLink link = storePlatformLinkRepository
+                .findByPlatformAndPlatformStoreId("BAEMIN", "store-auto-ok").orElseThrow();
+        assertThat(link.getStoreId()).isEqualTo(storeId);
+        assertThat(link.getAccountId()).isEqualTo(account.getId());
+        assertThat(link.getStoreNameSnapshot()).isEqualTo("자동연결매장");
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "rv-auto-ok")
+                .orElseThrow().getStoreId()).isEqualTo(storeId);
+        assertThat(platformAccountRepository.findById(account.getId()).orElseThrow().getLinkStatus())
+                .isEqualTo("LINKED");
+    }
+
+    @Test
+    void 파기된_계정은_지정매장이_있어도_자동연결하지_않고_리뷰도_적재하지_않는다() throws Exception {
+        AppUser owner = 사장을_만든다("auto-revoked");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "자동연결-파기");
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-auto-rv", "pw", storeId);
+        credentialService.revoke(platformAccountRepository.findById(account.getId()).orElseThrow());
+
+        수집결과를_보낸다(자동연결_바디(account.getId(), "store-auto-revoked", "rv-auto-revoked"));
+
+        assertThat(storePlatformLinkRepository.findByPlatformAndPlatformStoreId("BAEMIN", "store-auto-revoked"))
+                .isEmpty();
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "rv-auto-revoked"))
+                .isEmpty();
+    }
+
+    @Test
+    void 같은_계정의_둘째_플랫폼매장은_자동연결하지_않고_사람_매핑으로_남긴다() throws Exception {
+        AppUser owner = 사장을_만든다("auto-second");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "자동연결-둘째");
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-auto-2", "pw", storeId);
+        수집결과를_보낸다(자동연결_바디(account.getId(), "store-auto-first", "rv-auto-first"));
+
+        수집결과를_보낸다(자동연결_바디(account.getId(), "store-auto-second", "rv-auto-second"));
+
+        assertThat(storePlatformLinkRepository.findByPlatformAndPlatformStoreId("BAEMIN", "store-auto-first"))
+                .isPresent();
+        assertThat(storePlatformLinkRepository.findByPlatformAndPlatformStoreId("BAEMIN", "store-auto-second"))
+                .isEmpty();
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "rv-auto-second"))
+                .isEmpty();
+    }
+
+    @Test
+    void 지정매장이_다른_사장님_매장이면_자동연결하지_않고_리뷰도_적재하지_않는다() throws Exception {
+        AppUser owner = 사장을_만든다("auto-owner");
+        AppUser other = 사장을_만든다("auto-other");
+        Long othersStoreId = 계약완료_매장을_만든다(other.getId(), "남의매장");
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-auto-own", "pw",
+                othersStoreId);
+
+        수집결과를_보낸다(자동연결_바디(account.getId(), "store-auto-other", "rv-auto-other"));
+
+        assertThat(storePlatformLinkRepository.findByPlatformAndPlatformStoreId("BAEMIN", "store-auto-other"))
+                .isEmpty();
+        assertThat(unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", "rv-auto-other"))
+                .isEmpty();
+    }
+
     @Test
     void 배민_닉네임은_원문으로_저장되지_않고_마스킹과_해시로_저장된다() throws Exception {
         AppUser owner = appUserRepository.save(AppUser.builder().email("f5owner@example.com")
