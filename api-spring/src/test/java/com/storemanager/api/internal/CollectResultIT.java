@@ -480,6 +480,61 @@ class CollectResultIT {
                 .isEmpty();
     }
 
+    // ── 저별점 알림(S11) ─────────────────────────────────────────────────────
+    // 수집은 매 폴링마다 최근 2일을 다시 받는다 — 새 리뷰로 막지 않으면 같은 리뷰로 알림이 반복된다.
+
+    private Long 저별점용_매장(String key) {
+        AppUser owner = appUserRepository.save(AppUser.builder().email(key + "@example.com")
+                .passwordHash("dummy").name("사장L").build());
+        PlatformAccount account = credentialService.save(owner.getId(), "BAEMIN", "baemin-" + key, "pw");
+        Long storeId = 계약완료_매장을_만든다(owner.getId(), "저별점매장-" + key);
+        매장을_연동한다(storeId, account.getId(), "BAEMIN", "store-" + key);
+        return storeId;
+    }
+
+    private String 별점_바디(String key, String reviewId, int rating) {
+        return 수집결과_요청바디("job-" + reviewId, "BAEMIN", "store-" + key, reviewId, "손님", false)
+                .replace("\"rating\": 5,", "\"rating\": " + rating + ",");
+    }
+
+    private void 저별점알림_횟수를_확인한다(Long storeId, String reviewId, int times) {
+        Long reviewPk = unifiedReviewRepository.findByPlatformAndPlatformReviewId("BAEMIN", reviewId)
+                .orElseThrow().getId();
+        Long ownerId = storeRepository.findById(storeId).orElseThrow().getOwnerId();
+        org.mockito.Mockito.verify(notifier, org.mockito.Mockito.times(times)).send(
+                org.mockito.ArgumentMatchers.eq(ownerId), org.mockito.ArgumentMatchers.eq(storeId),
+                org.mockito.ArgumentMatchers.eq("ALIMTALK"), org.mockito.ArgumentMatchers.eq("LOW_RATING_REVIEW"),
+                org.mockito.ArgumentMatchers.eq("UNIFIED_REVIEW"), org.mockito.ArgumentMatchers.eq(reviewPk));
+    }
+
+    @Test
+    void 별점2인_새리뷰는_사장님께_저별점알림을_한번_보낸다() throws Exception {
+        Long storeId = 저별점용_매장("low-2");
+
+        수집결과를_보낸다(별점_바디("low-2", "rv-low-2", 2));
+
+        저별점알림_횟수를_확인한다(storeId, "rv-low-2", 1);
+    }
+
+    @Test
+    void 같은_저별점리뷰를_다시_받아도_알림은_한번뿐이다() throws Exception {
+        Long storeId = 저별점용_매장("low-again");
+
+        수집결과를_보낸다(별점_바디("low-again", "rv-low-again", 1));
+        수집결과를_보낸다(별점_바디("low-again", "rv-low-again", 1));
+
+        저별점알림_횟수를_확인한다(storeId, "rv-low-again", 1);
+    }
+
+    @Test
+    void 별점3인_새리뷰는_저별점알림을_보내지_않는다() throws Exception {
+        Long storeId = 저별점용_매장("low-3");
+
+        수집결과를_보낸다(별점_바디("low-3", "rv-low-3", 3));
+
+        저별점알림_횟수를_확인한다(storeId, "rv-low-3", 0);
+    }
+
     @Test
     void 배민_닉네임은_원문으로_저장되지_않고_마스킹과_해시로_저장된다() throws Exception {
         AppUser owner = appUserRepository.save(AppUser.builder().email("f5owner@example.com")
