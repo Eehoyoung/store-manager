@@ -311,4 +311,107 @@ class PublishSchedulerTest {
         verify(stringRedisTemplate, never()).opsForValue();
         verify(auditLogRepository).save(any());
     }
+
+    /** safeContext 와 같되 연동 행만 바꿔 끼운다(연동 판정 분기용). */
+    private void contextWithLink(long reviewId, Optional<StorePlatformLink> link) {
+        when(unifiedReviewRepository.findById(reviewId)).thenReturn(Optional.of(UnifiedReview.builder()
+                .id(reviewId).storeId(100L).linkId(5L).platform("BAEMIN")
+                .platformReviewId("plat-review-1").writtenAt(Instant.now()).build()));
+        when(storeRepository.findById(100L)).thenReturn(Optional.of(Store.builder().id(100L).ownerId(1L)
+                .name("매장").status("ACTIVE").activatedAt(Instant.now()).build()));
+        when(storePlatformLinkRepository.findById(5L)).thenReturn(link);
+    }
+
+    private void analysis(long reviewId, short risk) {
+        when(reviewAnalysisRepository.findById(reviewId)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(reviewId).category("PRAISE").sentiment(0.9f)
+                        .riskLevel(risk).model("m").promptVersion("v1").build()));
+    }
+
+    @Test
+    void 연동_행이_없으면_PLATFORM_LINK_INVALID로_막고_디스패치하지_않는다() {
+        ReplyDraft draft = dueDraft(21L, 31L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        analysis(31L, (short) 0);
+        contextWithLink(31L, Optional.empty());
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("PLATFORM_LINK_INVALID");
+        verify(auditLogRepository).save(any());
+        verify(stringRedisTemplate, never()).opsForValue();
+    }
+
+    /** ★ 리뷰가 가리키는 연동이 다른 매장 것이면 남의 매장 계정으로 답글이 달린다 — 막고 큐에도 넣지 않는다. */
+    @Test
+    void 연동_행이_다른_매장_것이면_막고_그_계정으로_LPUSH하지_않는다() {
+        ReplyDraft draft = dueDraft(22L, 32L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        analysis(32L, (short) 0);
+        contextWithLink(32L, Optional.of(StorePlatformLink.builder().id(5L).storeId(200L).accountId(88L)
+                .platform("BAEMIN").platformStoreId("store-88").build()));
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("BLOCKED");
+        assertThat(draft.getGuardrailFlags()).containsExactly("PLATFORM_LINK_INVALID");
+        verify(auditLogRepository).save(any());
+        verify(stringRedisTemplate, never()).opsForValue();
+        verify(stringRedisTemplate, never()).opsForList();
+    }
+
+    /** ★ 워커는 이 JSON 만 보고 어느 계정·매장·리뷰에 답글을 달지 정한다. 사람 승인 고위험은 risk·승인 표시가 그대로 실려야 워커 방어선이 통과시키고, 토큰은 선점한 값과 같아야 결과 콜백이 맞는다. */
+    @Test
+    void 사람_승인_고위험_게시잡은_연동_계정과_리뷰_risk_승인표시와_선점한_토큰을_그대로_싣는다() throws Exception {
+        ReplyDraft draft = ReplyDraft.builder().id(23L).reviewId(33L).storeId(100L).content("답글 내용")
+                .status("BLOCKED").generatedBy("AI").build();
+        draft.approveByHuman(7L, Instant.now(), null, Instant.now().minusSeconds(60));
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        when(reviewAnalysisRepository.findById(33L)).thenReturn(Optional.of(
+                ReviewAnalysis.builder().reviewId(33L).category("COMPLAINT").sentiment(-0.9f)
+                        .riskLevel((short) 3).riskReasons(new String[]{"FOOD_POISONING"}).model("m").promptVersion("v1").build()));
+        safeContext(33L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("dispatch:draft:23"), anyString(), any(Duration.class))).thenReturn(true);
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+
+        scheduler.dispatchDuePublishJobs();
+
+        org.mockito.ArgumentCaptor<String> token = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).setIfAbsent(eq("dispatch:draft:23"), token.capture(), any(Duration.class));
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(listOperations).leftPush(eq("q:publish"), body.capture());
+        var json = new ObjectMapper().readTree(body.getValue());
+        assertThat(json.get("draftId").asLong()).isEqualTo(23L);
+        assertThat(json.get("accountId").asLong()).isEqualTo(77L);
+        assertThat(json.get("platform").asText()).isEqualTo("BAEMIN");
+        assertThat(json.get("platformStoreId").asText()).isEqualTo("store-77");
+        assertThat(json.get("platformReviewId").asText()).isEqualTo("plat-review-1");
+        assertThat(json.get("content").asText()).isEqualTo("답글 내용");
+        assertThat(json.get("riskLevel").asInt()).isEqualTo(3);
+        assertThat(json.get("humanApproved").asBoolean()).isTrue();
+        assertThat(json.get("dispatchToken").asText()).isEqualTo(token.getValue());
+    }
+
+    /** 차단선 바로 아래(risk 2) 자동 경로는 나가되, 사람 승인 표시는 false 로 실려야 워커 방어선이 산다. */
+    @Test
+    void 자동_경로_risk2는_디스패치되고_humanApproved는_false로_실린다() throws Exception {
+        ReplyDraft draft = dueDraft(24L, 34L);
+        when(replyDraftRepository.findDueForPublish(any(Instant.class), any(Pageable.class))).thenReturn(List.of(draft));
+        analysis(34L, (short) 2);
+        safeContext(34L);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("dispatch:draft:24"), anyString(), any(Duration.class))).thenReturn(true);
+        when(stringRedisTemplate.opsForList()).thenReturn(listOperations);
+
+        scheduler.dispatchDuePublishJobs();
+
+        assertThat(draft.getStatus()).isEqualTo("SCHEDULED");
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(listOperations).leftPush(eq("q:publish"), body.capture());
+        var json = new ObjectMapper().readTree(body.getValue());
+        assertThat(json.get("riskLevel").asInt()).isEqualTo(2);
+        assertThat(json.get("humanApproved").asBoolean()).isFalse();
+    }
 }
