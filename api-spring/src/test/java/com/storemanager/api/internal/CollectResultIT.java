@@ -114,6 +114,9 @@ class CollectResultIT {
     @Autowired
     com.storemanager.api.collect.DataApiCallLogRepository dataApiCallLogRepository;
 
+    @Autowired
+    com.storemanager.api.review.StoreMenuRepository storeMenuRepository;
+
     // 알림 호출은 스파이로 확인한다. 실체는 LoggingNotifier(기록만) — PLATFORM_LINK_ERROR 는 발송 대기열에 넣지 않고,
     // 발송기(AlimtalkDispatcher)는 app.alimtalk.enabled=true 일 때만 뜬다. 다른 시험의 notification_log 확인도 그대로 동작한다.
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -533,6 +536,54 @@ class CollectResultIT {
         수집결과를_보낸다(별점_바디("low-3", "rv-low-3", 3));
 
         저별점알림_횟수를_확인한다(storeId, "rv-low-3", 0);
+    }
+
+    // ── 메뉴 적재(T-8) ───────────────────────────────────────────────────────
+    // 메뉴명이 바뀔 때 같은 메뉴가 둘로 갈라지면 메뉴별 만족도 통계가 어긋난다.
+
+    private String 메뉴_바디(String key, String reviewId, String menusJson) {
+        return 수집결과_요청바디("job-" + reviewId, "BAEMIN", "store-" + key, reviewId, "손님", false)
+                .replace("\"orderedMenus\": [\"잔치국수\"],",
+                        "\"orderedMenus\": [\"잔치국수\"]," + (menusJson == null ? "" : " \"menus\": " + menusJson + ","));
+    }
+
+    private List<com.storemanager.api.review.StoreMenu> 매장메뉴(Long storeId) {
+        return storeMenuRepository.findAll().stream().filter(m -> storeId.equals(m.getStoreId())).toList();
+    }
+
+    @Test
+    void 메뉴ID가_있으면_메뉴명이_바뀌어도_한_메뉴로_남는다() throws Exception {
+        Long storeId = 저별점용_매장("menu-id");
+
+        수집결과를_보낸다(메뉴_바디("menu-id", "rv-menu-id", "[{\"menuId\": \"m-1\", \"menuName\": \"잔치국수\"}]"));
+        수집결과를_보낸다(메뉴_바디("menu-id", "rv-menu-id", "[{\"menuId\": \"m-1\", \"menuName\": \"잔치국수(대)\"}]"));
+
+        List<com.storemanager.api.review.StoreMenu> menus = 매장메뉴(storeId);
+        assertThat(menus).hasSize(1);
+        assertThat(menus.get(0).getMenuId()).isEqualTo("m-1");
+        assertThat(menus.get(0).getPlatform()).isEqualTo("BAEMIN");
+    }
+
+    @Test
+    void 메뉴목록이_없는_구버전은_주문메뉴_이름으로_한번만_적재한다() throws Exception {
+        Long storeId = 저별점용_매장("menu-name");
+
+        수집결과를_보낸다(메뉴_바디("menu-name", "rv-menu-name", null));
+        수집결과를_보낸다(메뉴_바디("menu-name", "rv-menu-name", null));
+
+        List<com.storemanager.api.review.StoreMenu> menus = 매장메뉴(storeId);
+        assertThat(menus).hasSize(1);
+        assertThat(menus.get(0).getMenuId()).isNull();
+        assertThat(menus.get(0).getMenuName()).isEqualTo("잔치국수");
+    }
+
+    @Test
+    void 이름이_빈_메뉴는_적재하지_않는다() throws Exception {
+        Long storeId = 저별점용_매장("menu-blank");
+
+        수집결과를_보낸다(메뉴_바디("menu-blank", "rv-menu-blank", "[{\"menuId\": \"m-blank\", \"menuName\": \" \"}]"));
+
+        assertThat(매장메뉴(storeId)).isEmpty();
     }
 
     @Test
