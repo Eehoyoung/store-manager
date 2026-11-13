@@ -441,6 +441,93 @@ class BillingServiceIT {
         assertThat(row(f.storeId()).getRenewalFailures()).isZero();
     }
 
+    private List<Payment> 결제행(Subscription s) {
+        return paymentRepository.findBySubscriptionIdOrderByCreatedAtDesc(s.getId(),
+                org.springframework.data.domain.PageRequest.of(0, 12)).getContent();
+    }
+
+    /** ★ 날짜 가드가 renewAllDue 의 '내일 전' 조회에만 기대면, renew 를 직접 부르는 길에서 하루 일찍 청구된다. */
+    @Test
+    void 결제예정일이_내일인_구독은_갱신을_직접_불러도_청구하지_않는다() {
+        매장픽스처 f = 매장을_만든다("renew-not-due@example.com");
+        java.time.ZoneId kst = java.time.ZoneId.of("Asia/Seoul");
+        Instant tomorrow = ZonedDateTime.now(kst).toLocalDate().plusDays(1).atStartOfDay(kst).toInstant()
+                .plus(Duration.ofHours(1));
+        Subscription s = 구독을_만든다(f.storeId(), "ACTIVE", tomorrow, issue(f.storeId()));
+
+        billingService.renew(f.storeId());
+
+        assertThat(CHARGE_REQUESTS).noneMatch(id -> id.startsWith("renew-" + f.storeId() + "-"));
+        assertThat(결제행(s)).isEmpty();
+    }
+
+    /** ★ 결과를 모르면 아무것도 바꾸지 않는다 — 실제로 결제된 고객을 미납(GRACE)으로 만들면 미납 통지가 나간다. */
+    @Test
+    void 갱신_결과를_모르면_구독을_그대로_두고_다음_실행이_같은_결제로_끝낸다() {
+        매장픽스처 f = 매장을_만든다("renew-unknown@example.com");
+        Subscription s = 구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)),
+                issue(f.storeId()));
+        Instant due = row(f.storeId()).getNextBillingAt(); // DB 왕복 뒤 값(마이크로초 절삭)
+        upstream5xx = true;
+        confirmStatus = "PENDING";
+
+        billingService.renew(f.storeId());
+
+        Subscription unknown = row(f.storeId());
+        assertThat(unknown.getStatus()).isEqualTo("ACTIVE");
+        assertThat(unknown.getRenewalFailures()).isZero();
+        assertThat(unknown.getNextBillingAt()).isEqualTo(due);
+        assertThat(결제행(s)).singleElement().satisfies(p -> assertThat(p.getStatus()).isEqualTo("PENDING"));
+
+        upstream5xx = false;
+        billingService.renew(f.storeId());
+
+        assertThat(결제행(s)).singleElement().satisfies(p -> assertThat(p.getStatus()).isEqualTo("PAID"));
+        assertThat(row(f.storeId()).getNextBillingAt())
+                .isEqualTo(due.atZone(java.time.ZoneId.of("Asia/Seoul")).plusMonths(1).toInstant());
+    }
+
+    /** ★ 재시도는 시도 번호가 붙은 새 paymentId 로 한다 — 같으면 FAILED 행을 다시 써서 기록이 섞인다. */
+    @Test
+    void 거절_다음_재시도는_새_결제번호로_청구하고_실패횟수를_초기화한다() {
+        매장픽스처 f = 매장을_만든다("renew-retry@example.com");
+        Subscription s = 구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofDays(1)),
+                issue(f.storeId()));
+        Instant due = row(f.storeId()).getNextBillingAt();
+        String prefix = "renew-" + f.storeId() + "-" + due.getEpochSecond();
+        decline = true;
+        billingService.renew(f.storeId());
+        decline = false;
+
+        billingService.renew(f.storeId());
+
+        assertThat(CHARGE_REQUESTS).contains(prefix + "-0", prefix + "-1");
+        assertThat(결제행(s)).extracting(Payment::getStatus).containsExactlyInAnyOrder("FAILED", "PAID");
+        Subscription after = row(f.storeId());
+        assertThat(after.getRenewalFailures()).isZero();
+        assertThat(after.getNextBillingAt())
+                .isEqualTo(due.atZone(java.time.ZoneId.of("Asia/Seoul")).plusMonths(1).toInstant());
+    }
+
+    /** ★ 체크아웃과 갱신이 겹치면 이중 청구다 — 잠금이 잡혀 있으면 조용히 물러나고 남의 잠금을 풀지 않는다. */
+    @Test
+    void 청구_잠금이_잡혀_있으면_갱신은_청구하지_않고_잠금도_풀지_않는다() {
+        매장픽스처 f = 매장을_만든다("renew-busy@example.com");
+        Subscription s = 구독을_만든다(f.storeId(), "ACTIVE", Instant.now().minus(Duration.ofMinutes(1)),
+                issue(f.storeId()));
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> subscriptionRepository.lockBilling(f.storeId(), Instant.now(),
+                Instant.now().plusSeconds(60)));
+
+        billingService.renew(f.storeId());
+
+        assertThat(CHARGE_REQUESTS).noneMatch(id -> id.startsWith("renew-" + f.storeId() + "-"));
+        assertThat(결제행(s)).isEmpty();
+        Integer relocked = tx.execute(status -> subscriptionRepository.lockBilling(f.storeId(), Instant.now(),
+                Instant.now().plusSeconds(60)));
+        assertThat(relocked).isZero(); // 잠금이 아직 남의 것이다
+    }
+
     @Test
     void 제한된_구독도_체크아웃하면_오늘부터_새_주기로_풀린다() {
         매장픽스처 f = 매장을_만든다("restricted-checkout@example.com");
